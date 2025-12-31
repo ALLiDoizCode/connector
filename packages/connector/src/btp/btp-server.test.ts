@@ -6,10 +6,7 @@
 import { BTPServer } from './btp-server';
 import { Logger } from '../utils/logger';
 import { PacketHandler } from '../core/packet-handler';
-import {
-  BTPMessage,
-  BTPMessageType,
-} from './btp-types';
+import { BTPMessage, BTPMessageType } from './btp-types';
 import { serializeBTPMessage } from './btp-message-parser';
 import {
   ILPPreparePacket,
@@ -558,7 +555,9 @@ describe('BTPServer', () => {
       const wss = (server as any).wss as WebSocketServer;
 
       // Act
-      wss.emit('connection', mockWs, { socket: { remoteAddress: '192.168.1.100', remotePort: 54321 } });
+      wss.emit('connection', mockWs, {
+        socket: { remoteAddress: '192.168.1.100', remotePort: 54321 },
+      });
 
       // Assert
       expect(mockLogger.info).toHaveBeenCalledWith(

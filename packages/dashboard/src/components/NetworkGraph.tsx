@@ -104,24 +104,46 @@ const NetworkGraphComponent = ({
     []
   );
 
-  // Layout algorithm configuration (breadth-first for linear topology)
+  // Layout algorithm configuration (force-directed for arbitrary topologies)
+  // Using 'cose' (Compound Spring Embedder) layout for dynamic, flexible positioning
+  // Supports any topology: linear, mesh, hub-and-spoke, hierarchical, etc.
   const layout = useMemo(
-    () => ({
-      name: 'breadth-first',
-      spacingFactor: 1.5,
-    } as Cytoscape.LayoutOptions),
+    () =>
+      ({
+        name: 'cose',
+        animate: true,
+        animationDuration: 500,
+        idealEdgeLength: 100,
+        nodeOverlap: 20,
+        refresh: 20,
+        fit: true,
+        padding: 30,
+        randomize: false,
+        componentSpacing: 100,
+        nodeRepulsion: 400000,
+        edgeElasticity: 100,
+        nestingFactor: 5,
+        gravity: 80,
+        numIter: 1000,
+        initialTemp: 200,
+        coolingFactor: 0.95,
+        minTemp: 1.0,
+      }) as Cytoscape.LayoutOptions,
     []
   );
 
   // Fit graph to viewport on initial load and re-run layout on topology changes
   useEffect(() => {
     if (cyRef.current && elements.length > 0) {
-      // Re-run layout when new nodes are added
+      // Re-run layout when new nodes are added (use cose for dynamic layout)
       const layout = cyRef.current.layout({
-        name: 'breadth-first',
-        spacingFactor: 1.5,
+        name: 'cose',
         animate: true,
-        animationDuration: 300,
+        animationDuration: 500,
+        idealEdgeLength: 100,
+        nodeOverlap: 20,
+        nodeRepulsion: 400000,
+        gravity: 80,
       } as Cytoscape.LayoutOptions);
       layout.run();
 

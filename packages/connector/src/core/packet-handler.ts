@@ -15,6 +15,7 @@ import {
 import { RoutingTable } from '../routing/routing-table';
 import { Logger, generateCorrelationId } from '../utils/logger';
 import { BTPClientManager } from '../btp/btp-client-manager';
+import { BTPServer } from '../btp/btp-server';
 import { BTPConnectionError, BTPAuthenticationError } from '../btp/btp-client';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 
@@ -57,9 +58,14 @@ export class PacketHandler {
   private readonly routingTable: RoutingTable;
 
   /**
-   * BTP client manager for packet forwarding to peers
+   * BTP client manager for packet forwarding to outbound peers
    */
   private readonly btpClientManager: BTPClientManager;
+
+  /**
+   * BTP server for packet forwarding to incoming authenticated peers
+   */
+  private btpServer: BTPServer | null;
 
   /**
    * Logger instance for structured logging
@@ -81,23 +87,34 @@ export class PacketHandler {
   /**
    * Creates a new PacketHandler instance
    * @param routingTable - Routing table for next-hop lookups
-   * @param btpClientManager - BTP client manager for forwarding packets to peers
+   * @param btpClientManager - BTP client manager for forwarding packets to outbound peers
    * @param nodeId - Connector node ID for reject packet triggeredBy field
    * @param logger - Pino logger instance for structured logging
    * @param telemetryEmitter - Optional telemetry emitter for dashboard reporting
+   * @param btpServer - Optional BTP server for forwarding to incoming authenticated peers
    */
   constructor(
     routingTable: RoutingTable,
     btpClientManager: BTPClientManager,
     nodeId: string,
     logger: Logger,
-    telemetryEmitter: TelemetryEmitter | null = null
+    telemetryEmitter: TelemetryEmitter | null = null,
+    btpServer: BTPServer | null = null
   ) {
     this.routingTable = routingTable;
     this.btpClientManager = btpClientManager;
+    this.btpServer = btpServer;
     this.nodeId = nodeId;
     this.logger = logger;
     this.telemetryEmitter = telemetryEmitter;
+  }
+
+  /**
+   * Set BTPServer reference (to resolve circular dependency during initialization)
+   * @param btpServer - BTP server instance for incoming peer forwarding
+   */
+  setBTPServer(btpServer: BTPServer): void {
+    this.btpServer = btpServer;
   }
 
   /**
@@ -293,8 +310,33 @@ export class PacketHandler {
     );
 
     try {
-      // Forward packet via BTPClientManager
-      const response = await this.btpClientManager.sendToPeer(nextHop, packet);
+      // Try forwarding via outbound peer connection first (BTPClientManager)
+      // If that fails, try incoming peer connection (BTPServer)
+      let response: ILPFulfillPacket | ILPRejectPacket;
+
+      try {
+        response = await this.btpClientManager.sendToPeer(nextHop, packet);
+        this.logger.debug(
+          { correlationId, peerId: nextHop },
+          'Forwarded via outbound peer connection'
+        );
+      } catch (outboundError) {
+        // If outbound failed, try incoming peer if BTPServer is available
+        if (this.btpServer && this.btpServer.hasPeer(nextHop)) {
+          this.logger.debug(
+            { correlationId, peerId: nextHop },
+            'Outbound peer not available, trying incoming peer connection'
+          );
+          response = await this.btpServer.sendPacketToPeer(nextHop, packet);
+          this.logger.debug(
+            { correlationId, peerId: nextHop },
+            'Forwarded via incoming peer connection'
+          );
+        } else {
+          // Neither outbound nor incoming peer available
+          throw outboundError;
+        }
+      }
 
       this.logger.info(
         {
@@ -391,9 +433,7 @@ export class PacketHandler {
    *
    * Generates correlation ID for packet tracking across logs.
    */
-  async handlePreparePacket(
-    packet: ILPPreparePacket
-  ): Promise<ILPFulfillPacket | ILPRejectPacket> {
+  async handlePreparePacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket> {
     const correlationId = generateCorrelationId();
 
     this.logger.info(
@@ -426,11 +466,7 @@ export class PacketHandler {
         },
         'Packet rejected'
       );
-      return this.generateReject(
-        validation.errorCode!,
-        validation.errorMessage!,
-        this.nodeId
-      );
+      return this.generateReject(validation.errorCode!, validation.errorMessage!, this.nodeId);
     }
 
     // Look up next-hop peer
@@ -482,6 +518,39 @@ export class PacketHandler {
     // Emit ROUTE_LOOKUP telemetry for successful lookup
     if (this.telemetryEmitter) {
       this.telemetryEmitter.emitRouteLookup(packet.destination, nextHop, 'longest prefix match');
+    }
+
+    // Check for local delivery (destination handled by this connector)
+    if (nextHop === this.nodeId || nextHop === 'local') {
+      this.logger.info(
+        {
+          correlationId,
+          destination: packet.destination,
+          reason: 'local delivery',
+        },
+        'Delivering packet locally'
+      );
+
+      // For educational/testing purposes, auto-fulfill local packets
+      // In a real implementation, this would be handled by a local account/application
+      const fulfillPacket: ILPFulfillPacket = {
+        type: PacketType.FULFILL,
+        fulfillment: packet.executionCondition, // Educational implementation - using condition as fulfillment
+        data: Buffer.from('Local delivery - educational implementation'),
+      };
+
+      this.logger.info(
+        {
+          correlationId,
+          event: 'packet_response',
+          packetType: PacketType.FULFILL,
+          destination: packet.destination,
+          timestamp: Date.now(),
+        },
+        'Returning local fulfillment'
+      );
+
+      return fulfillPacket;
     }
 
     // Decrement expiry

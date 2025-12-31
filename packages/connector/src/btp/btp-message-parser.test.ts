@@ -3,17 +3,8 @@
  * Tests encoding/decoding of BTP protocol messages per RFC-0023
  */
 
-import {
-  parseBTPMessage,
-  serializeBTPMessage,
-} from './btp-message-parser';
-import {
-  BTPMessage,
-  BTPMessageType,
-  BTPData,
-  BTPErrorData,
-  BTPError,
-} from './btp-types';
+import { parseBTPMessage, serializeBTPMessage } from './btp-message-parser';
+import { BTPMessage, BTPMessageType, BTPData, BTPErrorData, BTPError } from './btp-types';
 
 describe('BTP Message Parser', () => {
   describe('parseBTPMessage', () => {
@@ -507,7 +498,9 @@ describe('BTP Message Parser', () => {
       expect(parsed.requestId).toBe(original.requestId);
       expect((parsed.data as BTPErrorData).code).toBe((original.data as BTPErrorData).code);
       expect((parsed.data as BTPErrorData).name).toBe((original.data as BTPErrorData).name);
-      expect((parsed.data as BTPErrorData).triggeredAt).toBe((original.data as BTPErrorData).triggeredAt);
+      expect((parsed.data as BTPErrorData).triggeredAt).toBe(
+        (original.data as BTPErrorData).triggeredAt
+      );
     });
   });
 

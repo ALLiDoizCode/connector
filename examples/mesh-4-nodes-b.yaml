@@ -22,7 +22,7 @@ healthCheckPort: 8080
 peers:
   - id: connector-a
     url: ws://connector-a:3000
-    authToken: secret-b-to-a
+    authToken: secret-a-to-b
 
   - id: connector-c
     url: ws://connector-c:3002
@@ -33,7 +33,7 @@ peers:
     authToken: secret-b-to-d
 
 # Routing Table
-# Direct routes to each peer connector
+# Direct routes to each peer connector (excluding self)
 routes:
   - prefix: g.connectora
     nextHop: connector-a

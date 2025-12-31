@@ -25,6 +25,10 @@ peers: []
 # All traffic for connector-b and connector-c is sent to connector-b
 # Note: These routes will only work once connector-b establishes a connection
 routes:
+  - prefix: g.connectora
+    nextHop: connector-a
+    priority: 0
+
   - prefix: g.connectorb
     nextHop: connector-b
     priority: 0

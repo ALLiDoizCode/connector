@@ -52,7 +52,10 @@ export class RoutingTable {
    */
   constructor(
     initialRoutes?: RoutingTableEntry[],
-    logger?: { info: (obj: object, msg?: string) => void; error: (obj: object, msg?: string) => void }
+    logger?: {
+      info: (obj: object, msg?: string) => void;
+      error: (obj: object, msg?: string) => void;
+    }
   ) {
     this.routes = new Map();
     this.logger = logger;
@@ -141,7 +144,8 @@ export class RoutingTable {
         // Update best match if this prefix is longer, or same length with higher priority
         if (
           prefixLength > longestPrefixLength ||
-          (prefixLength === longestPrefixLength && (route.priority ?? 0) > (bestMatch?.priority ?? 0))
+          (prefixLength === longestPrefixLength &&
+            (route.priority ?? 0) > (bestMatch?.priority ?? 0))
         ) {
           bestMatch = route;
           longestPrefixLength = prefixLength;

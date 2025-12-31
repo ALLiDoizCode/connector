@@ -36,6 +36,10 @@ routes:
     nextHop: connector-a
     priority: 0
 
+  - prefix: g.connectorb
+    nextHop: connector-b
+    priority: 0
+
   - prefix: g.connectorc
     nextHop: connector-c
     priority: 0

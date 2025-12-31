@@ -4,10 +4,12 @@ import { useNetworkGraph } from '../hooks/useNetworkGraph';
 import { usePacketAnimation } from '../hooks/usePacketAnimation';
 import { usePacketDetail } from '../hooks/usePacketDetail';
 import { useNodeStatus } from '../hooks/useNodeStatus';
+import { useLogViewer } from '../hooks/useLogViewer';
 import { NetworkGraph } from '../components/NetworkGraph';
 import { PacketAnimation } from '../components/PacketAnimation';
 import { PacketDetailPanel } from '../components/PacketDetailPanel';
 import { NodeStatusPanel } from '../components/NodeStatusPanel';
+import { LogViewer } from '../components/LogViewer';
 import { Toaster } from '@/components/ui/toaster';
 import Cytoscape from 'cytoscape';
 
@@ -15,19 +17,27 @@ function DashboardHome(): JSX.Element {
   const { events, connected, error } = useTelemetry();
   const { graphData } = useNetworkGraph(events);
   const { activePackets } = usePacketAnimation(events);
-  const {
-    selectedPacketId,
-    selectPacket,
-    clearSelection,
-    getSelectedPacket,
-    recentPackets,
-  } = usePacketDetail(events);
+  const { selectedPacketId, selectPacket, clearSelection, getSelectedPacket, recentPackets } =
+    usePacketDetail(events);
   const {
     selectedNodeId,
     selectNode,
     clearSelection: clearNodeSelection,
     getSelectedNode,
   } = useNodeStatus(events);
+  const {
+    logEntries,
+    filteredEntries,
+    levelFilter,
+    nodeFilter,
+    searchText,
+    autoScroll,
+    toggleLevelFilter,
+    toggleNodeFilter,
+    setSearchText,
+    toggleAutoScroll,
+    clearFilters,
+  } = useLogViewer(events);
   const [cyInstance, setCyInstance] = useState<Cytoscape.Core | null>(null);
 
   return (
@@ -39,18 +49,12 @@ function DashboardHome(): JSX.Element {
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-400">Telemetry Status:</span>
             <span
-              className={`text-sm font-medium ${
-                connected ? 'text-green-500' : 'text-red-500'
-              }`}
+              className={`text-sm font-medium ${connected ? 'text-green-500' : 'text-red-500'}`}
             >
               {connected ? 'Connected' : 'Not Connected'}
             </span>
           </div>
-          {error && (
-            <div className="text-sm text-red-400">
-              Error: {error.message}
-            </div>
-          )}
+          {error && <div className="text-sm text-red-400">Error: {error.message}</div>}
         </div>
       </div>
 
@@ -71,41 +75,61 @@ function DashboardHome(): JSX.Element {
         </div>
       </div>
 
-      {/* Network graph visualization */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        {graphData.nodes.length === 0 ? (
-          <div className="flex items-center justify-center h-[600px] text-gray-400">
-            <div className="text-center">
-              <p className="text-lg mb-2">No nodes detected</p>
-              <p className="text-sm">
-                {connected
-                  ? 'Waiting for NODE_STATUS telemetry events...'
-                  : 'Telemetry server not connected'}
-              </p>
+      {/* Split Layout: Network Graph (top) + Log Viewer (bottom) */}
+      <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 250px)' }}>
+        {/* Network graph visualization - 60% height */}
+        <div className="bg-gray-800 rounded-lg p-4" style={{ height: '60%' }}>
+          {graphData.nodes.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-gray-400">
+              <div className="text-center">
+                <p className="text-lg mb-2">No nodes detected</p>
+                <p className="text-sm">
+                  {connected
+                    ? 'Waiting for NODE_STATUS telemetry events...'
+                    : 'Telemetry server not connected'}
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <>
-            <NetworkGraph
-              graphData={graphData}
-              onCyReady={setCyInstance}
-              onNodeClick={selectNode}
-            />
-            <PacketAnimation
-              activePackets={activePackets}
-              cyInstance={cyInstance}
-              onPacketClick={selectPacket}
-            />
-          </>
-        )}
+          ) : (
+            <>
+              <NetworkGraph
+                graphData={graphData}
+                onCyReady={setCyInstance}
+                onNodeClick={selectNode}
+              />
+              <PacketAnimation
+                activePackets={activePackets}
+                cyInstance={cyInstance}
+                onPacketClick={selectPacket}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Log Viewer - 40% height */}
+        <div style={{ height: '40%' }}>
+          <LogViewer
+            logEntries={filteredEntries}
+            allLogEntries={logEntries}
+            autoScroll={autoScroll}
+            onAutoScrollChange={toggleAutoScroll}
+            levelFilter={levelFilter}
+            toggleLevelFilter={toggleLevelFilter}
+            nodeFilter={nodeFilter}
+            toggleNodeFilter={toggleNodeFilter}
+            searchText={searchText}
+            setSearchText={setSearchText}
+            clearFilters={clearFilters}
+          />
+        </div>
       </div>
 
       {/* Graph interaction instructions */}
       <div className="mt-4 text-sm text-gray-400">
         <p>
-          <strong>Interactions:</strong> Scroll to zoom, drag background to pan,
-          drag nodes to reposition, double-click background to reset layout,
-          click packets to inspect details, click nodes to view status
+          <strong>Interactions:</strong> Scroll to zoom, drag background to pan, drag nodes to
+          reposition, double-click background to reset layout, click packets to inspect details,
+          click nodes to view status
         </p>
       </div>
 

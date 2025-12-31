@@ -1,4 +1,12 @@
-import { main, ConnectorNode, RoutingTable, PacketHandler, BTPServer, BTPClient, createLogger } from './index';
+import {
+  main,
+  ConnectorNode,
+  RoutingTable,
+  PacketHandler,
+  BTPServer,
+  BTPClient,
+  createLogger,
+} from './index';
 
 describe('connector package', () => {
   it('should export main function', () => {

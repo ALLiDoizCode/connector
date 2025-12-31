@@ -59,14 +59,14 @@ describe('BTPClientManager', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockLogger = createMockLogger();
-    manager = new BTPClientManager(mockLogger);
+    manager = new BTPClientManager('test-node', mockLogger);
     MockedBTPClient = BTPClient as jest.MockedClass<typeof BTPClient>;
   });
 
   describe('Constructor', () => {
     it('should create BTPClientManager with logger', () => {
       // Arrange & Act
-      const manager = new BTPClientManager(mockLogger);
+      const manager = new BTPClientManager('test-node', mockLogger);
 
       // Assert
       expect(manager).toBeDefined();
@@ -94,7 +94,7 @@ describe('BTPClientManager', () => {
       await manager.addPeer(peer);
 
       // Assert
-      expect(BTPClient).toHaveBeenCalledWith(peer, mockLogger);
+      expect(BTPClient).toHaveBeenCalledWith(peer, 'test-node', mockLogger);
       expect(mockClient.connect).toHaveBeenCalledTimes(1);
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -159,7 +159,7 @@ describe('BTPClientManager', () => {
       );
     });
 
-    it('should remove client if connection fails', async () => {
+    it('should keep client in map if initial connection fails (allows retry)', async () => {
       // Arrange
       const peer = createTestPeer('peerD');
       const connectionError = new Error('Connection failed');
@@ -167,6 +167,7 @@ describe('BTPClientManager', () => {
         connect: jest.fn().mockRejectedValue(connectionError),
         disconnect: jest.fn().mockResolvedValue(undefined),
         sendPacket: jest.fn(),
+        setPacketHandler: jest.fn(),
         get isConnected() {
           return false;
         },
@@ -174,9 +175,11 @@ describe('BTPClientManager', () => {
       } as unknown as jest.Mocked<BTPClient>;
       MockedBTPClient.mockImplementation(() => mockClient);
 
-      // Act & Assert
-      await expect(manager.addPeer(peer)).rejects.toThrow('Connection failed');
-      expect(mockLogger.error).toHaveBeenCalledWith(
+      // Act - should NOT throw error
+      await manager.addPeer(peer);
+
+      // Assert - should log warning (not error) and keep client in map for retry
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'btp_client_add_peer_failed',
           peerId: 'peerD',
@@ -184,9 +187,9 @@ describe('BTPClientManager', () => {
         expect.any(String)
       );
 
-      // Verify peer was removed from internal map by checking getPeerStatus
+      // Verify peer is still in internal map (for background retry)
       const status = manager.getPeerStatus();
-      expect(status.has('peerD')).toBe(false);
+      expect(status.has('peerD')).toBe(true);
     });
   });
 
@@ -352,9 +355,7 @@ describe('BTPClientManager', () => {
       await manager.addPeer(peer);
 
       // Act & Assert
-      await expect(manager.sendToPeer('peerG', packet)).rejects.toThrow(
-        BTPConnectionError
-      );
+      await expect(manager.sendToPeer('peerG', packet)).rejects.toThrow(BTPConnectionError);
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'btp_client_not_connected',
@@ -372,13 +373,12 @@ describe('BTPClientManager', () => {
       const mockClient = {
         connect: jest.fn().mockResolvedValue(undefined),
         disconnect: jest.fn().mockResolvedValue(undefined),
-        sendPacket: jest
-          .fn()
-          .mockImplementation(
-            () => new Promise(() => {
+        sendPacket: jest.fn().mockImplementation(
+          () =>
+            new Promise(() => {
               // Never resolves - will timeout
             })
-          ),
+        ),
         on: jest.fn(),
       } as unknown as jest.Mocked<BTPClient>;
 

@@ -135,48 +135,60 @@ describe.skip('Health Check Integration with Docker', () => {
   }, 60000); // 1 minute timeout for cleanup
 
   describe('Test 1: All connectors report healthy status after startup', () => {
-    it('should have all connectors healthy within 60 seconds', async () => {
-      // Arrange & Act - Wait for all connectors to become healthy
-      await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
+    it(
+      'should have all connectors healthy within 60 seconds',
+      async () => {
+        // Arrange & Act - Wait for all connectors to become healthy
+        await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
 
-      // Assert - Verify each connector returns healthy status
-      const responseA = await axios.get(HEALTH_ENDPOINTS.connectorA);
-      expect(responseA.status).toBe(200);
-      expect(responseA.data).toMatchObject({
-        status: 'healthy',
-        nodeId: 'connector-a',
-      });
+        // Assert - Verify each connector returns healthy status
+        const responseA = await axios.get(HEALTH_ENDPOINTS.connectorA);
+        expect(responseA.status).toBe(200);
+        expect(responseA.data).toMatchObject({
+          status: 'healthy',
+          nodeId: 'connector-a',
+        });
 
-      const responseB = await axios.get(HEALTH_ENDPOINTS.connectorB);
-      expect(responseB.status).toBe(200);
-      expect(responseB.data).toMatchObject({
-        status: 'healthy',
-        nodeId: 'connector-b',
-      });
+        const responseB = await axios.get(HEALTH_ENDPOINTS.connectorB);
+        expect(responseB.status).toBe(200);
+        expect(responseB.data).toMatchObject({
+          status: 'healthy',
+          nodeId: 'connector-b',
+        });
 
-      const responseC = await axios.get(HEALTH_ENDPOINTS.connectorC);
-      expect(responseC.status).toBe(200);
-      expect(responseC.data).toMatchObject({
-        status: 'healthy',
-        nodeId: 'connector-c',
-      });
-    }, HEALTH_CHECK_TIMEOUT + 10000);
+        const responseC = await axios.get(HEALTH_ENDPOINTS.connectorC);
+        expect(responseC.status).toBe(200);
+        expect(responseC.data).toMatchObject({
+          status: 'healthy',
+          nodeId: 'connector-c',
+        });
+      },
+      HEALTH_CHECK_TIMEOUT + 10000
+    );
 
-    it('should show all containers as healthy in docker-compose ps', async () => {
-      // Arrange - Wait for Docker health checks to pass
-      await waitFor(async () => {
-        const health = await getDockerComposeHealth();
-        return Object.values(health).every((status) => status === 'healthy');
-      }, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
+    it(
+      'should show all containers as healthy in docker-compose ps',
+      async () => {
+        // Arrange - Wait for Docker health checks to pass
+        await waitFor(
+          async () => {
+            const health = await getDockerComposeHealth();
+            return Object.values(health).every((status) => status === 'healthy');
+          },
+          HEALTH_CHECK_TIMEOUT,
+          HEALTH_CHECK_INTERVAL
+        );
 
-      // Act
-      const healthStatus = await getDockerComposeHealth();
+        // Act
+        const healthStatus = await getDockerComposeHealth();
 
-      // Assert
-      expect(healthStatus['connector-a']).toBe('healthy');
-      expect(healthStatus['connector-b']).toBe('healthy');
-      expect(healthStatus['connector-c']).toBe('healthy');
-    }, HEALTH_CHECK_TIMEOUT + 10000);
+        // Assert
+        expect(healthStatus['connector-a']).toBe('healthy');
+        expect(healthStatus['connector-b']).toBe('healthy');
+        expect(healthStatus['connector-c']).toBe('healthy');
+      },
+      HEALTH_CHECK_TIMEOUT + 10000
+    );
   });
 
   describe('Test 2: Container marked unhealthy when BTP connections fail', () => {
@@ -214,48 +226,56 @@ describe.skip('Health Check Integration with Docker', () => {
   });
 
   describe('Test 3: Health endpoint accessible from host machine', () => {
-    it('should be able to access health endpoint from host', async () => {
-      // Arrange - Wait for connectors to be healthy
-      await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
+    it(
+      'should be able to access health endpoint from host',
+      async () => {
+        // Arrange - Wait for connectors to be healthy
+        await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
 
-      // Act - Send GET request from host to health endpoint
-      const response = await axios.get(HEALTH_ENDPOINTS.connectorA);
+        // Act - Send GET request from host to health endpoint
+        const response = await axios.get(HEALTH_ENDPOINTS.connectorA);
 
-      // Assert - Request succeeds without network errors
-      expect(response.status).toBe(200);
+        // Assert - Request succeeds without network errors
+        expect(response.status).toBe(200);
 
-      // Assert - Response is valid JSON with HealthStatus structure
-      expect(response.headers['content-type']).toContain('application/json');
-      expect(response.data).toHaveProperty('status');
-      expect(response.data).toHaveProperty('uptime');
-      expect(response.data).toHaveProperty('peersConnected');
-      expect(response.data).toHaveProperty('totalPeers');
-      expect(response.data).toHaveProperty('timestamp');
-      expect(response.data).toHaveProperty('nodeId');
-      expect(response.data).toHaveProperty('version');
-    }, HEALTH_CHECK_TIMEOUT + 10000);
+        // Assert - Response is valid JSON with HealthStatus structure
+        expect(response.headers['content-type']).toContain('application/json');
+        expect(response.data).toHaveProperty('status');
+        expect(response.data).toHaveProperty('uptime');
+        expect(response.data).toHaveProperty('peersConnected');
+        expect(response.data).toHaveProperty('totalPeers');
+        expect(response.data).toHaveProperty('timestamp');
+        expect(response.data).toHaveProperty('nodeId');
+        expect(response.data).toHaveProperty('version');
+      },
+      HEALTH_CHECK_TIMEOUT + 10000
+    );
   });
 
   describe('Test 4: Docker Compose ps output shows health status', () => {
-    it('should display health status in docker-compose ps output', async () => {
-      // Arrange - Wait for connectors to be healthy
-      await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
+    it(
+      'should display health status in docker-compose ps output',
+      async () => {
+        // Arrange - Wait for connectors to be healthy
+        await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);
 
-      // Act - Run docker-compose ps and parse output
-      const { stdout } = await execAsync(`${DOCKER_COMPOSE_CMD} ps`);
+        // Act - Run docker-compose ps and parse output
+        const { stdout } = await execAsync(`${DOCKER_COMPOSE_CMD} ps`);
 
-      // Assert - Output contains health status for all connectors
-      expect(stdout).toContain('connector-a');
-      expect(stdout).toContain('connector-b');
-      expect(stdout).toContain('connector-c');
+        // Assert - Output contains health status for all connectors
+        expect(stdout).toContain('connector-a');
+        expect(stdout).toContain('connector-b');
+        expect(stdout).toContain('connector-c');
 
-      // Note: Exact format depends on docker-compose version
-      // Modern versions show health in parentheses like "(healthy)"
-      console.log('Docker Compose PS output:\n', stdout);
-    }, HEALTH_CHECK_TIMEOUT + 10000);
+        // Note: Exact format depends on docker-compose version
+        // Modern versions show health in parentheses like "(healthy)"
+        console.log('Docker Compose PS output:\n', stdout);
+      },
+      HEALTH_CHECK_TIMEOUT + 10000
+    );
   });
 
-  describe('Test 5: Health checks don\'t create excessive log noise', () => {
+  describe("Test 5: Health checks don't create excessive log noise", () => {
     it('should log health checks at DEBUG level only (not INFO)', async () => {
       // Arrange - Wait for connectors to be healthy
       await waitFor(checkAllConnectorsHealthy, HEALTH_CHECK_TIMEOUT, HEALTH_CHECK_INTERVAL);

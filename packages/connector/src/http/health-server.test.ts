@@ -233,9 +233,7 @@ describe('HealthServer', () => {
       await healthServer.stop();
 
       // Assert - Connection should be refused after stop
-      await expect(
-        request('http://localhost:8087').get('/health')
-      ).rejects.toThrow();
+      await expect(request('http://localhost:8087').get('/health')).rejects.toThrow();
     });
 
     it('should not throw error if server is not started', async () => {

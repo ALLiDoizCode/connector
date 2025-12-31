@@ -140,7 +140,18 @@ describe('decodeVarUInt', () => {
   });
 
   it('should round-trip encode/decode various values', () => {
-    const testValues = [0n, 1n, 127n, 128n, 255n, 256n, 1000n, 65535n, BigInt(2 ** 32), BigInt('18446744073709551615')];
+    const testValues = [
+      0n,
+      1n,
+      127n,
+      128n,
+      255n,
+      256n,
+      1000n,
+      65535n,
+      BigInt(2 ** 32),
+      BigInt('18446744073709551615'),
+    ];
 
     testValues.forEach((value) => {
       const encoded = encodeVarUInt(value);
@@ -231,7 +242,7 @@ describe('decodeVarOctetString', () => {
   it('should throw BufferUnderflowError when data is truncated', () => {
     // Length says 10 bytes, but only 2 bytes available
     expect(() => decodeVarOctetString(Buffer.from([0x0a, 0x01, 0x02]), 0)).toThrow(
-      BufferUnderflowError,
+      BufferUnderflowError
     );
   });
 
@@ -425,7 +436,9 @@ describe('deserializePrepare', () => {
   it('should throw BufferUnderflowError when buffer is empty (Line 515)', () => {
     const emptyBuffer = Buffer.alloc(0);
     expect(() => deserializePrepare(emptyBuffer)).toThrow(BufferUnderflowError);
-    expect(() => deserializePrepare(emptyBuffer)).toThrow(/Cannot read packet type: buffer underflow/);
+    expect(() => deserializePrepare(emptyBuffer)).toThrow(
+      /Cannot read packet type: buffer underflow/
+    );
   });
 
   it('should throw InvalidPacketError when type byte is incorrect', () => {
@@ -769,7 +782,7 @@ describe('RFC-0027 ILPv4 Test Vectors - Binary Format Validation', () => {
         destination: 'g.example.alice',
         executionCondition: Buffer.from(
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-          'hex',
+          'hex'
         ),
         expiresAt: new Date('2024-01-01T12:00:00.000Z'),
         data: Buffer.from([]),
@@ -821,7 +834,7 @@ describe('RFC-0027 ILPv4 Test Vectors - Binary Format Validation', () => {
         destination: 'g.example.alice',
         executionCondition: Buffer.from(
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-          'hex',
+          'hex'
         ),
         expiresAt: new Date('2024-01-01T12:00:00.000Z'),
         data: Buffer.from([]),
@@ -877,7 +890,7 @@ describe('RFC-0027 ILPv4 Test Vectors - Binary Format Validation', () => {
         type: PacketType.FULFILL,
         fulfillment: Buffer.from(
           'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
-          'hex',
+          'hex'
         ),
         data: Buffer.from([]),
       };
@@ -908,7 +921,7 @@ describe('RFC-0027 ILPv4 Test Vectors - Binary Format Validation', () => {
         type: PacketType.FULFILL,
         fulfillment: Buffer.from(
           'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
-          'hex',
+          'hex'
         ),
         data: Buffer.from([]),
       };
@@ -1131,7 +1144,9 @@ describe('OER Encoding Uncovered Edge Cases (Coverage Improvement)', () => {
     it('should throw BufferUnderflowError when deserializing empty buffer for Fulfill packet', () => {
       const emptyBuffer = Buffer.alloc(0);
       expect(() => deserializeFulfill(emptyBuffer)).toThrow(BufferUnderflowError);
-      expect(() => deserializeFulfill(emptyBuffer)).toThrow(/Cannot read packet type: buffer underflow/);
+      expect(() => deserializeFulfill(emptyBuffer)).toThrow(
+        /Cannot read packet type: buffer underflow/
+      );
     });
   });
 
@@ -1139,7 +1154,9 @@ describe('OER Encoding Uncovered Edge Cases (Coverage Improvement)', () => {
     it('should throw BufferUnderflowError when deserializing empty buffer for Reject packet', () => {
       const emptyBuffer = Buffer.alloc(0);
       expect(() => deserializeReject(emptyBuffer)).toThrow(BufferUnderflowError);
-      expect(() => deserializeReject(emptyBuffer)).toThrow(/Cannot read packet type: buffer underflow/);
+      expect(() => deserializeReject(emptyBuffer)).toThrow(
+        /Cannot read packet type: buffer underflow/
+      );
     });
   });
 

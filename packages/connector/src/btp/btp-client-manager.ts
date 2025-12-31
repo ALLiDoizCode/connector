@@ -6,6 +6,7 @@
 import { Logger } from '../utils/logger';
 import { BTPClient, Peer, BTPConnectionError } from './btp-client';
 import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+import type { PacketHandler } from '../core/packet-handler';
 
 /**
  * BTPClientManager - Orchestrates multiple BTP client connections
@@ -14,13 +15,29 @@ import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared
 export class BTPClientManager {
   private readonly _clients: Map<string, BTPClient> = new Map();
   private readonly _logger: Logger;
+  private readonly _nodeId: string;
+  private _packetHandler: PacketHandler | null = null;
 
   /**
    * Create BTPClientManager instance
+   * @param nodeId - Local node identifier
    * @param logger - Pino logger instance
    */
-  constructor(logger: Logger) {
+  constructor(nodeId: string, logger: Logger) {
+    this._nodeId = nodeId;
     this._logger = logger.child({ component: 'BTPClientManager' });
+  }
+
+  /**
+   * Set PacketHandler reference (to handle incoming prepare packets from servers)
+   * @param packetHandler - PacketHandler instance for routing incoming packets
+   */
+  setPacketHandler(packetHandler: PacketHandler): void {
+    this._packetHandler = packetHandler;
+    // Update existing clients
+    for (const client of this._clients.values()) {
+      client.setPacketHandler(packetHandler);
+    }
   }
 
   /**
@@ -44,7 +61,12 @@ export class BTPClientManager {
     }
 
     // Create BTPClient for peer
-    const client = new BTPClient(peer, this._logger);
+    const client = new BTPClient(peer, this._nodeId, this._logger);
+
+    // Set PacketHandler if available (for handling incoming prepare packets)
+    if (this._packetHandler) {
+      client.setPacketHandler(this._packetHandler);
+    }
 
     // Set up event listeners for connection state tracking
     client.on('connected', () => {
@@ -79,14 +101,14 @@ export class BTPClientManager {
         'Peer added and connected'
       );
     } catch (error) {
-      // Remove client if connection fails
-      this._clients.delete(peer.id);
+      // Don't remove client from map - BTPClient will retry in background
+      // Client can still be used once retry succeeds
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this._logger.error(
+      this._logger.warn(
         { event: 'btp_client_add_peer_failed', peerId: peer.id, error: errorMessage },
-        'Failed to connect to peer'
+        'Initial connection to peer failed (will retry in background)'
       );
-      throw error;
+      // Don't rethrow - allow connector to start even if initial connection fails
     }
   }
 
@@ -96,10 +118,7 @@ export class BTPClientManager {
    * @param peerId - Peer identifier
    */
   async removePeer(peerId: string): Promise<void> {
-    this._logger.info(
-      { event: 'btp_client_remove_peer', peerId },
-      'Removing peer'
-    );
+    this._logger.info({ event: 'btp_client_remove_peer', peerId }, 'Removing peer');
 
     const client = this._clients.get(peerId);
     if (!client) {
@@ -144,20 +163,14 @@ export class BTPClientManager {
     const client = this._clients.get(peerId);
     if (!client) {
       const errorMessage = `Peer not found: ${peerId}`;
-      this._logger.error(
-        { event: 'btp_client_peer_not_found', peerId },
-        errorMessage
-      );
+      this._logger.error({ event: 'btp_client_peer_not_found', peerId }, errorMessage);
       throw new Error(errorMessage);
     }
 
     // Check connection state before sending
     if (!client.isConnected) {
       const errorMessage = `BTP connection to ${peerId} not established`;
-      this._logger.error(
-        { event: 'btp_client_not_connected', peerId },
-        errorMessage
-      );
+      this._logger.error({ event: 'btp_client_not_connected', peerId }, errorMessage);
       throw new BTPConnectionError(errorMessage);
     }
 
@@ -171,10 +184,7 @@ export class BTPClientManager {
       });
 
       // Race between sendPacket and timeout
-      const response = await Promise.race([
-        client.sendPacket(packet),
-        timeoutPromise,
-      ]);
+      const response = await Promise.race([client.sendPacket(packet), timeoutPromise]);
 
       this._logger.debug(
         { event: 'btp_client_packet_sent', peerId, destination: packet.destination },

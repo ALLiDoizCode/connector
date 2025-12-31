@@ -174,9 +174,7 @@ describe('useTelemetry', () => {
 
     // Simulate malformed message
     if (mockWebSocket.onmessage) {
-      mockWebSocket.onmessage(
-        new MessageEvent('message', { data: 'invalid json' })
-      );
+      mockWebSocket.onmessage(new MessageEvent('message', { data: 'invalid json' }));
     }
 
     // Events array should remain empty

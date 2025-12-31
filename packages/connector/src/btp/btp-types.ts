@@ -67,9 +67,7 @@ export function isBTPErrorData(
 /**
  * Type guard to check if BTPMessage data is BTPData
  */
-export function isBTPData(
-  message: BTPMessage
-): message is BTPMessage & { data: BTPData } {
+export function isBTPData(message: BTPMessage): message is BTPMessage & { data: BTPData } {
   return message.type !== BTPMessageType.ERROR;
 }
 

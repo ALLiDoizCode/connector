@@ -66,9 +66,7 @@ describe('ConfigLoader', () => {
 
       // Act & Assert
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        'Missing required field: nodeId'
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow('Missing required field: nodeId');
     });
   });
 
@@ -106,15 +104,17 @@ describe('ConfigLoader', () => {
   });
 
   describe('loadConfig - Route References Non-existent Peer', () => {
-    it('Test 6: should throw ConfigurationError when route references non-existent peer', () => {
+    it('Test 6: should allow routes to reference non-existent peers (dynamic peers)', () => {
       // Arrange
       const configPath = path.join(FIXTURES_DIR, 'route-nonexistent-peer.yaml');
 
-      // Act & Assert
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Route references non-existent peer/
-      );
+      // Act
+      const config = ConfigLoader.loadConfig(configPath);
+
+      // Assert - should NOT throw because routes can reference dynamic peers
+      // that will connect inbound (not in static peers list)
+      expect(config.routes).toHaveLength(1);
+      expect(config.routes[0]?.nextHop).toBe('unknown-peer');
     });
   });
 
@@ -138,9 +138,7 @@ describe('ConfigLoader', () => {
 
       // Act & Assert
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid ILP address prefix/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid ILP address prefix/);
     });
   });
 
@@ -151,9 +149,7 @@ describe('ConfigLoader', () => {
 
       // Act & Assert
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Configuration file not found/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Configuration file not found/);
     });
   });
 
@@ -270,17 +266,13 @@ describe('ConfigLoader', () => {
     it('should throw ConfigurationError for invalid nodeId type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-node-id-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for nodeId/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for nodeId/);
     });
 
     it('should throw ConfigurationError for invalid btpServerPort type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-btp-port-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for btpServerPort/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for btpServerPort/);
     });
 
     it('should throw ConfigurationError for invalid peers type', () => {
@@ -320,13 +312,17 @@ describe('ConfigLoader', () => {
     it('should throw ConfigurationError for missing peer url', () => {
       const configPath = path.join(FIXTURES_DIR, 'missing-peer-url.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Peer .* missing required field: url/);
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
+        /Peer .* missing required field: url/
+      );
     });
 
     it('should throw ConfigurationError for missing peer authToken', () => {
       const configPath = path.join(FIXTURES_DIR, 'missing-peer-authtoken.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Peer .* missing required field: authToken/);
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
+        /Peer .* missing required field: authToken/
+      );
     });
 
     it('should throw ConfigurationError for invalid peer id type', () => {
@@ -344,9 +340,7 @@ describe('ConfigLoader', () => {
     it('should throw ConfigurationError for invalid peer authToken type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-peer-authtoken-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for peer.authToken/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for peer.authToken/);
     });
   });
 
@@ -354,37 +348,35 @@ describe('ConfigLoader', () => {
     it('should throw ConfigurationError for missing route prefix', () => {
       const configPath = path.join(FIXTURES_DIR, 'missing-route-prefix.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Route missing required field: prefix/);
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
+        /Route missing required field: prefix/
+      );
     });
 
     it('should throw ConfigurationError for missing route nextHop', () => {
       const configPath = path.join(FIXTURES_DIR, 'missing-route-nexthop.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Route missing required field: nextHop/);
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
+        /Route missing required field: nextHop/
+      );
     });
 
     it('should throw ConfigurationError for invalid route prefix type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-route-prefix-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for route.prefix/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for route.prefix/);
     });
 
     it('should throw ConfigurationError for invalid route nextHop type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-route-nexthop-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for route.nextHop/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for route.nextHop/);
     });
 
     it('should throw ConfigurationError for invalid route priority type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-route-priority-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for route.priority/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for route.priority/);
     });
   });
 
@@ -392,9 +384,7 @@ describe('ConfigLoader', () => {
     it('should throw ConfigurationError for invalid healthCheckPort type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-health-check-port-type.yaml');
       expect(() => ConfigLoader.loadConfig(configPath)).toThrow(ConfigurationError);
-      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(
-        /Invalid type for healthCheckPort/
-      );
+      expect(() => ConfigLoader.loadConfig(configPath)).toThrow(/Invalid type for healthCheckPort/);
     });
 
     it('should throw ConfigurationError for healthCheckPort out of range', () => {

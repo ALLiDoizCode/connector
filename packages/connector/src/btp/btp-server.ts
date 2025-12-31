@@ -6,15 +6,16 @@
 import WebSocket, { WebSocketServer } from 'ws';
 import { Logger } from '../utils/logger';
 import { PacketHandler } from '../core/packet-handler';
-import {
-  BTPMessage,
-  BTPMessageType,
-  BTPData,
-  BTPError,
-  isBTPData,
-} from './btp-types';
+import { BTPMessage, BTPMessageType, BTPData, BTPError, isBTPData } from './btp-types';
 import { parseBTPMessage, serializeBTPMessage } from './btp-message-parser';
-import { deserializePacket, serializePacket, ILPPreparePacket, PacketType } from '@m2m/shared';
+import {
+  deserializePacket,
+  serializePacket,
+  ILPPreparePacket,
+  ILPFulfillPacket,
+  ILPRejectPacket,
+  PacketType,
+} from '@m2m/shared';
 
 /**
  * BTP peer connection metadata
@@ -26,6 +27,15 @@ interface PeerConnection {
 }
 
 /**
+ * Pending request for response tracking
+ */
+interface PendingRequest {
+  resolve: (response: ILPFulfillPacket | ILPRejectPacket) => void;
+  reject: (error: Error) => void;
+  timeout: NodeJS.Timeout;
+}
+
+/**
  * BTPServer - WebSocket server for BTP protocol
  * Accepts incoming BTP connections from peer connectors
  */
@@ -34,6 +44,7 @@ export class BTPServer {
   private readonly packetHandler: PacketHandler;
   private wss: WebSocketServer | null = null;
   private readonly peers: Map<string, PeerConnection> = new Map();
+  private readonly pendingRequests: Map<number, PendingRequest> = new Map();
   private onConnectionCallback?: (peerId: string, connection: WebSocket) => void;
   private onMessageCallback?: (peerId: string, message: BTPMessage) => void;
 
@@ -173,9 +184,93 @@ export class BTPServer {
   }
 
   /**
+   * Check if a peer is connected (authenticated incoming connection)
+   * @param peerId - Peer identifier to check
+   * @returns True if peer is connected and authenticated
+   */
+  hasPeer(peerId: string): boolean {
+    const peer = this.peers.get(peerId);
+    return peer !== undefined && peer.authenticated;
+  }
+
+  /**
+   * Send ILP packet to an incoming authenticated peer
+   * @param peerId - Target peer identifier
+   * @param packet - ILP Prepare packet to send
+   * @returns ILP response packet (Fulfill or Reject)
+   * @throws Error if peer not found or not authenticated
+   */
+  async sendPacketToPeer(
+    peerId: string,
+    packet: ILPPreparePacket
+  ): Promise<ILPFulfillPacket | ILPRejectPacket> {
+    this.logger.debug(
+      { event: 'btp_server_send_to_peer', peerId, destination: packet.destination },
+      'Sending packet to incoming peer'
+    );
+
+    // Look up authenticated peer connection
+    const peerConn = this.peers.get(peerId);
+    if (!peerConn || !peerConn.authenticated) {
+      const errorMessage = `Incoming peer not found or not authenticated: ${peerId}`;
+      this.logger.error({ event: 'btp_server_peer_not_found', peerId }, errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Check WebSocket state
+    if (peerConn.ws.readyState !== WebSocket.OPEN) {
+      const errorMessage = `WebSocket to incoming peer ${peerId} not in OPEN state`;
+      this.logger.error({ event: 'btp_server_ws_not_open', peerId }, errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Generate unique request ID
+    const requestId = Math.floor(Math.random() * 0xffffffff);
+
+    // Serialize ILP packet
+    const ilpPacketBuffer = serializePacket(packet);
+
+    // Create BTP MESSAGE
+    const btpMessage: BTPMessage = {
+      type: BTPMessageType.MESSAGE,
+      requestId,
+      data: {
+        protocolData: [],
+        ilpPacket: ilpPacketBuffer,
+      },
+    };
+
+    // Serialize BTP message
+    const btpBuffer = serializeBTPMessage(btpMessage);
+
+    // Create promise for response
+    return new Promise<ILPFulfillPacket | ILPRejectPacket>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`Timeout waiting for response from peer ${peerId}`));
+      }, 10000); // 10 second timeout
+
+      // Register pending request
+      this.pendingRequests.set(requestId, { resolve, reject, timeout });
+
+      // Send BTP message
+      peerConn.ws.send(btpBuffer, (error) => {
+        if (error) {
+          clearTimeout(timeout);
+          this.pendingRequests.delete(requestId);
+          reject(error);
+        }
+      });
+    });
+  }
+
+  /**
    * Handle new WebSocket connection
    */
-  private handleConnection(ws: WebSocket, req: { socket: { remoteAddress?: string; remotePort?: number } }): void {
+  private handleConnection(
+    ws: WebSocket,
+    req: { socket: { remoteAddress?: string; remotePort?: number } }
+  ): void {
     const remoteAddress = req.socket.remoteAddress ?? 'unknown';
     const connectionId = `${remoteAddress}:${req.socket.remotePort}`;
 
@@ -211,9 +306,8 @@ export class BTPServer {
         // Send BTP ERROR response if connection is still open
         if (ws.readyState === WebSocket.OPEN) {
           try {
-            const btpError = error instanceof BTPError
-              ? error
-              : new BTPError('F00', 'Internal server error');
+            const btpError =
+              error instanceof BTPError ? error : new BTPError('F00', 'Internal server error');
 
             const errorMessage: BTPMessage = {
               type: BTPMessageType.ERROR,
@@ -267,10 +361,7 @@ export class BTPServer {
   /**
    * Handle incoming WebSocket message
    */
-  private async handleWebSocketMessage(
-    peerConn: PeerConnection,
-    data: Buffer
-  ): Promise<void> {
+  private async handleWebSocketMessage(peerConn: PeerConnection, data: Buffer): Promise<void> {
     // Parse BTP message
     const message = parseBTPMessage(data);
 
@@ -290,7 +381,54 @@ export class BTPServer {
       return;
     }
 
-    // Handle authenticated messages
+    // Check if this is a response to an outbound request
+    const pendingRequest = this.pendingRequests.get(message.requestId);
+    if (
+      pendingRequest &&
+      (message.type === BTPMessageType.RESPONSE || message.type === BTPMessageType.ERROR)
+    ) {
+      // This is a response to an outbound packet we sent
+      clearTimeout(pendingRequest.timeout);
+      this.pendingRequests.delete(message.requestId);
+
+      try {
+        if (message.type === BTPMessageType.RESPONSE && isBTPData(message)) {
+          const ilpPacket = message.data.ilpPacket;
+          if (!ilpPacket) {
+            pendingRequest.reject(new Error('Response missing ILP packet'));
+            return;
+          }
+          const ilpResponse = deserializePacket(ilpPacket);
+
+          if (ilpResponse.type === PacketType.FULFILL || ilpResponse.type === PacketType.REJECT) {
+            this.logger.debug(
+              {
+                event: 'btp_server_packet_response',
+                peerId: peerConn.peerId,
+                responseType: PacketType[ilpResponse.type],
+              },
+              'Received ILP response from incoming peer'
+            );
+            pendingRequest.resolve(ilpResponse as ILPFulfillPacket | ILPRejectPacket);
+          } else {
+            pendingRequest.reject(new Error(`Unexpected ILP packet type: ${ilpResponse.type}`));
+          }
+        } else if (message.type === BTPMessageType.ERROR) {
+          const errorData = message.data as { code: string; name?: string };
+          pendingRequest.reject(
+            new Error(
+              `BTP Error from peer ${peerConn.peerId}: ${errorData.code} - ${errorData.name ?? 'Unknown'}`
+            )
+          );
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        pendingRequest.reject(new Error(`Error parsing response: ${errorMessage}`));
+      }
+      return;
+    }
+
+    // Handle authenticated messages (new incoming packets)
     if (message.type === BTPMessageType.MESSAGE) {
       await this.handleMessage(peerConn, message);
     } else {
@@ -315,10 +453,7 @@ export class BTPServer {
    * @param peerConn - Peer connection to authenticate
    * @param authMessage - BTP AUTH message
    */
-  private async authenticatePeer(
-    peerConn: PeerConnection,
-    authMessage: BTPMessage
-  ): Promise<void> {
+  private async authenticatePeer(peerConn: PeerConnection, authMessage: BTPMessage): Promise<void> {
     try {
       // Validate message type (expect MESSAGE with auth protocol data)
       if (authMessage.type !== BTPMessageType.MESSAGE) {
@@ -335,9 +470,7 @@ export class BTPServer {
       const messageData = authMessage.data as BTPData;
 
       // Find auth protocol data
-      const authProtocolData = messageData.protocolData.find(
-        (pd) => pd.protocolName === 'auth'
-      );
+      const authProtocolData = messageData.protocolData.find((pd) => pd.protocolName === 'auth');
 
       if (!authProtocolData) {
         throw new BTPError('F00', 'Missing auth protocol data');
@@ -422,9 +555,8 @@ export class BTPServer {
       );
 
       // Send ERROR response
-      const btpError = error instanceof BTPError
-        ? error
-        : new BTPError('F00', 'Authentication failed');
+      const btpError =
+        error instanceof BTPError ? error : new BTPError('F00', 'Authentication failed');
 
       const errorMessage: BTPMessage = {
         type: BTPMessageType.ERROR,
@@ -446,10 +578,7 @@ export class BTPServer {
    * @param peerConn - Authenticated peer connection
    * @param message - BTP MESSAGE
    */
-  private async handleMessage(
-    peerConn: PeerConnection,
-    message: BTPMessage
-  ): Promise<void> {
+  private async handleMessage(peerConn: PeerConnection, message: BTPMessage): Promise<void> {
     const childLogger = this.logger.child({ peerId: peerConn.peerId });
 
     try {
@@ -529,9 +658,10 @@ export class BTPServer {
       );
 
       // Send BTP ERROR response
-      const btpError = error instanceof BTPError
-        ? error
-        : new BTPError('F00', 'Internal error processing message');
+      const btpError =
+        error instanceof BTPError
+          ? error
+          : new BTPError('F00', 'Internal error processing message');
 
       const errorMessage: BTPMessage = {
         type: BTPMessageType.ERROR,

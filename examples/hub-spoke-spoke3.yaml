@@ -28,6 +28,10 @@ peers:
 # All traffic routed through the hub (default route)
 # This includes traffic to other spokes and external destinations
 routes:
+  - prefix: g.spoke3
+    nextHop: spoke-3
+    priority: 0
+
   - prefix: g.spoke1
     nextHop: connector-hub
     priority: 0

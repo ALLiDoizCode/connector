@@ -54,9 +54,7 @@ export const PacketAnimation = React.memo(
       // If user prefers reduced motion, skip animations
       if (prefersReducedMotion) {
         // eslint-disable-next-line no-console
-        console.debug(
-          '[PacketAnimation] Reduced motion preference detected, skipping animations'
-        );
+        console.debug('[PacketAnimation] Reduced motion preference detected, skipping animations');
         return;
       }
 
@@ -142,9 +140,7 @@ export const PacketAnimation = React.memo(
             // Calculate perpendicular vector to edge
             const edgeVectorX = targetPos.x - sourcePos.x;
             const edgeVectorY = targetPos.y - sourcePos.y;
-            const edgeLength = Math.sqrt(
-              edgeVectorX * edgeVectorX + edgeVectorY * edgeVectorY
-            );
+            const edgeLength = Math.sqrt(edgeVectorX * edgeVectorX + edgeVectorY * edgeVectorY);
 
             if (edgeLength > 0) {
               // Perpendicular vector (rotate 90 degrees)
@@ -152,8 +148,7 @@ export const PacketAnimation = React.memo(
               const perpY = edgeVectorX / edgeLength;
 
               // Offset distance (8px per packet, centered around edge)
-              const offsetDistance =
-                (packetIndex - (packetsOnEdge.length - 1) / 2) * 8;
+              const offsetDistance = (packetIndex - (packetsOnEdge.length - 1) / 2) * 8;
 
               interpolatedX += perpX * offsetDistance;
               interpolatedY += perpY * offsetDistance;

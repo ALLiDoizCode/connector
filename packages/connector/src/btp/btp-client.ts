@@ -15,8 +15,9 @@ import {
   isBTPErrorData,
 } from './btp-types';
 import { parseBTPMessage, serializeBTPMessage } from './btp-message-parser';
-import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket, PacketType } from '@m2m/shared';
 import { serializePacket, deserializePacket } from '@m2m/shared';
+import type { PacketHandler } from '../core/packet-handler';
 
 /**
  * Peer configuration for BTP connections
@@ -90,15 +91,20 @@ export class BTPClient extends EventEmitter {
   private _explicitDisconnect = false; // Track if disconnect was intentional
   private readonly _packetSendTimeoutMs = 10000; // 10 seconds
 
+  private readonly _nodeId: string;
+  private _packetHandler: PacketHandler | null = null;
+
   /**
    * Create BTPClient instance
    * @param peer - Peer configuration
+   * @param nodeId - Local node identifier (sent in auth message)
    * @param logger - Pino logger instance
    * @param maxRetries - Maximum retry attempts (default: 5)
    */
-  constructor(peer: Peer, logger: Logger, maxRetries?: number) {
+  constructor(peer: Peer, nodeId: string, logger: Logger, maxRetries?: number) {
     super();
     this._peer = peer;
+    this._nodeId = nodeId;
     this._logger = logger.child({ peerId: peer.id });
     if (maxRetries !== undefined) {
       this._maxRetries = maxRetries;
@@ -110,6 +116,14 @@ export class BTPClient extends EventEmitter {
    */
   get isConnected(): boolean {
     return this._connectionState === 'connected';
+  }
+
+  /**
+   * Set PacketHandler reference (to handle incoming prepare packets from server)
+   * @param packetHandler - PacketHandler instance for routing incoming packets
+   */
+  setPacketHandler(packetHandler: PacketHandler): void {
+    this._packetHandler = packetHandler;
   }
 
   /**
@@ -129,7 +143,10 @@ export class BTPClient extends EventEmitter {
     this._explicitDisconnect = false;
 
     this._connectionState = 'connecting';
-    this._logger.info({ event: 'btp_connection_attempt', url: this._peer.url }, 'Connecting to peer');
+    this._logger.info(
+      { event: 'btp_connection_attempt', url: this._peer.url },
+      'Connecting to peer'
+    );
 
     return new Promise<void>((resolve, reject) => {
       try {
@@ -145,10 +162,7 @@ export class BTPClient extends EventEmitter {
             this._peer.lastSeen = new Date();
             this._startKeepAlive();
 
-            this._logger.info(
-              { event: 'btp_connected', url: this._peer.url },
-              'Connected to peer'
-            );
+            this._logger.info({ event: 'btp_connected', url: this._peer.url }, 'Connected to peer');
             this.emit('connected');
             resolve();
           } catch (error) {
@@ -166,7 +180,10 @@ export class BTPClient extends EventEmitter {
         this._ws.on('message', (data: Buffer) => {
           this._handleMessage(data).catch((error) => {
             this._logger.error(
-              { event: 'btp_message_error', error: error instanceof Error ? error.message : String(error) },
+              {
+                event: 'btp_message_error',
+                error: error instanceof Error ? error.message : String(error),
+              },
               'Error handling message'
             );
           });
@@ -236,8 +253,13 @@ export class BTPClient extends EventEmitter {
   private async _authenticate(): Promise<void> {
     this._logger.info({ event: 'btp_auth_attempt' }, 'Attempting authentication');
 
-    // Create AUTH message with shared secret in protocol data
-    const authTokenBuffer = Buffer.from(this._peer.authToken, 'utf8');
+    // Create AUTH message with nodeId and shared secret in JSON format
+    // Server expects: { "peerId": "connector-b", "secret": "shared-secret" }
+    const authData = {
+      peerId: this._nodeId,
+      secret: this._peer.authToken,
+    };
+    const authDataBuffer = Buffer.from(JSON.stringify(authData), 'utf8');
     const authMessage: BTPMessage = {
       type: BTPMessageType.MESSAGE,
       requestId: this._generateRequestId(),
@@ -246,7 +268,7 @@ export class BTPClient extends EventEmitter {
           {
             protocolName: 'auth',
             contentType: 0,
-            data: authTokenBuffer,
+            data: authDataBuffer,
           },
         ],
         ilpPacket: Buffer.alloc(0),
@@ -279,7 +301,9 @@ export class BTPClient extends EventEmitter {
             this._ws?.removeListener('message', authHandler);
 
             if (message.type === BTPMessageType.ERROR) {
-              const errorData = isBTPErrorData(message) ? message.data : { code: 'UNKNOWN', name: 'Unknown error' };
+              const errorData = isBTPErrorData(message)
+                ? message.data
+                : { code: 'UNKNOWN', name: 'Unknown error' };
               this._logger.error(
                 { event: 'btp_auth_failed', reason: errorData.code },
                 'Authentication failed'
@@ -380,7 +404,7 @@ export class BTPClient extends EventEmitter {
     try {
       const message = parseBTPMessage(data);
 
-      // Handle RESPONSE messages
+      // Handle RESPONSE messages (responses to our outbound requests)
       if (message.type === BTPMessageType.RESPONSE || message.type === BTPMessageType.ERROR) {
         const pending = this._pendingRequests.get(message.requestId);
         if (pending) {
@@ -388,13 +412,104 @@ export class BTPClient extends EventEmitter {
           this._pendingRequests.delete(message.requestId);
 
           if (message.type === BTPMessageType.ERROR) {
-            const errorData = isBTPErrorData(message) ? message.data : { code: 'UNKNOWN', name: 'Unknown error', data: Buffer.alloc(0), triggeredAt: new Date().toISOString() };
+            const errorData = isBTPErrorData(message)
+              ? message.data
+              : {
+                  code: 'UNKNOWN',
+                  name: 'Unknown error',
+                  data: Buffer.alloc(0),
+                  triggeredAt: new Date().toISOString(),
+                };
             pending.reject(new BTPError(errorData.code, errorData.name, errorData.data));
           } else if (isBTPData(message) && message.data.ilpPacket) {
             // Decode ILP packet from response
             const ilpPacket = deserializePacket(message.data.ilpPacket);
             pending.resolve(ilpPacket as ILPFulfillPacket | ILPRejectPacket);
           }
+        }
+      }
+
+      // Handle incoming MESSAGE packets (new prepare packets from server)
+      if (message.type === BTPMessageType.MESSAGE && isBTPData(message)) {
+        if (!this._packetHandler) {
+          this._logger.warn(
+            { event: 'btp_incoming_packet_no_handler', requestId: message.requestId },
+            'Received incoming prepare packet but no PacketHandler configured'
+          );
+          return;
+        }
+
+        const ilpPacket = message.data.ilpPacket;
+        if (!ilpPacket || ilpPacket.length === 0) {
+          this._logger.warn(
+            { event: 'btp_incoming_packet_no_ilp', requestId: message.requestId },
+            'Received MESSAGE with no ILP packet'
+          );
+          return;
+        }
+
+        try {
+          // Deserialize ILP prepare packet
+          const preparePacket = deserializePacket(ilpPacket);
+
+          // Only handle PREPARE packets (not FULFILL/REJECT)
+          if (preparePacket.type !== PacketType.PREPARE) {
+            this._logger.warn(
+              { event: 'btp_incoming_packet_wrong_type', packetType: preparePacket.type },
+              'Received non-PREPARE packet in MESSAGE'
+            );
+            return;
+          }
+
+          this._logger.debug(
+            {
+              event: 'btp_incoming_prepare',
+              requestId: message.requestId,
+              destination: preparePacket.destination,
+            },
+            'Received incoming prepare packet from server'
+          );
+
+          // Route packet through PacketHandler
+          const response = await this._packetHandler.handlePreparePacket(
+            preparePacket as ILPPreparePacket
+          );
+
+          // Send response back
+          const responseIlpBuffer = serializePacket(response);
+          const btpResponse: BTPMessage = {
+            type: BTPMessageType.RESPONSE,
+            requestId: message.requestId,
+            data: {
+              protocolData: [],
+              ilpPacket: responseIlpBuffer,
+            },
+          };
+
+          const btpResponseBuffer = serializeBTPMessage(btpResponse);
+          this._ws?.send(btpResponseBuffer, (error) => {
+            if (error) {
+              this._logger.error(
+                {
+                  event: 'btp_response_send_failed',
+                  error: error.message,
+                  requestId: message.requestId,
+                },
+                'Failed to send response to incoming prepare'
+              );
+            } else {
+              this._logger.debug(
+                { event: 'btp_response_sent', requestId: message.requestId },
+                'Sent response to incoming prepare'
+              );
+            }
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this._logger.error(
+            { event: 'btp_incoming_packet_error', error: errorMessage },
+            'Error handling incoming prepare packet'
+          );
         }
       }
 

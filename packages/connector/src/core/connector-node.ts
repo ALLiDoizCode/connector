@@ -90,6 +90,7 @@ export class ConnectorNode implements HealthStatusProvider {
 
     // Initialize BTP client manager
     this._btpClientManager = new BTPClientManager(
+      config.nodeId,
       logger.child({ component: 'BTPClientManager' })
     );
 
@@ -123,10 +124,13 @@ export class ConnectorNode implements HealthStatusProvider {
     );
 
     // Initialize BTP server
-    this._btpServer = new BTPServer(
-      logger.child({ component: 'BTPServer' }),
-      this._packetHandler
-    );
+    this._btpServer = new BTPServer(logger.child({ component: 'BTPServer' }), this._packetHandler);
+
+    // Link BTPServer to PacketHandler for bidirectional forwarding (resolves circular dependency)
+    this._packetHandler.setBTPServer(this._btpServer);
+
+    // Link PacketHandler to BTPClientManager for incoming packet handling (resolves circular dependency)
+    this._btpClientManager.setPacketHandler(this._packetHandler);
 
     // Initialize health server
     this._healthServer = new HealthServer(logger.child({ component: 'HealthServer' }), this);
@@ -194,8 +198,20 @@ export class ConnectorNode implements HealthStatusProvider {
         peerConnections.push(this._btpClientManager.addPeer(peer));
       }
 
-      // Wait for all peer connections to establish
-      await Promise.all(peerConnections);
+      // Wait for all peer connection attempts (don't fail if some connections fail)
+      // BTPClient will automatically retry failed connections in the background
+      const peerResults = await Promise.allSettled(peerConnections);
+      const failedPeers = peerResults.filter((r) => r.status === 'rejected');
+      if (failedPeers.length > 0) {
+        this._logger.warn(
+          {
+            event: 'peer_connection_failures',
+            failedCount: failedPeers.length,
+            totalPeers: this._config.peers.length,
+          },
+          'Some peer connections failed during startup (will retry in background)'
+        );
+      }
 
       const connectedPeers = this._btpClientManager.getPeerStatus();
       const connectedCount = Array.from(connectedPeers.values()).filter(Boolean).length;
@@ -207,10 +223,7 @@ export class ConnectorNode implements HealthStatusProvider {
       if (this._telemetryEmitter) {
         try {
           await this._telemetryEmitter.connect();
-          this._logger.info(
-            { event: 'telemetry_connected' },
-            'Telemetry connected to dashboard'
-          );
+          this._logger.info({ event: 'telemetry_connected' }, 'Telemetry connected to dashboard');
 
           // Emit NODE_STATUS telemetry after successful connection
           const routes = this._routingTable.getAllRoutes();
@@ -277,10 +290,7 @@ export class ConnectorNode implements HealthStatusProvider {
       // Disconnect telemetry emitter if enabled
       if (this._telemetryEmitter) {
         await this._telemetryEmitter.disconnect();
-        this._logger.info(
-          { event: 'telemetry_disconnected' },
-          'Telemetry disconnected'
-        );
+        this._logger.info({ event: 'telemetry_disconnected' }, 'Telemetry disconnected');
       }
 
       // Disconnect all BTP clients
@@ -350,7 +360,12 @@ export class ConnectorNode implements HealthStatusProvider {
     if (!this._btpServerStarted) {
       if (this._healthStatus !== 'starting') {
         this._logger.info(
-          { event: 'health_status_changed', oldStatus: this._healthStatus, newStatus: 'starting', reason: 'BTP server not started' },
+          {
+            event: 'health_status_changed',
+            oldStatus: this._healthStatus,
+            newStatus: 'starting',
+            reason: 'BTP server not started',
+          },
           'Health status changed'
         );
         this._healthStatus = 'starting';
@@ -363,7 +378,12 @@ export class ConnectorNode implements HealthStatusProvider {
     if (totalPeers === 0) {
       if (this._healthStatus !== 'healthy') {
         this._logger.info(
-          { event: 'health_status_changed', oldStatus: this._healthStatus, newStatus: 'healthy', reason: 'No peers configured (standalone mode)' },
+          {
+            event: 'health_status_changed',
+            oldStatus: this._healthStatus,
+            newStatus: 'healthy',
+            reason: 'No peers configured (standalone mode)',
+          },
           'Health status changed'
         );
         this._healthStatus = 'healthy';

@@ -64,11 +64,7 @@ export function parsePacketDetail(event: TelemetryEvent): PacketDetail | null {
   if (event.type !== 'PACKET_RECEIVED') return null;
 
   const packetId = event.data.packetId as string | undefined;
-  const packetType = event.data.packetType as
-    | 'PREPARE'
-    | 'FULFILL'
-    | 'REJECT'
-    | undefined;
+  const packetType = event.data.packetType as 'PREPARE' | 'FULFILL' | 'REJECT' | undefined;
 
   if (!packetId || !packetType) return null;
 

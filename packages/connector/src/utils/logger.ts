@@ -4,10 +4,13 @@
  * @remarks
  * Provides structured JSON logging with correlation IDs for packet tracking.
  * Outputs to stdout for Docker container log aggregation.
+ * Optionally emits log entries as telemetry events to dashboard.
  */
 
 import pino from 'pino';
 import { randomBytes } from 'crypto';
+import { createTelemetryTransport } from '../telemetry/pino-telemetry-transport';
+import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 
 /**
  * Logger type interface - wraps Pino logger
@@ -54,6 +57,7 @@ function getValidLogLevel(envLevel?: string): LogLevel {
  * Create configured Pino logger instance with node ID context
  * @param nodeId - Connector node ID to include in all log entries
  * @param logLevel - Optional log level override (defaults to LOG_LEVEL env var or 'info')
+ * @param telemetryEmitter - Optional TelemetryEmitter for sending logs to dashboard
  * @returns Configured Pino logger instance with nodeId as base context
  *
  * @example
@@ -63,23 +67,55 @@ function getValidLogLevel(envLevel?: string): LogLevel {
  * // Output: {"level":"info","time":1703620800000,"nodeId":"connector-a","correlationId":"pkt_abc123","destination":"g.dest","msg":"Packet received"}
  * ```
  *
+ * @example With telemetry
+ * ```typescript
+ * const telemetryEmitter = new TelemetryEmitter('ws://dashboard:9000', 'connector-a', logger);
+ * const logger = createLogger('connector-a', 'info', telemetryEmitter);
+ * logger.info('Packet received'); // Logged to stdout AND sent to dashboard
+ * ```
+ *
  * @remarks
  * - Outputs JSON to stdout for Docker log aggregation
  * - Log level configurable via LOG_LEVEL environment variable (DEBUG, INFO, WARN, ERROR)
  * - Default level: INFO if LOG_LEVEL not set
  * - All log entries include nodeId field for multi-node differentiation
  * - Uses child logger pattern to inject nodeId context
+ * - If telemetryEmitter provided, log entries are also sent to dashboard as LOG telemetry events
+ * - Telemetry emission is non-blocking and will not impact logging performance
  */
-export function createLogger(nodeId: string, logLevel?: string): Logger {
+export function createLogger(
+  nodeId: string,
+  logLevel?: string,
+  telemetryEmitter?: TelemetryEmitter
+): Logger {
   // Get log level from parameter, environment variable, or default
-  const level = logLevel
-    ? getValidLogLevel(logLevel)
-    : getValidLogLevel(process.env.LOG_LEVEL);
+  const level = logLevel ? getValidLogLevel(logLevel) : getValidLogLevel(process.env.LOG_LEVEL);
 
   // Create base Pino logger with JSON output to stdout
-  const baseLogger = pino({
-    level,
-  });
+  let baseLogger: pino.Logger;
+
+  if (telemetryEmitter) {
+    // Create telemetry transport for LOG emission
+    const transport = createTelemetryTransport((logEntry) => {
+      telemetryEmitter.emitLog(logEntry);
+    });
+
+    // Create logger with multistream: stdout + telemetry
+    baseLogger = pino(
+      {
+        level,
+      },
+      pino.multistream([
+        { stream: process.stdout }, // Primary output to stdout
+        { stream: transport }, // Secondary output to telemetry
+      ])
+    );
+  } else {
+    // Create standard logger without telemetry
+    baseLogger = pino({
+      level,
+    });
+  }
 
   // Return child logger with nodeId context
   // All logs from this logger will include nodeId field

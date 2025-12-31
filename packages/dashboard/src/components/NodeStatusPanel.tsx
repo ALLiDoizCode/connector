@@ -3,30 +3,11 @@
  * Displays routing table, peer connections, and packet statistics
  */
 
-import {
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  ArrowDown,
-  ArrowRight,
-} from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, ArrowDown, ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from './ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Badge } from './ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { NodeStatus, formatUptime } from '../types/node';
 
 export interface NodeStatusPanelProps {
@@ -97,7 +78,10 @@ export const NodeStatusPanel = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[500px] sm:w-[600px] bg-gray-900 text-gray-100 overflow-y-auto">
+      <SheetContent
+        side="right"
+        className="w-[500px] sm:w-[600px] bg-gray-900 text-gray-100 overflow-y-auto"
+      >
         <SheetHeader>
           <SheetTitle className="font-mono text-xl">{node.nodeId}</SheetTitle>
           <SheetDescription>
@@ -109,9 +93,7 @@ export const NodeStatusPanel = ({
         <div className="mt-6 space-y-4">
           <div className="flex items-center gap-3">
             {renderHealthBadge()}
-            <span className="text-sm text-gray-400">
-              Uptime: {formatUptime(node.uptime)}
-            </span>
+            <span className="text-sm text-gray-400">Uptime: {formatUptime(node.uptime)}</span>
           </div>
 
           {/* Routing Table Section */}
@@ -187,7 +169,8 @@ export const NodeStatusPanel = ({
                     </div>
                     {peer.lastSeen && (
                       <div className="text-xs text-gray-500">
-                        Last seen: {formatDistanceToNow(new Date(peer.lastSeen), { addSuffix: true })}
+                        Last seen:{' '}
+                        {formatDistanceToNow(new Date(peer.lastSeen), { addSuffix: true })}
                       </div>
                     )}
                   </div>

@@ -48,9 +48,7 @@ describe('useNetworkGraph', () => {
         timestamp: '2025-12-27T10:00:00.000Z',
         data: {
           health: 'healthy',
-          peers: [
-            { id: 'connector-b', url: 'ws://connector-b:3000', connected: true },
-          ],
+          peers: [{ id: 'connector-b', url: 'ws://connector-b:3000', connected: true }],
           routes: [],
         },
       },
@@ -81,12 +79,9 @@ describe('useNetworkGraph', () => {
       },
     ];
 
-    const { result, rerender } = renderHook(
-      ({ events }) => useNetworkGraph(events),
-      {
-        initialProps: { events: initialEvents },
-      }
-    );
+    const { result, rerender } = renderHook(({ events }) => useNetworkGraph(events), {
+      initialProps: { events: initialEvents },
+    });
 
     expect(result.current.graphData.nodes[0]?.healthStatus).toBe('starting');
 
@@ -118,9 +113,7 @@ describe('useNetworkGraph', () => {
         timestamp: '2025-12-27T10:00:00.000Z',
         data: {
           health: 'healthy',
-          peers: [
-            { id: 'connector-b', url: 'ws://connector-b:3000', connected: true },
-          ],
+          peers: [{ id: 'connector-b', url: 'ws://connector-b:3000', connected: true }],
           routes: [],
         },
       },
@@ -130,9 +123,7 @@ describe('useNetworkGraph', () => {
         timestamp: '2025-12-27T10:00:01.000Z',
         data: {
           health: 'healthy',
-          peers: [
-            { id: 'connector-a', url: 'ws://connector-a:3000', connected: true },
-          ],
+          peers: [{ id: 'connector-a', url: 'ws://connector-a:3000', connected: true }],
           routes: [],
         },
       },
@@ -159,12 +150,9 @@ describe('useNetworkGraph', () => {
       },
     ];
 
-    const { result, rerender } = renderHook(
-      ({ events }) => useNetworkGraph(events),
-      {
-        initialProps: { events: initialEvents },
-      }
-    );
+    const { result, rerender } = renderHook(({ events }) => useNetworkGraph(events), {
+      initialProps: { events: initialEvents },
+    });
 
     expect(result.current.graphData.nodes).toHaveLength(1);
 
@@ -196,20 +184,15 @@ describe('useNetworkGraph', () => {
         timestamp: '2025-12-27T10:00:00.000Z',
         data: {
           health: 'healthy',
-          peers: [
-            { id: 'connector-b', url: 'ws://connector-b:3000', connected: true },
-          ],
+          peers: [{ id: 'connector-b', url: 'ws://connector-b:3000', connected: true }],
           routes: [],
         },
       },
     ];
 
-    const { result, rerender } = renderHook(
-      ({ events }) => useNetworkGraph(events),
-      {
-        initialProps: { events: initialEvents },
-      }
-    );
+    const { result, rerender } = renderHook(({ events }) => useNetworkGraph(events), {
+      initialProps: { events: initialEvents },
+    });
 
     expect(result.current.graphData.edges[0]?.connected).toBe(true);
 
@@ -222,9 +205,7 @@ describe('useNetworkGraph', () => {
         timestamp: '2025-12-27T10:00:01.000Z',
         data: {
           health: 'unhealthy',
-          peers: [
-            { id: 'connector-b', url: 'ws://connector-b:3000', connected: false },
-          ],
+          peers: [{ id: 'connector-b', url: 'ws://connector-b:3000', connected: false }],
           routes: [],
         },
       },

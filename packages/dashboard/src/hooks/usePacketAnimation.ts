@@ -4,11 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { TelemetryEvent } from './useTelemetry';
-import {
-  AnimatedPacket,
-  PacketAnimationState,
-  PACKET_COLORS,
-} from '../types/animation';
+import { AnimatedPacket, PacketAnimationState, PACKET_COLORS } from '../types/animation';
 
 /**
  * Hook result interface
@@ -25,28 +21,22 @@ const CLEANUP_DELAY = 1000; // milliseconds after completion
  * Custom hook to manage packet animation state from telemetry events
  * Tracks packet types from PACKET_RECEIVED and creates animations from PACKET_SENT
  */
-export function usePacketAnimation(
-  events: TelemetryEvent[]
-): UsePacketAnimationResult {
+export function usePacketAnimation(events: TelemetryEvent[]): UsePacketAnimationResult {
   const [animationState, setAnimationState] = useState<PacketAnimationState>({
     activePackets: new Map(),
     completedPackets: new Set(),
   });
 
-  const [packetTypes, setPacketTypes] = useState<
-    Map<string, 'PREPARE' | 'FULFILL' | 'REJECT'>
-  >(new Map());
+  const [packetTypes, setPacketTypes] = useState<Map<string, 'PREPARE' | 'FULFILL' | 'REJECT'>>(
+    new Map()
+  );
 
   // Track packet types from PACKET_RECEIVED events
   useEffect(() => {
     events.forEach((event) => {
       if (event.type === 'PACKET_RECEIVED') {
         const packetId = event.data.packetId as string | undefined;
-        const packetType = event.data.packetType as
-          | 'PREPARE'
-          | 'FULFILL'
-          | 'REJECT'
-          | undefined;
+        const packetType = event.data.packetType as 'PREPARE' | 'FULFILL' | 'REJECT' | undefined;
 
         if (packetId && packetType) {
           setPacketTypes((prev) => {
@@ -120,10 +110,7 @@ export function usePacketAnimation(
           // Add to active packets
           setAnimationState((prev) => ({
             ...prev,
-            activePackets: new Map(prev.activePackets).set(
-              packetId,
-              animatedPacket
-            ),
+            activePackets: new Map(prev.activePackets).set(packetId, animatedPacket),
           }));
 
           // Schedule cleanup after animation completes

@@ -217,7 +217,9 @@ describe('RoutingTable', () => {
 
     it('should return deep copy preventing external mutation', () => {
       // Arrange
-      const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice', priority: 10 }]);
+      const routingTable = new RoutingTable([
+        { prefix: 'g.alice', nextHop: 'peer-alice', priority: 10 },
+      ]);
 
       // Act
       const routes = routingTable.getAllRoutes();
@@ -253,7 +255,9 @@ describe('RoutingTable', () => {
     describe('Single Route Matching', () => {
       it('should return next hop when single exact match exists', () => {
         // Arrange
-        const routingTable = new RoutingTable([{ prefix: 'g.alice.wallet', nextHop: 'peer-alice' }]);
+        const routingTable = new RoutingTable([
+          { prefix: 'g.alice.wallet', nextHop: 'peer-alice' },
+        ]);
 
         // Act
         const nextHop = routingTable.getNextHop('g.alice.wallet');
@@ -264,7 +268,9 @@ describe('RoutingTable', () => {
 
       it('should return next hop when destination matches route prefix', () => {
         // Arrange
-        const routingTable = new RoutingTable([{ prefix: 'g.alice.wallet', nextHop: 'peer-alice' }]);
+        const routingTable = new RoutingTable([
+          { prefix: 'g.alice.wallet', nextHop: 'peer-alice' },
+        ]);
 
         // Act
         const nextHop = routingTable.getNextHop('g.alice.wallet.USD');
@@ -482,7 +488,9 @@ describe('RoutingTable', () => {
 
       it('should match exact prefix without dot extension', () => {
         // Arrange
-        const routingTable = new RoutingTable([{ prefix: 'g.alice.wallet', nextHop: 'peer-alice' }]);
+        const routingTable = new RoutingTable([
+          { prefix: 'g.alice.wallet', nextHop: 'peer-alice' },
+        ]);
 
         // Act - Exact match
         const nextHop = routingTable.getNextHop('g.alice.wallet');

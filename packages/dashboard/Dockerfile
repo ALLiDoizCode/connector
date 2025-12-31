@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Copy root package files and workspace structure
 COPY package.json package-lock.json ./
+COPY tsconfig.base.json ./
 COPY packages/dashboard/package.json packages/dashboard/
 COPY packages/shared/ packages/shared/
 

@@ -59,8 +59,7 @@ export function useNetworkGraph(events: TelemetryEvent[]): UseNetworkGraphResult
         // Extract peer connections to create NetworkEdges
         peers.forEach((peer) => {
           // Create edge ID (sorted to ensure uniqueness for bidirectional edges)
-          const edgeId =
-            nodeId < peer.id ? `${nodeId}-${peer.id}` : `${peer.id}-${nodeId}`;
+          const edgeId = nodeId < peer.id ? `${nodeId}-${peer.id}` : `${peer.id}-${nodeId}`;
 
           // Create or update edge
           const existingEdge = edgesMap.get(edgeId);

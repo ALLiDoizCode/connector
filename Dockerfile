@@ -34,7 +34,8 @@ COPY packages/connector/src ./packages/connector/src
 COPY packages/shared/src ./packages/shared/src
 
 # Build all packages (TypeScript compilation)
-RUN npm run build --workspaces
+# Build shared first, then connector (dependency order)
+RUN npm run build --workspace=@m2m/shared && npm run build --workspace=@m2m/connector
 
 # ============================================
 # Stage 2: Runtime

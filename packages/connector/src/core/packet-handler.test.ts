@@ -314,7 +314,12 @@ describe('PacketHandler', () => {
       const routingTable = new RoutingTable();
       const mockLogger = createMockLogger();
       const btpClientManager = createMockBTPClientManager();
-      const handlerWithNodeId = new PacketHandler(routingTable, btpClientManager, nodeId, mockLogger);
+      const handlerWithNodeId = new PacketHandler(
+        routingTable,
+        btpClientManager,
+        nodeId,
+        mockLogger
+      );
 
       // Act
       const reject = handlerWithNodeId.generateReject(
@@ -724,7 +729,12 @@ describe('PacketHandler', () => {
       const getNextHopSpy = jest.spyOn(routingTable, 'getNextHop');
       const mockLogger = createMockLogger();
       const btpClientManager = createMockBTPClientManager();
-      const handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+      const handler = new PacketHandler(
+        routingTable,
+        btpClientManager,
+        'test.connector',
+        mockLogger
+      );
       const validPacket = createValidPreparePacket({ destination: 'g.alice.wallet.USD' });
 
       // Act
@@ -740,7 +750,12 @@ describe('PacketHandler', () => {
       const routingTable = new RoutingTable(); // Empty routing table
       const mockLogger = createMockLogger();
       const btpClientManager = createMockBTPClientManager();
-      const handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+      const handler = new PacketHandler(
+        routingTable,
+        btpClientManager,
+        'test.connector',
+        mockLogger
+      );
       const validPacket = createValidPreparePacket({ destination: 'g.unknown' });
 
       // Act
@@ -759,7 +774,12 @@ describe('PacketHandler', () => {
       const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
       const mockLogger = createMockLogger();
       const btpClientManager = createMockBTPClientManager();
-      const handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+      const handler = new PacketHandler(
+        routingTable,
+        btpClientManager,
+        'test.connector',
+        mockLogger
+      );
       const originalExpiry = new Date(Date.now() + 10000);
       const validPacket = createValidPreparePacket({
         destination: 'g.alice.wallet',

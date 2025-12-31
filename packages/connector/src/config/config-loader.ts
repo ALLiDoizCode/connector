@@ -82,7 +82,9 @@ export class ConfigLoader {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         throw new ConfigurationError(`Configuration file not found: ${filePath}`);
       }
-      throw new ConfigurationError(`Failed to read configuration file: ${(error as Error).message}`);
+      throw new ConfigurationError(
+        `Failed to read configuration file: ${(error as Error).message}`
+      );
     }
 
     // Step 2: Parse YAML
@@ -256,9 +258,10 @@ export class ConfigLoader {
    * @throws ConfigurationError if route validation fails
    * @private
    */
-  private static validateRoutes(routes: RouteConfig[], peers: PeerConfig[]): void {
-    // Build set of valid peer IDs for reference validation
-    const peerIds = new Set(peers.map((p) => p.id));
+  private static validateRoutes(routes: RouteConfig[], _peers: PeerConfig[]): void {
+    // Note: We don't validate that route nextHops exist in the peers list because
+    // routes can reference peers that will connect inbound (dynamic peers)
+    // Those dynamic peers must have BTP_PEER_* environment variables configured
 
     for (const route of routes) {
       // Validate route has required fields
@@ -291,10 +294,9 @@ export class ConfigLoader {
         );
       }
 
-      // Validate nextHop references existing peer
-      if (!peerIds.has(route.nextHop)) {
-        throw new ConfigurationError(`Route references non-existent peer: ${route.nextHop}`);
-      }
+      // Note: Routes can reference peers that will connect inbound (not in static peers list)
+      // Those peers must have BTP_PEER_* environment variables configured for authentication
+      // No validation needed here - if peer never connects, routing will fail at runtime
 
       // Validate optional priority field if present
       if (route.priority !== undefined && typeof route.priority !== 'number') {

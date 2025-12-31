@@ -363,9 +363,7 @@ describe('TelemetryEmitter Integration Tests', () => {
 
       // Act & Assert - All emit methods should not throw
       expect(() => emitter.emitNodeStatus([], [], 'healthy')).not.toThrow();
-      expect(() =>
-        emitter.emitPacketReceived(createValidPreparePacket(), 'unknown')
-      ).not.toThrow();
+      expect(() => emitter.emitPacketReceived(createValidPreparePacket(), 'unknown')).not.toThrow();
       expect(() => emitter.emitPacketSent('packetId', 'nextHop')).not.toThrow();
       expect(() => emitter.emitRouteLookup('destination', 'peer', 'reason')).not.toThrow();
 

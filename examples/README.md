@@ -17,22 +17,22 @@ Each connector configuration file follows this YAML schema:
 
 ```yaml
 # Node Identity
-nodeId: string                 # Unique identifier for this connector
-btpServerPort: number           # Port for incoming BTP connections (1-65535)
-logLevel: string               # Optional: 'debug' | 'info' | 'warn' | 'error' (default: 'info')
-healthCheckPort: number        # Optional: HTTP health endpoint port (default: 8080)
+nodeId: string # Unique identifier for this connector
+btpServerPort: number # Port for incoming BTP connections (1-65535)
+logLevel: string # Optional: 'debug' | 'info' | 'warn' | 'error' (default: 'info')
+healthCheckPort: number # Optional: HTTP health endpoint port (default: 8080)
 
 # Peer Connections
 peers:
-  - id: string                 # Peer identifier (used in routes)
-    url: string                # WebSocket URL (ws://host:port or wss://host:port)
-    authToken: string          # Shared secret for BTP authentication
+  - id: string # Peer identifier (used in routes)
+    url: string # WebSocket URL (ws://host:port or wss://host:port)
+    authToken: string # Shared secret for BTP authentication
 
 # Routing Table
 routes:
-  - prefix: string             # ILP address prefix (RFC-0015 format)
-    nextHop: string            # Peer ID from peers list
-    priority: number           # Optional: Route priority (default: 0)
+  - prefix: string # ILP address prefix (RFC-0015 format)
+    nextHop: string # Peer ID from peers list
+    priority: number # Optional: Route priority (default: 0)
 ```
 
 ## Linear Topology (3 Nodes)

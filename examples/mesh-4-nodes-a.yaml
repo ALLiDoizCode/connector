@@ -33,7 +33,7 @@ peers:
     authToken: secret-a-to-d
 
 # Routing Table
-# Direct routes to each peer connector
+# Direct routes to each peer connector (excluding self)
 routes:
   - prefix: g.connectorb
     nextHop: connector-b

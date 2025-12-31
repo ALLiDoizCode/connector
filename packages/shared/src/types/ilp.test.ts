@@ -22,9 +22,7 @@ import {
  * Reusable factory function for creating test Prepare packets.
  * Useful for this story and future OER encoding tests.
  */
-export function createTestPreparePacket(
-  overrides?: Partial<ILPPreparePacket>,
-): ILPPreparePacket {
+export function createTestPreparePacket(overrides?: Partial<ILPPreparePacket>): ILPPreparePacket {
   return {
     type: PacketType.PREPARE,
     amount: BigInt(1000),
@@ -41,9 +39,7 @@ export function createTestPreparePacket(
  *
  * Reusable factory function for creating test Fulfill packets.
  */
-export function createTestFulfillPacket(
-  overrides?: Partial<ILPFulfillPacket>,
-): ILPFulfillPacket {
+export function createTestFulfillPacket(overrides?: Partial<ILPFulfillPacket>): ILPFulfillPacket {
   return {
     type: PacketType.FULFILL,
     fulfillment: Buffer.alloc(32, 1),
@@ -57,9 +53,7 @@ export function createTestFulfillPacket(
  *
  * Reusable factory function for creating test Reject packets.
  */
-export function createTestRejectPacket(
-  overrides?: Partial<ILPRejectPacket>,
-): ILPRejectPacket {
+export function createTestRejectPacket(overrides?: Partial<ILPRejectPacket>): ILPRejectPacket {
   return {
     type: PacketType.REJECT,
     code: ILPErrorCode.F02_UNREACHABLE,

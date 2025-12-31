@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   const configFile = process.env.CONFIG_FILE || './config.yaml';
   const logLevel = process.env.LOG_LEVEL || 'info';
 
-  // Create temporary logger for startup
+  // Create temporary logger for startup (without telemetry)
   const tempLogger = createLogger('connector-startup', logLevel);
 
   // Create connector instance (configuration loaded inside constructor)
@@ -55,10 +55,7 @@ async function main(): Promise<void> {
       process.exit(0);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(
-        { event: 'connector_shutdown_failed', error: errorMessage },
-        'Shutdown failed'
-      );
+      logger.error({ event: 'connector_shutdown_failed', error: errorMessage }, 'Shutdown failed');
       process.exit(1);
     }
   }

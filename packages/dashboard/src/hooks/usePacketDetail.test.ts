@@ -24,10 +24,7 @@ describe('usePacketDetail', () => {
     },
   });
 
-  const createPacketSentEvent = (
-    packetId: string,
-    nodeId: string
-  ): TelemetryEvent => ({
+  const createPacketSentEvent = (packetId: string, nodeId: string): TelemetryEvent => ({
     type: 'PACKET_SENT',
     nodeId,
     timestamp: new Date().toISOString(),
@@ -71,11 +68,7 @@ describe('usePacketDetail', () => {
     });
 
     const packet = result.current.getSelectedPacket();
-    expect(packet?.routingPath).toEqual([
-      'connector-a',
-      'connector-b',
-      'connector-c',
-    ]);
+    expect(packet?.routingPath).toEqual(['connector-a', 'connector-b', 'connector-c']);
   });
 
   it('selectPacket sets selectedPacketId state', () => {
@@ -139,11 +132,7 @@ describe('usePacketDetail', () => {
       result.current.selectPacket('packet-3');
     });
 
-    expect(result.current.recentPackets).toEqual([
-      'packet-3',
-      'packet-2',
-      'packet-1',
-    ]);
+    expect(result.current.recentPackets).toEqual(['packet-3', 'packet-2', 'packet-1']);
   });
 
   it('returns null when selecting non-existent packet', () => {

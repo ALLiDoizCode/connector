@@ -74,8 +74,7 @@ export function usePacketDetail(events: TelemetryEvent[]): UsePacketDetailResult
     if (cache.size > MAX_CACHED_PACKETS) {
       // Sort by timestamp and keep most recent
       const sortedEntries = Array.from(cache.entries()).sort(
-        (a, b) =>
-          new Date(b[1].timestamp).getTime() - new Date(a[1].timestamp).getTime()
+        (a, b) => new Date(b[1].timestamp).getTime() - new Date(a[1].timestamp).getTime()
       );
       return new Map(sortedEntries.slice(0, MAX_CACHED_PACKETS));
     }

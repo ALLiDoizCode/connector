@@ -58,7 +58,10 @@ function getRepoRoot(): string {
 /**
  * Execute shell command with proper error handling
  */
-function executeCommand(cmd: string, options: { cwd?: string; ignoreError?: boolean } = {}): string {
+function executeCommand(
+  cmd: string,
+  options: { cwd?: string; ignoreError?: boolean } = {}
+): string {
   const cwd = options.cwd || getRepoRoot();
 
   try {
@@ -106,38 +109,43 @@ async function waitForHealthy(
 
       if (!psOutput) {
         // No containers yet
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;
       }
 
       // Parse JSON output
-      const lines = psOutput.trim().split('\n').filter(line => line.trim());
+      const lines = psOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim());
       if (lines.length === 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;
       }
 
-      const containers = lines.map(line => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
+      const containers = lines
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
 
       // Check if all containers are running
       const allRunning = containers.every((c: any) => c.State === 'running');
 
       if (allRunning && containers.length > 0) {
         // Give a bit more time for health checks to stabilize
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         return;
       }
     } catch {
       // Ignore errors, keep waiting
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   throw new Error('Timeout waiting for containers to become healthy');
@@ -154,7 +162,7 @@ function buildDockerImage(): void {
 // Skip all tests if Docker or Docker Compose are not available
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = (dockerAvailable && composeAvailable) ? describe : describe.skip;
+const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
 
 describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
   // Build image before all tests
@@ -193,10 +201,13 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       expect(psOutput).toContain('connector-c');
 
       // Parse and verify running state
-      const lines = psOutput.trim().split('\n').filter(line => line.trim());
+      const lines = psOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim());
       expect(lines.length).toBe(3);
 
-      const containers = lines.map(line => JSON.parse(line));
+      const containers = lines.map((line) => JSON.parse(line));
       const runningCount = containers.filter((c: any) => c.State === 'running').length;
       expect(runningCount).toBe(3);
     });
@@ -207,7 +218,7 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       await waitForHealthy();
 
       // Wait for health checks to complete
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      await new Promise((resolve) => setTimeout(resolve, 15000));
 
       // Act: Inspect health status of each container
       const healthA = executeCommand(
@@ -239,7 +250,7 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       await waitForHealthy();
 
       // Wait for startup logs
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Act: Get logs from connector-a
       const logsA = executeCommand('docker-compose logs connector-a');
@@ -279,14 +290,16 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       executeCommand(`docker kill ${initialId}`, { ignoreError: true });
 
       // Wait for restart
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Assert: Container is running again
       const newId = executeCommand('docker ps -q -f name=connector-a').trim();
       expect(newId).toBeTruthy();
 
       // Verify it's a new container (different ID) or same container restarted
-      const status = executeCommand('docker inspect --format="{{.State.Status}}" connector-a').trim();
+      const status = executeCommand(
+        'docker inspect --format="{{.State.Status}}" connector-a'
+      ).trim();
       expect(status).toBe('running');
     });
   });
@@ -322,17 +335,11 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       await waitForHealthy();
 
       // Get container creation times
-      const createdA = executeCommand(
-        'docker inspect --format="{{.Created}}" connector-a'
-      ).trim();
+      const createdA = executeCommand('docker inspect --format="{{.Created}}" connector-a').trim();
 
-      const createdB = executeCommand(
-        'docker inspect --format="{{.Created}}" connector-b'
-      ).trim();
+      const createdB = executeCommand('docker inspect --format="{{.Created}}" connector-b').trim();
 
-      const createdC = executeCommand(
-        'docker inspect --format="{{.Created}}" connector-c'
-      ).trim();
+      const createdC = executeCommand('docker inspect --format="{{.Created}}" connector-c').trim();
 
       // Assert: B should start after A, C should start after B
       // Note: depends_on controls start order but doesn't guarantee exact timing
@@ -346,19 +353,19 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
   describe('Alternative Topologies', () => {
     afterEach(() => {
       // Clean up alternative topologies
-      cleanupDockerCompose('docker/docker-compose.mesh.yml');
+      cleanupDockerCompose('docker-compose-mesh.yml');
       cleanupDockerCompose('docker/docker-compose.hub-spoke.yml');
     });
 
     it('should start mesh topology with 4 connectors', async () => {
       // Act: Start mesh topology
-      executeCommand('docker-compose -f docker/docker-compose.mesh.yml up -d');
+      executeCommand('docker-compose -f docker-compose-mesh.yml up -d');
 
       // Wait for containers
-      await waitForHealthy('docker/docker-compose.mesh.yml');
+      await waitForHealthy('docker-compose-mesh.yml');
 
       // Act: Get container status
-      const psOutput = executeCommand('docker-compose -f docker/docker-compose.mesh.yml ps --format json');
+      const psOutput = executeCommand('docker-compose -f docker-compose-mesh.yml ps --format json');
 
       // Assert: Verify all 4 containers are present
       expect(psOutput).toContain('connector-a');
@@ -367,11 +374,14 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       expect(psOutput).toContain('connector-d');
 
       // Parse and verify running state
-      const lines = psOutput.trim().split('\n').filter(line => line.trim());
-      expect(lines.length).toBe(4);
+      const lines = psOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim());
+      expect(lines.length).toBe(5); // 4 connectors + 1 dashboard
 
       // Cleanup
-      executeCommand('docker-compose -f docker/docker-compose.mesh.yml down');
+      executeCommand('docker-compose -f docker-compose-mesh.yml down');
     });
 
     it('should start hub-spoke topology with hub and 3 spokes', async () => {
@@ -382,7 +392,9 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       await waitForHealthy('docker/docker-compose.hub-spoke.yml');
 
       // Act: Get container status
-      const psOutput = executeCommand('docker-compose -f docker/docker-compose.hub-spoke.yml ps --format json');
+      const psOutput = executeCommand(
+        'docker-compose -f docker/docker-compose.hub-spoke.yml ps --format json'
+      );
 
       // Assert: Verify hub and spokes are present
       expect(psOutput).toContain('connector-hub');
@@ -391,7 +403,10 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       expect(psOutput).toContain('connector-spoke3');
 
       // Parse and verify running state
-      const lines = psOutput.trim().split('\n').filter(line => line.trim());
+      const lines = psOutput
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim());
       expect(lines.length).toBe(4);
 
       // Cleanup
@@ -406,7 +421,7 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       await waitForHealthy();
 
       // Wait for startup
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Act: Check environment variables in connector-a
       const envA = executeCommand('docker-compose exec -T connector-a env');
@@ -442,5 +457,7 @@ if (!dockerAvailable || !composeAvailable) {
   console.log('\nTo run these tests:');
   console.log('  1. Install Docker and Docker Compose');
   console.log('  2. Start Docker daemon');
-  console.log('  3. Run: npm test --workspace=packages/connector -- docker-compose-deployment.test.ts\n');
+  console.log(
+    '  3. Run: npm test --workspace=packages/connector -- docker-compose-deployment.test.ts\n'
+  );
 }

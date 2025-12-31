@@ -84,7 +84,7 @@ async function waitForLog(
     }
 
     // Wait 500ms before checking again
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   throw new Error(`Timeout waiting for log pattern: ${pattern}`);
@@ -164,10 +164,9 @@ describeIfDocker('Docker Container Integration Tests', () => {
 
     it('should start container and show startup logs', async () => {
       // Start container
-      execSync(
-        `docker run -d -e NODE_ID=integration-test --name ${containerName} ${IMAGE_NAME}`,
-        { stdio: 'pipe' }
-      );
+      execSync(`docker run -d -e NODE_ID=integration-test --name ${containerName} ${IMAGE_NAME}`, {
+        stdio: 'pipe',
+      });
 
       // Wait for startup log
       const logs = await waitForLog(containerName, 'connector_started');
@@ -181,10 +180,10 @@ describeIfDocker('Docker Container Integration Tests', () => {
       // Start container with custom config
       execSync(
         `docker run -d ` +
-        `-e NODE_ID=custom-node ` +
-        `-e BTP_SERVER_PORT=4000 ` +
-        `-e LOG_LEVEL=debug ` +
-        `--name ${containerName} ${IMAGE_NAME}`,
+          `-e NODE_ID=custom-node ` +
+          `-e BTP_SERVER_PORT=4000 ` +
+          `-e LOG_LEVEL=debug ` +
+          `--name ${containerName} ${IMAGE_NAME}`,
         { stdio: 'pipe' }
       );
 
@@ -209,10 +208,9 @@ describeIfDocker('Docker Container Integration Tests', () => {
 
     it('should handle SIGTERM gracefully', async () => {
       // Start container
-      execSync(
-        `docker run -d -e NODE_ID=shutdown-test --name ${containerName} ${IMAGE_NAME}`,
-        { stdio: 'pipe' }
-      );
+      execSync(`docker run -d -e NODE_ID=shutdown-test --name ${containerName} ${IMAGE_NAME}`, {
+        stdio: 'pipe',
+      });
 
       // Wait for startup
       await waitForLog(containerName, 'connector_started');
@@ -232,10 +230,9 @@ describeIfDocker('Docker Container Integration Tests', () => {
       expect(logs).toContain('"event":"connector_shutdown"');
 
       // Verify exit code is 0
-      const exitCode = execSync(
-        `docker inspect ${containerName} --format='{{.State.ExitCode}}'`,
-        { encoding: 'utf-8' }
-      ).trim();
+      const exitCode = execSync(`docker inspect ${containerName} --format='{{.State.ExitCode}}'`, {
+        encoding: 'utf-8',
+      }).trim();
 
       expect(exitCode).toBe('0');
     });
@@ -250,17 +247,16 @@ describeIfDocker('Docker Container Integration Tests', () => {
 
     it('should pass health check after startup', async () => {
       // Start container
-      execSync(
-        `docker run -d -e NODE_ID=health-test --name ${containerName} ${IMAGE_NAME}`,
-        { stdio: 'pipe' }
-      );
+      execSync(`docker run -d -e NODE_ID=health-test --name ${containerName} ${IMAGE_NAME}`, {
+        stdio: 'pipe',
+      });
 
       // Wait for startup
       await waitForLog(containerName, 'connector_started');
 
       // Wait for health check to run (initial delay + interval)
       // Health check: start-period=10s, interval=30s
-      await new Promise(resolve => setTimeout(resolve, 12000)); // 12 seconds
+      await new Promise((resolve) => setTimeout(resolve, 12000)); // 12 seconds
 
       // Check health status
       const healthStatus = execSync(
@@ -283,22 +279,20 @@ describeIfDocker('Docker Container Integration Tests', () => {
     it('should exit with error code on invalid BTP_SERVER_PORT', async () => {
       // Start container with invalid port
       try {
-        execSync(
-          `docker run -d -e BTP_SERVER_PORT=invalid --name ${containerName} ${IMAGE_NAME}`,
-          { stdio: 'pipe' }
-        );
+        execSync(`docker run -d -e BTP_SERVER_PORT=invalid --name ${containerName} ${IMAGE_NAME}`, {
+          stdio: 'pipe',
+        });
       } catch {
         // Container may exit immediately
       }
 
       // Wait a moment for container to fail
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Get exit code
-      const exitCode = execSync(
-        `docker inspect ${containerName} --format='{{.State.ExitCode}}'`,
-        { encoding: 'utf-8' }
-      ).trim();
+      const exitCode = execSync(`docker inspect ${containerName} --format='{{.State.ExitCode}}'`, {
+        encoding: 'utf-8',
+      }).trim();
 
       // Should have exited with non-zero code
       expect(exitCode).not.toBe('0');

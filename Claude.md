@@ -14,6 +14,7 @@ When building any user interface components, dashboards, forms, or interactive e
 - **Leverage shadcn-ui blocks** for complete UI patterns (dashboards, login pages, settings panels, etc.)
 
 This ensures:
+
 - Consistent design system across the application
 - Built-in accessibility features
 - Proper TypeScript typing
@@ -173,6 +174,7 @@ The following MCP tools are available (all prefixed with `mcp__playwright__brows
 
 **User asks:** "Add a contact form to the page"
 **Action:**
+
 1. Use shadcn-ui MCP to get form component demos
 2. Implement the contact form with shadcn-ui components
 3. Use Playwright MCP to navigate to the page and verify the form renders correctly
@@ -247,18 +249,21 @@ This is crucial because:
 
 **User asks:** "Add a button to the form"
 **Action:**
+
 1. Call `get_component_demo` with componentName: "button" to see usage examples
 2. Explain the different button variants and use cases from the demo
 3. Only call `get_component` if customization of the button source is needed
 
 **User asks:** "I need a data table with sorting"
 **Action:**
+
 1. Call `get_component_demo` with componentName: "table" to see implementation patterns
 2. Show how to integrate sorting from the demo examples
 3. Fetch source with `get_component` only if deep customization is required
 
 **User asks:** "Create a settings page with tabs"
 **Action:**
+
 1. Call `get_component_demo` with componentName: "tabs" first
 2. Review the demo to understand tab structure and navigation patterns
 3. Implement following the demo patterns
@@ -268,6 +273,7 @@ This is crucial because:
 
 **User asks:** "Build a dashboard layout"
 **Action:**
+
 1. Call `list_blocks` with category: "dashboard"
 2. Call `get_block` to fetch complete dashboard patterns
 3. Reference component demos as needed for individual components

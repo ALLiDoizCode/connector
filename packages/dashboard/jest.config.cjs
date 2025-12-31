@@ -50,8 +50,13 @@ module.exports = {
           'ts-jest',
           {
             tsconfig: '<rootDir>/tsconfig.server.json',
+            useESM: true,
           },
         ],
+      },
+      extensionsToTreatAsEsm: ['.ts'],
+      moduleNameMapper: {
+        '^(\\.{1,2}/.*)\\.js$': '$1',
       },
     },
   ],

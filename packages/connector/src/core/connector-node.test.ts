@@ -96,6 +96,7 @@ describe('ConnectorNode', () => {
       getConnectedPeerCount: jest.fn().mockReturnValue(1),
       getTotalPeerCount: jest.fn().mockReturnValue(1),
       getConnectionHealth: jest.fn().mockReturnValue(100),
+      setPacketHandler: jest.fn(),
     } as unknown as jest.Mocked<BTPClientManager>;
 
     mockBTPServer = {
@@ -105,6 +106,7 @@ describe('ConnectorNode', () => {
 
     mockPacketHandler = {
       processPrepare: jest.fn(),
+      setBTPServer: jest.fn(),
     } as unknown as jest.Mocked<PacketHandler>;
 
     mockHealthServer = {
@@ -149,9 +151,7 @@ describe('ConnectorNode', () => {
 
       // Assert
       expect(RoutingTable).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ prefix: 'g.peerA', nextHop: 'peerA' })
-        ]),
+        expect.arrayContaining([expect.objectContaining({ prefix: 'g.peerA', nextHop: 'peerA' })]),
         expect.anything() // child logger
       );
     });

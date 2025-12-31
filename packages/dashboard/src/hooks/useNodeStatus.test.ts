@@ -87,10 +87,9 @@ describe('useNodeStatus', () => {
     ];
 
     // Act: Render hook with events
-    const { result } = renderHook(
-      ({ events }) => useNodeStatus(events),
-      { initialProps: { events: packetEvents } }
-    );
+    const { result } = renderHook(({ events }) => useNodeStatus(events), {
+      initialProps: { events: packetEvents },
+    });
 
     // Assert: Node statistics updated correctly
     const nodeStatus = result.current.nodeStatuses.get('connector-a');

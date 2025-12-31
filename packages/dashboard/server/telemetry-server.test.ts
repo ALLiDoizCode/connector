@@ -151,12 +151,26 @@ describe('TelemetryServer Integration Tests', () => {
 
       client1.on('open', () => {
         // Identify as client
-        client1.send(JSON.stringify({ type: 'CLIENT_CONNECT', nodeId: 'client1', timestamp: new Date().toISOString(), data: {} }));
+        client1.send(
+          JSON.stringify({
+            type: 'CLIENT_CONNECT',
+            nodeId: 'client1',
+            timestamp: new Date().toISOString(),
+            data: {},
+          })
+        );
       });
 
       client2.on('open', () => {
         // Identify as client
-        client2.send(JSON.stringify({ type: 'CLIENT_CONNECT', nodeId: 'client2', timestamp: new Date().toISOString(), data: {} }));
+        client2.send(
+          JSON.stringify({
+            type: 'CLIENT_CONNECT',
+            nodeId: 'client2',
+            timestamp: new Date().toISOString(),
+            data: {},
+          })
+        );
       });
 
       client1.on('message', (data) => {
@@ -249,7 +263,14 @@ describe('TelemetryServer Integration Tests', () => {
 
       ws.on('open', () => {
         // Identify as client
-        ws.send(JSON.stringify({ type: 'CLIENT_CONNECT', nodeId: 'client', timestamp: new Date().toISOString(), data: {} }));
+        ws.send(
+          JSON.stringify({
+            type: 'CLIENT_CONNECT',
+            nodeId: 'client',
+            timestamp: new Date().toISOString(),
+            data: {},
+          })
+        );
 
         setTimeout(() => {
           ws.close();
@@ -335,12 +356,26 @@ describe('TelemetryServer Integration Tests', () => {
       connector3.on('open', handleReady);
 
       client1.on('open', () => {
-        client1.send(JSON.stringify({ type: 'CLIENT_CONNECT', nodeId: 'client1', timestamp: new Date().toISOString(), data: {} }));
+        client1.send(
+          JSON.stringify({
+            type: 'CLIENT_CONNECT',
+            nodeId: 'client1',
+            timestamp: new Date().toISOString(),
+            data: {},
+          })
+        );
         handleReady();
       });
 
       client2.on('open', () => {
-        client2.send(JSON.stringify({ type: 'CLIENT_CONNECT', nodeId: 'client2', timestamp: new Date().toISOString(), data: {} }));
+        client2.send(
+          JSON.stringify({
+            type: 'CLIENT_CONNECT',
+            nodeId: 'client2',
+            timestamp: new Date().toISOString(),
+            data: {},
+          })
+        );
         handleReady();
       });
     }, 10000);

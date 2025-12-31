@@ -40,9 +40,7 @@ describe('NodeStatusPanel', () => {
 
   it('should render node details correctly', () => {
     // Arrange & Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />);
 
     // Assert: Node ID displayed
     expect(screen.getByText('connector-a')).toBeInTheDocument();
@@ -57,9 +55,7 @@ describe('NodeStatusPanel', () => {
 
   it('should render routing table as tabular data', () => {
     // Arrange & Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />);
 
     // Assert: Routing table section visible
     expect(screen.getByText('Routing Table')).toBeInTheDocument();
@@ -79,9 +75,7 @@ describe('NodeStatusPanel', () => {
 
   it('should display peer connection status correctly', () => {
     // Arrange & Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />);
 
     // Assert: Peer connections section visible
     expect(screen.getByText('Peer Connections')).toBeInTheDocument();
@@ -99,9 +93,7 @@ describe('NodeStatusPanel', () => {
 
   it('should display packet statistics', () => {
     // Arrange & Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={mockNodeStatus} />);
 
     // Assert: Statistics section visible
     expect(screen.getByText('Statistics')).toBeInTheDocument();
@@ -133,9 +125,7 @@ describe('NodeStatusPanel', () => {
     };
 
     // Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={nodeWithoutRoutes} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={nodeWithoutRoutes} />);
 
     // Assert
     expect(screen.getByText('No routes configured')).toBeInTheDocument();
@@ -149,9 +139,7 @@ describe('NodeStatusPanel', () => {
     };
 
     // Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={nodeWithoutPeers} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={nodeWithoutPeers} />);
 
     // Assert
     expect(screen.getByText('No peers configured')).toBeInTheDocument();
@@ -165,9 +153,7 @@ describe('NodeStatusPanel', () => {
     };
 
     // Act
-    render(
-      <NodeStatusPanel open={true} onOpenChange={() => {}} node={degradedNode} />
-    );
+    render(<NodeStatusPanel open={true} onOpenChange={() => {}} node={degradedNode} />);
 
     // Assert: Degraded badge displayed
     expect(screen.getByText('Degraded')).toBeInTheDocument();

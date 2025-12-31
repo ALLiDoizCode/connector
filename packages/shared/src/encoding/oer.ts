@@ -107,10 +107,7 @@ export function encodeVarUInt(value: bigint): Buffer {
  *
  * @see {@link https://interledger.org/rfcs/0030-notes-on-oer-encoding/|RFC-0030: VarUInt Encoding}
  */
-export function decodeVarUInt(
-  buffer: Buffer,
-  offset = 0,
-): { value: bigint; bytesRead: number } {
+export function decodeVarUInt(buffer: Buffer, offset = 0): { value: bigint; bytesRead: number } {
   if (offset >= buffer.length) {
     throw new BufferUnderflowError('Cannot read VarUInt: buffer underflow');
   }
@@ -127,7 +124,7 @@ export function decodeVarUInt(
 
   if (offset + 1 + length > buffer.length) {
     throw new BufferUnderflowError(
-      `Cannot read VarUInt: expected ${length} bytes, buffer has ${buffer.length - offset - 1}`,
+      `Cannot read VarUInt: expected ${length} bytes, buffer has ${buffer.length - offset - 1}`
     );
   }
 
@@ -184,7 +181,7 @@ export function encodeVarOctetString(data: Buffer): Buffer {
  */
 export function decodeVarOctetString(
   buffer: Buffer,
-  offset = 0,
+  offset = 0
 ): { value: Buffer; bytesRead: number } {
   const { value: length, bytesRead: lengthBytes } = decodeVarUInt(buffer, offset);
 
@@ -193,7 +190,7 @@ export function decodeVarOctetString(
 
   if (dataStart + dataLength > buffer.length) {
     throw new BufferUnderflowError(
-      `Cannot read VarOctetString: expected ${dataLength} bytes, buffer has ${buffer.length - dataStart}`,
+      `Cannot read VarOctetString: expected ${dataLength} bytes, buffer has ${buffer.length - dataStart}`
     );
   }
 
@@ -223,7 +220,7 @@ export function decodeVarOctetString(
 export function encodeFixedOctetString(data: Buffer, length: number): Buffer {
   if (data.length !== length) {
     throw new InvalidPacketError(
-      `Fixed octet string length mismatch: expected ${length} bytes, got ${data.length}`,
+      `Fixed octet string length mismatch: expected ${length} bytes, got ${data.length}`
     );
   }
   return data;
@@ -251,11 +248,11 @@ export function encodeFixedOctetString(data: Buffer, length: number): Buffer {
 export function decodeFixedOctetString(
   buffer: Buffer,
   offset: number,
-  length: number,
+  length: number
 ): { value: Buffer; bytesRead: number } {
   if (offset + length > buffer.length) {
     throw new BufferUnderflowError(
-      `Cannot read fixed octet string: expected ${length} bytes, buffer has ${buffer.length - offset}`,
+      `Cannot read fixed octet string: expected ${length} bytes, buffer has ${buffer.length - offset}`
     );
   }
 
@@ -314,13 +311,13 @@ export function encodeGeneralizedTime(date: Date): Buffer {
  */
 export function decodeGeneralizedTime(
   buffer: Buffer,
-  offset: number,
+  offset: number
 ): { value: Date; bytesRead: number } {
   const TIME_STRING_LENGTH = 19;
 
   if (offset + TIME_STRING_LENGTH > buffer.length) {
     throw new BufferUnderflowError(
-      `Cannot read generalized time: expected ${TIME_STRING_LENGTH} bytes, buffer has ${buffer.length - offset}`,
+      `Cannot read generalized time: expected ${TIME_STRING_LENGTH} bytes, buffer has ${buffer.length - offset}`
     );
   }
 
@@ -331,7 +328,7 @@ export function decodeGeneralizedTime(
 
   if (!match) {
     throw new InvalidPacketError(
-      `Invalid generalized time format: expected YYYYMMDDHHmmss.fffZ, got ${timeString}`,
+      `Invalid generalized time format: expected YYYYMMDDHHmmss.fffZ, got ${timeString}`
     );
   }
 
@@ -352,8 +349,8 @@ export function decodeGeneralizedTime(
       parseInt(hour, 10),
       parseInt(minute, 10),
       parseInt(second, 10),
-      parseInt(millisecond, 10),
-    ),
+      parseInt(millisecond, 10)
+    )
   );
 
   return { value: date, bytesRead: TIME_STRING_LENGTH };
@@ -382,7 +379,7 @@ export function serializePrepare(packet: ILPPreparePacket): Buffer {
   // Validate executionCondition is 32 bytes
   if (packet.executionCondition.length !== 32) {
     throw new InvalidPacketError(
-      `executionCondition must be 32 bytes, got ${packet.executionCondition.length}`,
+      `executionCondition must be 32 bytes, got ${packet.executionCondition.length}`
     );
   }
 
@@ -415,9 +412,7 @@ export function serializePrepare(packet: ILPPreparePacket): Buffer {
 export function serializeFulfill(packet: ILPFulfillPacket): Buffer {
   // Validate fulfillment is 32 bytes
   if (packet.fulfillment.length !== 32) {
-    throw new InvalidPacketError(
-      `fulfillment must be 32 bytes, got ${packet.fulfillment.length}`,
-    );
+    throw new InvalidPacketError(`fulfillment must be 32 bytes, got ${packet.fulfillment.length}`);
   }
 
   const type = Buffer.from([PacketType.FULFILL]);
@@ -478,7 +473,7 @@ export function serializeReject(packet: ILPRejectPacket): Buffer {
  * @see {@link https://interledger.org/rfcs/0027-interledger-protocol-4/|RFC-0027: ILPv4}
  */
 export function serializePacket(
-  packet: ILPPreparePacket | ILPFulfillPacket | ILPRejectPacket,
+  packet: ILPPreparePacket | ILPFulfillPacket | ILPRejectPacket
 ): Buffer {
   if (isPreparePacket(packet)) {
     return serializePrepare(packet);
@@ -519,7 +514,9 @@ export function deserializePrepare(buffer: Buffer): ILPPreparePacket {
   offset += 1;
 
   if (type !== PacketType.PREPARE) {
-    throw new InvalidPacketError(`Invalid packet type: expected ${PacketType.PREPARE}, got ${type}`);
+    throw new InvalidPacketError(
+      `Invalid packet type: expected ${PacketType.PREPARE}, got ${type}`
+    );
   }
 
   // Decode amount
@@ -534,14 +531,14 @@ export function deserializePrepare(buffer: Buffer): ILPPreparePacket {
   const { value: executionCondition, bytesRead: conditionBytes } = decodeFixedOctetString(
     buffer,
     offset,
-    32,
+    32
   );
   offset += conditionBytes;
 
   // Decode destination
   const { value: destinationBuffer, bytesRead: destinationBytes } = decodeVarOctetString(
     buffer,
-    offset,
+    offset
   );
   offset += destinationBytes;
 
@@ -590,14 +587,16 @@ export function deserializeFulfill(buffer: Buffer): ILPFulfillPacket {
   offset += 1;
 
   if (type !== PacketType.FULFILL) {
-    throw new InvalidPacketError(`Invalid packet type: expected ${PacketType.FULFILL}, got ${type}`);
+    throw new InvalidPacketError(
+      `Invalid packet type: expected ${PacketType.FULFILL}, got ${type}`
+    );
   }
 
   // Decode fulfillment (32 bytes)
   const { value: fulfillment, bytesRead: fulfillmentBytes } = decodeFixedOctetString(
     buffer,
     offset,
-    32,
+    32
   );
   offset += fulfillmentBytes;
 
@@ -649,13 +648,15 @@ export function deserializeReject(buffer: Buffer): ILPRejectPacket {
 
   // Validate error code format (3 characters)
   if (code.length !== 3) {
-    throw new InvalidPacketError(`Invalid error code format: expected 3 characters, got ${code.length}`);
+    throw new InvalidPacketError(
+      `Invalid error code format: expected 3 characters, got ${code.length}`
+    );
   }
 
   // Decode triggeredBy
   const { value: triggeredByBuffer, bytesRead: triggeredByBytes } = decodeVarOctetString(
     buffer,
-    offset,
+    offset
   );
   offset += triggeredByBytes;
 
@@ -706,7 +707,7 @@ export function deserializeReject(buffer: Buffer): ILPRejectPacket {
  * @see {@link https://interledger.org/rfcs/0027-interledger-protocol-4/|RFC-0027: ILPv4}
  */
 export function deserializePacket(
-  buffer: Buffer,
+  buffer: Buffer
 ): ILPPreparePacket | ILPFulfillPacket | ILPRejectPacket {
   if (buffer.length === 0) {
     throw new InvalidPacketError('Cannot deserialize packet: empty buffer');
@@ -722,8 +723,6 @@ export function deserializePacket(
     case PacketType.REJECT:
       return deserializeReject(buffer);
     default:
-      throw new InvalidPacketError(
-        `Invalid packet type: expected 12, 13, or 14, got ${type}`,
-      );
+      throw new InvalidPacketError(`Invalid packet type: expected 12, 13, or 14, got ${type}`);
   }
 }

@@ -5,12 +5,7 @@
 
 import { BTPClient, Peer, BTPConnectionError, BTPAuthenticationError } from './btp-client';
 import { Logger } from '../utils/logger';
-import {
-  BTPMessage,
-  BTPMessageType,
-  BTPData,
-  BTPErrorData,
-} from './btp-types';
+import { BTPMessage, BTPMessageType, BTPData, BTPErrorData } from './btp-types';
 import { serializeBTPMessage, parseBTPMessage } from './btp-message-parser';
 import {
   ILPPreparePacket,
@@ -107,7 +102,11 @@ const createAuthResponse = (requestId: number): BTPMessage => ({
 /**
  * Create BTP error response message
  */
-const createErrorResponse = (requestId: number, code = 'F00', errorMessage = 'Test error'): BTPMessage => ({
+const createErrorResponse = (
+  requestId: number,
+  code = 'F00',
+  errorMessage = 'Test error'
+): BTPMessage => ({
   type: BTPMessageType.ERROR,
   requestId,
   data: {
@@ -229,7 +228,7 @@ describe('BTPClient', () => {
       return mockWs;
     });
 
-    client = new BTPClient(mockPeer, mockLogger);
+    client = new BTPClient(mockPeer, 'test-node', mockLogger);
     jest.clearAllMocks();
   });
 
@@ -465,8 +464,12 @@ describe('BTPClient', () => {
         const msg1 = parseBTPMessage(mockWs.sentMessages[0]!);
         const msg2 = parseBTPMessage(mockWs.sentMessages[1]!);
 
-        mockWs.simulateMessage(serializeBTPMessage(createPacketResponse(msg1.requestId, serializePacket(fulfillPacket))));
-        mockWs.simulateMessage(serializeBTPMessage(createPacketResponse(msg2.requestId, serializePacket(fulfillPacket))));
+        mockWs.simulateMessage(
+          serializeBTPMessage(createPacketResponse(msg1.requestId, serializePacket(fulfillPacket)))
+        );
+        mockWs.simulateMessage(
+          serializeBTPMessage(createPacketResponse(msg2.requestId, serializePacket(fulfillPacket)))
+        );
       });
 
       await Promise.all([send1, send2]);
@@ -498,7 +501,7 @@ describe('BTPClient', () => {
         }
       }) as never);
 
-      const newClient = new BTPClient(mockPeer, mockLogger);
+      const newClient = new BTPClient(mockPeer, 'test-node', mockLogger);
 
       // Act - first attempt fails
       newClient.connect().catch(() => {
@@ -541,7 +544,7 @@ describe('BTPClient', () => {
         return failWs;
       }) as never);
 
-      const newClient = new BTPClient(mockPeer, mockLogger, 2); // Max 2 retries
+      const newClient = new BTPClient(mockPeer, 'test-node', mockLogger, 2); // Max 2 retries
 
       // Act
       newClient.connect().catch(() => {
@@ -732,7 +735,9 @@ describe('BTPClient', () => {
       setImmediate(() => {
         const btpMsg = parseBTPMessage(mockWs.sentMessages[mockWs.sentMessages.length - 1]!);
         mockWs.simulateMessage(
-          serializeBTPMessage(createPacketResponse(btpMsg.requestId, serializePacket(createValidFulfillPacket())))
+          serializeBTPMessage(
+            createPacketResponse(btpMsg.requestId, serializePacket(createValidFulfillPacket()))
+          )
         );
       });
 
@@ -791,7 +796,9 @@ describe('BTPClient', () => {
       setImmediate(() => {
         const btpMsg = parseBTPMessage(mockWs.sentMessages[mockWs.sentMessages.length - 1]!);
         mockWs.simulateMessage(
-          serializeBTPMessage(createPacketResponse(btpMsg.requestId, serializePacket(createValidFulfillPacket())))
+          serializeBTPMessage(
+            createPacketResponse(btpMsg.requestId, serializePacket(createValidFulfillPacket()))
+          )
         );
       });
       await sendPromise;

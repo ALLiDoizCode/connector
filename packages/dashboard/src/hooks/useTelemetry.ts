@@ -42,8 +42,7 @@ export function useTelemetry(): UseTelemetryResult {
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY);
 
   // Read telemetry server URL from environment variable with default
-  const telemetryUrl =
-    import.meta.env.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
+  const telemetryUrl = import.meta.env.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
 
   useEffect(() => {
     const connect = (): void => {
@@ -107,9 +106,7 @@ export function useTelemetry(): UseTelemetryResult {
             );
           } else {
             // eslint-disable-next-line no-console
-            console.error(
-              '[useTelemetry] Max reconnection attempts reached. Connection failed.'
-            );
+            console.error('[useTelemetry] Max reconnection attempts reached. Connection failed.');
             setError(new Error('Connection Failed: Max reconnection attempts reached'));
           }
         };

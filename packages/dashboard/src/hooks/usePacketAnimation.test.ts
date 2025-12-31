@@ -104,10 +104,9 @@ describe('usePacketAnimation', () => {
       },
     ];
 
-    const { result, rerender } = renderHook(
-      ({ events }) => usePacketAnimation(events),
-      { initialProps: { events } }
-    );
+    const { result, rerender } = renderHook(({ events }) => usePacketAnimation(events), {
+      initialProps: { events },
+    });
 
     // Initially packet is active
     expect(result.current.activePackets).toHaveLength(1);
@@ -157,10 +156,9 @@ describe('usePacketAnimation', () => {
       },
     ];
 
-    const { result, rerender } = renderHook(
-      ({ events }) => usePacketAnimation(events),
-      { initialProps: { events: receivedEvents } }
-    );
+    const { result, rerender } = renderHook(({ events }) => usePacketAnimation(events), {
+      initialProps: { events: receivedEvents },
+    });
 
     // Now add PACKET_SENT events
     const allEvents: TelemetryEvent[] = [
@@ -198,15 +196,9 @@ describe('usePacketAnimation', () => {
 
     expect(result.current.activePackets).toHaveLength(3);
 
-    const preparePacket = result.current.activePackets.find(
-      (p) => p.id === 'packet-prepare'
-    );
-    const fulfillPacket = result.current.activePackets.find(
-      (p) => p.id === 'packet-fulfill'
-    );
-    const rejectPacket = result.current.activePackets.find(
-      (p) => p.id === 'packet-reject'
-    );
+    const preparePacket = result.current.activePackets.find((p) => p.id === 'packet-prepare');
+    const fulfillPacket = result.current.activePackets.find((p) => p.id === 'packet-fulfill');
+    const rejectPacket = result.current.activePackets.find((p) => p.id === 'packet-reject');
 
     expect(preparePacket?.color).toBe('#3b82f6'); // Blue
     expect(preparePacket?.type).toBe('PREPARE');

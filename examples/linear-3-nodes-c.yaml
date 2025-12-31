@@ -32,3 +32,7 @@ routes:
   - prefix: g.connectorb
     nextHop: connector-b
     priority: 0
+
+  - prefix: g.connectorc
+    nextHop: connector-c
+    priority: 0

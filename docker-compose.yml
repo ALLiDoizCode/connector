@@ -37,6 +37,8 @@ services:
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
       DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
+      BTP_PEER_CONNECTOR_B_SECRET: secret-a-to-b
+      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
     volumes:
       - ./examples/linear-3-nodes-a.yaml:/app/config.yaml:ro
     ports:
@@ -89,6 +91,7 @@ services:
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
       DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
+      BTP_PEER_CONNECTOR_B_SECRET: secret-b-to-c
     volumes:
       - ./examples/linear-3-nodes-c.yaml:/app/config.yaml:ro
     ports:

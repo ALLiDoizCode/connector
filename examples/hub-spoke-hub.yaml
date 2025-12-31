@@ -26,6 +26,10 @@ peers: []
 # Routes for each spoke connector
 # Note: These routes will only work once spokes establish connections
 routes:
+  - prefix: g.hub
+    nextHop: hub
+    priority: 0
+
   - prefix: g.spoke1
     nextHop: spoke-1
     priority: 0

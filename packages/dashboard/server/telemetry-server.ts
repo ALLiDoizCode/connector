@@ -128,7 +128,7 @@ export class TelemetryServer {
    * Check if message type is a telemetry event
    */
   private isTelemetryEvent(type: string): boolean {
-    return ['NODE_STATUS', 'PACKET_SENT', 'PACKET_RECEIVED', 'ROUTE_LOOKUP'].includes(type);
+    return ['NODE_STATUS', 'PACKET_SENT', 'PACKET_RECEIVED', 'ROUTE_LOOKUP', 'LOG'].includes(type);
   }
 
   /**

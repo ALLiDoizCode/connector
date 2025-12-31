@@ -156,7 +156,9 @@ describe('BTPClient and BTPServer Integration', () => {
       await client.connect();
 
       // Configure packet handler to return fulfill responses
-      jest.spyOn(packetHandler, 'handlePreparePacket').mockResolvedValue(createValidFulfillPacket());
+      jest
+        .spyOn(packetHandler, 'handlePreparePacket')
+        .mockResolvedValue(createValidFulfillPacket());
     });
 
     it('should send ILP Prepare and receive ILP Fulfill', async () => {
@@ -303,7 +305,9 @@ describe('BTPClient and BTPServer Integration', () => {
     it('should handle packet handler errors gracefully', async () => {
       // Arrange
       const preparePacket = createValidPreparePacket();
-      jest.spyOn(packetHandler, 'handlePreparePacket').mockRejectedValue(new Error('Processing failed'));
+      jest
+        .spyOn(packetHandler, 'handlePreparePacket')
+        .mockRejectedValue(new Error('Processing failed'));
 
       // Act - should receive reject packet instead of throwing
       const response = await client.sendPacket(preparePacket);

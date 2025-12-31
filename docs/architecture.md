@@ -1,1439 +1,2150 @@
-# ILP Connector with BTP and Network Visualization - Architecture Document
+# ILP Connector with BTP and Network Visualization - Architecture Documentation
+
+## Table of Contents
+
+- [Introduction](#introduction)
+  - [Project Purpose and Goals](#project-purpose-and-goals)
+  - [Why This Architecture?](#why-this-architecture)
+  - [Document Structure](#document-structure)
+- [Monorepo Structure and Package Responsibilities](#monorepo-structure-and-package-responsibilities)
+  - [Package Overview](#package-overview)
+  - [Package Boundaries and Dependencies](#package-boundaries-and-dependencies)
+  - [Tools and Examples](#tools-and-examples)
+  - [Docker Compose Configurations](#docker-compose-configurations)
+- [Component Architecture](#component-architecture)
+  - [System Components Overview](#system-components-overview)
+  - [Component Interaction Diagram](#component-interaction-diagram)
+  - [Data Flow: Packet to Visualization](#data-flow-packet-to-visualization)
+- [Core Workflows](#core-workflows)
+  - [Packet Forwarding Workflow (Multi-Hop)](#packet-forwarding-workflow-multi-hop)
+  - [Dashboard Telemetry and Visualization Workflow](#dashboard-telemetry-and-visualization-workflow)
+  - [Connector Startup and BTP Connection Establishment](#connector-startup-and-btp-connection-establishment)
+- [Configuration Loading and Precedence](#configuration-loading-and-precedence)
+  - [Configuration Sources](#configuration-sources)
+  - [Precedence Order](#precedence-order)
+  - [Key Configuration Fields](#key-configuration-fields)
+- [Telemetry Protocol](#telemetry-protocol)
+  - [Telemetry Message Types](#telemetry-message-types)
+  - [Telemetry Flow Architecture](#telemetry-flow-architecture)
+  - [Telemetry Schema Examples](#telemetry-schema-examples)
+- [Interledger Protocol References](#interledger-protocol-references)
+  - [RFC-0027: Interledger Protocol v4 (ILPv4)](#rfc-0027-interledger-protocol-v4-ilpv4)
+  - [RFC-0023: Bilateral Transfer Protocol (BTP)](#rfc-0023-bilateral-transfer-protocol-btp)
+  - [RFC-0030: Notes on OER Encoding](#rfc-0030-notes-on-oer-encoding)
+  - [RFC-0015: ILP Addresses](#rfc-0015-ilp-addresses)
+  - [RFC-0001: Interledger Architecture](#rfc-0001-interledger-architecture)
+- [Key Design Decisions](#key-design-decisions)
+  - [In-Memory State Only](#in-memory-state-only)
+  - [Push-Based Telemetry](#push-based-telemetry)
+  - [Docker-First Deployment](#docker-first-deployment)
+  - [WebSocket-Centric Communication](#websocket-centric-communication)
+  - [Cytoscape.js for Network Visualization](#cytoscapejs-for-network-visualization)
+  - [Educational Over Production](#educational-over-production)
+  - [Hexagonal Architecture (Ports and Adapters)](#hexagonal-architecture-ports-and-adapters)
+- [Extending the System](#extending-the-system)
+  - [Adding New Telemetry Event Types](#adding-new-telemetry-event-types)
+  - [Creating Custom Dashboard Visualizations](#creating-custom-dashboard-visualizations)
+  - [Implementing New Transport Protocols](#implementing-new-transport-protocols)
+  - [Supporting Custom Network Topologies](#supporting-custom-network-topologies)
+- [Related Documentation](#related-documentation)
 
 ## Introduction
 
-This document outlines the overall project architecture for the ILP Connector with BTP and Network Visualization, including backend systems, shared services, and non-UI specific concerns. Its primary goal is to serve as the guiding architectural blueprint for AI-driven development, ensuring consistency and adherence to chosen patterns and technologies.
+### Project Purpose and Goals
 
-**Relationship to Frontend Architecture:**
-If the project includes a significant user interface, a separate Frontend Architecture Document will detail the frontend-specific design and MUST be used in conjunction with this document. Core technology stack choices documented herein (see "Tech Stack") are definitive for the entire project, including any frontend components.
+The **ILP Connector with BTP and Network Visualization** is an educational tool designed to make
+Interledger Protocol (ILP) packet routing observable and debuggable. The system enables developers
+to:
 
-### Change Log
+- **Visualize ILP packet flows** across multi-node connector networks in real-time
+- **Inspect packet contents** (Prepare, Fulfill, Reject) with full OER-decoded details
+- **Understand routing decisions** through comprehensive structured logging
+- **Experiment with network topologies** (linear, mesh, hub-spoke) via Docker Compose
+- **Learn Interledger RFCs** by interacting with authentic ILPv4 and BTP implementations
 
-| Date       | Version | Description                   | Author              |
-| ---------- | ------- | ----------------------------- | ------------------- |
-| 2025-12-26 | 0.1     | Initial architecture creation | Winston (Architect) |
+This is not a production-ready connector - it prioritizes observability, ease of use, and
+educational value over performance, security, and high availability.
 
-### Starter Template or Existing Project
+### Why This Architecture?
 
-**Decision: Greenfield Project - No Starter Template**
+The architectural choices in this system are driven by four key principles:
 
-Based on PRD review, this is a greenfield project with no existing codebase. Given the unique architectural requirements (ILP connector + BTP + visualization), manual setup is recommended.
+#### Educational Value - Hands-On ILP Learning
+
+The system is designed for developers learning Interledger Protocol. By providing a visual
+dashboard showing packet flows, routing decisions, and detailed packet inspection, learners can see
+abstract RFC concepts (ILP addresses, BTP connections, OER encoding) manifest in a running system.
+The architecture intentionally exposes internal state (routing tables, peer connections) rather
+than hiding it.
+
+#### Observability-First Design - Visualize Packet Routing
+
+Traditional ILP connectors are "black boxes" - packets enter, packets leave, but intermediate
+routing is opaque. This system inverts that model by making telemetry a first-class concern.
+Connectors emit detailed events (PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP) that drive real-time
+network visualizations. The architecture treats observability as core functionality, not an
+afterthought.
+
+#### Developer Experience - Zero-Config Docker Deployment
+
+Setting up multi-node connector networks is complex. This architecture uses Docker Compose to
+orchestrate N connector nodes with pre-configured routing tables and BTP peer connections. Running
+`docker-compose up` deploys a working 3-node network in seconds. The monorepo structure with
+TypeScript type sharing across packages ensures type safety while maintaining simplicity.
+
+#### RFC Compliance - Authentic Interledger Implementation
+
+The system implements authentic Interledger RFCs (ILPv4, BTP, OER encoding, ILP addressing) rather
+than simplified approximations. This ensures learners interact with real protocol behavior. The
+architecture follows RFC-0001's layered design (transport layer via BTP, Interledger layer via
+ILPv4 packet handling) and maintains protocol fidelity.
+
+### Document Structure
+
+This document is organized to provide both high-level context and detailed implementation guidance:
+
+1. **Monorepo Structure** - Package organization and responsibilities
+2. **Component Architecture** - System components, interfaces, and interactions
+3. **Core Workflows** - Sequence diagrams for key operations (packet forwarding, telemetry,
+   startup)
+4. **Configuration and Protocols** - Configuration loading, telemetry protocol specifications
+5. **RFC References** - Interledger RFCs implemented by this system
+6. **Design Decisions** - Architectural choices and rationale
+7. **Extensibility** - How to extend the system with new features
+
+For detailed coding standards, see
+[docs/architecture/coding-standards.md](./architecture/coding-standards.md).
+
+For configuration YAML schema, see [docs/configuration-schema.md](./configuration-schema.md).
+
+## Monorepo Structure and Package Responsibilities
+
+### Package Overview
+
+The system uses **npm workspaces** to manage a monorepo containing three main packages:
+
+```
+m2m/
+├── packages/
+│   ├── connector/          # ILP Connector service (Node.js + BTP + Telemetry)
+│   ├── dashboard/          # Visualization dashboard (React + Vite + Cytoscape.js)
+│   └── shared/             # Shared TypeScript types and utilities
+├── tools/
+│   └── send-packet/        # CLI utility for sending test ILP packets
+├── examples/               # Pre-configured topology YAML files
+└── docker-compose*.yml     # Docker Compose orchestration files
+```
 
 **Rationale:**
 
-- Unique requirements don't align with standard starters (Create React App, NestJS, etc.)
-- Monorepo structure (`packages/connector`, `packages/dashboard`, `packages/shared`) needs custom configuration
-- Educational value enhanced by building from first principles per PRD goals
-- PRD explicitly mentions building custom ILP packet implementation for RFC understanding
+- **Type sharing:** `packages/shared` enables connector and dashboard to share ILP packet types,
+  telemetry event schemas, and validation logic
+- **Co-located tests:** Test files live alongside source (`*.test.ts` next to `*.ts`) for better
+  discoverability
+- **Independent buildability:** Each package can be built and tested independently
+- **Single repository:** Simplifies dependency updates, refactoring, and CI/CD pipelines
 
-**Alternatives Considered:**
+### Package Boundaries and Dependencies
 
-- Turborepo/Nx monorepo starters - Rejected (unnecessary complexity for 3-package monorepo)
-- Vite React starter - Will use for dashboard package only
-- NestJS - Overkill for lightweight connector
+#### packages/connector
 
-**Implementation:** Manual initialization with npm workspaces, TypeScript strict mode, and custom project structure.
+**Responsibility:** ILP packet routing, BTP connections, telemetry emission
 
-## High Level Architecture
+**Key Components:**
 
-### Technical Summary
+- `ConnectorNode` - Core orchestrator managing packet handling and peer connections
+- `PacketHandler` - ILPv4 packet validation and forwarding logic
+- `RoutingTable` - In-memory routing table with longest-prefix matching
+- `BTPServer` - WebSocket server for incoming BTP connections (RFC-0023)
+- `BTPClient` - WebSocket client for outbound BTP connections
+- `BTPClientManager` - Manages multiple BTP client connections
+- `TelemetryEmitter` - WebSocket client emitting events to dashboard
 
-The system employs a **microservices architecture deployed via Docker containers** with an observability-first design philosophy. Multiple independent ILP connector nodes communicate using BTP (RFC-0023) over WebSocket, while a centralized React dashboard aggregates telemetry and provides real-time network visualization. The architecture prioritizes developer experience through comprehensive structured logging, zero-configuration network deployment, and visual packet flow inspection. Built entirely in TypeScript on Node.js, the system leverages in-memory state for simplicity while supporting configurable network topologies from linear chains to full mesh networks. This design directly supports the PRD's core goals: making Interledger packet routing observable, reducing debugging time through enhanced visibility, and enabling rapid experimentation with different network scenarios.
+**Dependencies:**
 
-### High Level Overview
+- `packages/shared` - ILP types, OER encoding, telemetry types
+- `ws` (8.16.x) - WebSocket server and client
+- `pino` (8.17.x) - Structured JSON logging
+- `express` (4.18.x) - Health check endpoint
+- `js-yaml` (4.1.x) - YAML configuration loading
 
-**Architectural Style:** **Containerized Microservices with Event-Driven Telemetry**
+**Tech Stack:** TypeScript 5.3.3, Node.js 20.11.0 LTS
 
-1. **Repository Structure:** Monorepo (npm workspaces) containing `packages/connector`, `packages/dashboard`, and `packages/shared`
-   - Rationale: Simplifies dependency management, enables TypeScript type sharing across packages, streamlines single-developer workflow
+#### packages/dashboard
 
-2. **Service Architecture:**
-   - N identical connector containers (each running ILPv4 + BTP implementation)
-   - Single dashboard container (React UI + telemetry WebSocket server)
-   - No shared database - each connector maintains in-memory routing tables and peer state
+**Responsibility:** Telemetry aggregation, network visualization, packet inspection UI
 
-3. **Primary Data Flow:**
+**Key Components:**
 
-   ```
-   User sends test packet → Connector A receives via BTP
-   → Connector A routes packet (consults routing table)
-   → Connector A forwards to Connector B via BTP WebSocket
-   → Both emit telemetry to dashboard via WebSocket
-   → Dashboard visualizes packet animation in real-time
-   → User clicks packet to inspect ILP packet structure
-   ```
+- **Backend:**
+  - `telemetry-server.ts` - WebSocket server aggregating telemetry from connectors
+  - `http-server.ts` - Express server for static React files and health endpoint
+- **Frontend:**
+  - `NetworkGraph.tsx` - Cytoscape.js network topology visualization
+  - `PacketAnimation.tsx` - Animated packet flow overlay
+  - `LogViewer.tsx` - Filterable structured log display
+  - `PacketDetailPanel.tsx` - ILP packet inspection drawer
+  - `NodeStatusPanel.tsx` - Connector status display
 
-4. **Key Architectural Decisions:**
-   - **In-memory state only:** No persistence layer for MVP - routing tables configured at startup, packet history ephemeral
-   - **Push-based telemetry:** Connectors push events to dashboard (not pull-based polling)
-   - **Docker-first deployment:** No non-containerized deployment supported for MVP
-   - **WebSocket-centric communication:** BTP uses WebSocket (RFC-0023), telemetry uses WebSocket, real-time UI updates use WebSocket
-   - **Educational over production:** Security, high availability, and performance optimization secondary to observability and ease of use
+**Dependencies:**
 
-### High Level Project Diagram
+- `packages/shared` - Telemetry types, ILP types
+- Backend: `express` (4.18.x), `ws` (8.16.x), `pino` (8.17.x)
+- Frontend: `react` (18.2.x), `cytoscape` (3.28.x), `tailwindcss` (3.4.x), `shadcn-ui` (v4
+  components)
 
-```mermaid
-graph TB
-    User[Developer/User] -->|Access Dashboard| Dashboard[Dashboard Container<br/>React UI + Telemetry Server]
-    User -->|docker-compose up| Docker[Docker Compose Orchestration]
+**Tech Stack:** React 18.2.x, Vite 5.0.x, TypeScript 5.3.3, TailwindCSS 3.4.x
 
-    Docker -->|Deploys| ConnectorA[Connector Node A<br/>ILPv4 + BTP]
-    Docker -->|Deploys| ConnectorB[Connector Node B<br/>ILPv4 + BTP]
-    Docker -->|Deploys| ConnectorC[Connector Node C<br/>ILPv4 + BTP]
-    Docker -->|Deploys| Dashboard
+#### packages/shared
 
-    ConnectorA <-->|BTP WebSocket| ConnectorB
-    ConnectorB <-->|BTP WebSocket| ConnectorC
+**Responsibility:** Shared TypeScript types, OER encoding utilities, validation logic
 
-    ConnectorA -.->|Telemetry<br/>WebSocket| Dashboard
-    ConnectorB -.->|Telemetry<br/>WebSocket| Dashboard
-    ConnectorC -.->|Telemetry<br/>WebSocket| Dashboard
+**Key Exports:**
 
-    User -->|Send Test Packets| TestSender[Packet Sender CLI Tool]
-    TestSender -->|ILP Packet| ConnectorA
+- **Types:**
+  - `ILPPacket`, `ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket` - ILP packet types
+  - `BTPMessage`, `BTPAuth`, `BTPTransfer` - BTP message types
+  - `RoutingTableEntry`, `Peer` - Routing and peer connection types
+  - `TelemetryEvent` - Telemetry event union type (NODE_STATUS, PACKET_RECEIVED, PACKET_SENT,
+    ROUTE_LOOKUP, LOG)
+  - `ConnectorConfig` - Configuration schema type
+- **Utilities:**
+  - `oer.ts` - OER encoding/decoding per RFC-0030 (`serializePacket`, `deserializePacket`)
+  - `ilp-address.ts` - ILP address validation per RFC-0015
 
-    Dashboard -->|Visualizes| NetworkGraph[Network Topology Graph]
-    Dashboard -->|Displays| PacketFlow[Animated Packet Flow]
-    Dashboard -->|Shows| Logs[Filterable Structured Logs]
+**Dependencies:** None (pure TypeScript types and Node.js Buffer API)
 
-    style Dashboard fill:#2563eb,color:#fff
-    style ConnectorA fill:#059669,color:#fff
-    style ConnectorB fill:#059669,color:#fff
-    style ConnectorC fill:#059669,color:#fff
-    style User fill:#6366f1,color:#fff
+**Tech Stack:** TypeScript 5.3.3, Node.js 20.11.0 LTS
+
+### Tools and Examples
+
+#### tools/send-packet
+
+**Purpose:** CLI utility for injecting test ILP packets into connector networks
+
+**Usage:**
+
+```bash
+# Send single packet
+send-packet --source connector-a --destination g.bob.crypto --amount 1000
+
+# Send batch (10 concurrent packets)
+send-packet --source connector-a --destination g.bob.crypto --amount 1000 --batch 10
+
+# Send sequence (10 packets with 500ms delay)
+send-packet --source connector-a --destination g.bob.crypto --amount 1000 --sequence 10 --delay 500
 ```
 
-### Architectural and Design Patterns
-
-1. **Microservices Architecture (Containerized)**
-   - Each connector node runs as independent Docker container
-   - Services communicate via WebSocket (BTP protocol + telemetry)
-   - _Rationale:_ Aligns with PRD requirement for deploying N nodes flexibly; enables network topology experimentation; supports independent scaling and isolation
-
-2. **Event-Driven Telemetry**
-   - Connectors emit events (PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP) to dashboard asynchronously
-   - Dashboard aggregates and broadcasts to UI clients
-   - _Rationale:_ Decouples observability from packet processing; supports real-time visualization without blocking routing; enables future extensibility (multiple dashboard clients, logging backends)
-
-3. **Repository Pattern (for Routing Table Management)**
-   - Abstract routing table operations behind interface
-   - In-memory implementation for MVP, could swap for Redis/database later
-   - _Rationale:_ Enables testing (mock routing table), future migration flexibility, clear separation of routing logic from storage
-
-4. **Observer Pattern (for BTP Connection State)**
-   - BTP clients emit connection lifecycle events (connected, disconnected, error)
-   - Packet handler observes state to make routing decisions
-   - _Rationale:_ Connector components can react to peer availability changes; supports health reporting to dashboard; aligns with event-driven architecture
-
-5. **Strategy Pattern (for Network Topology Configuration)**
-   - Topology configuration (linear, mesh, custom) loaded at startup
-   - Different topology strategies populate routing tables accordingly
-   - _Rationale:_ Supports PRD requirement for multiple pre-configured topologies; enables easy addition of new topology types; separates topology logic from connector core
-
-6. **Hexagonal Architecture (Ports and Adapters)**
-   - Core ILP packet handling logic independent of BTP transport
-   - BTP is an adapter implementing ledger plugin interface
-   - _Rationale:_ Enables future support for ILP-over-HTTP or other transports; improves testability (mock transport); aligns with RFC-0001 layered architecture
-
-7. **Structured Logging as First-Class Concern**
-   - All operations emit structured JSON logs with consistent schema
-   - Logging integrated at framework level (not ad-hoc console.logs)
-   - _Rationale:_ Directly supports FR10 comprehensive logging requirement; enables filterable log viewer; critical for debugging educational use case
+**Implementation:** Node.js CLI using `commander` for argument parsing, BTP client for connector
+connections, OER codec for packet serialization.
 
-8. **RESTful Convention for Dashboard API (Minimal)**
-   - Health check endpoint: `GET /health`
-   - Static file serving for React build
-   - WebSocket endpoint for telemetry: `ws://dashboard:9000/telemetry`
-   - _Rationale:_ Simple, standard conventions; minimal API surface for MVP; aligns with Docker health check requirements
+#### examples/
 
-## Tech Stack
+**Purpose:** Pre-configured network topology YAML files
 
-**CRITICAL SECTION - DEFINITIVE TECHNOLOGY CHOICES**
+**Available Topologies:**
 
-This section represents the single source of truth for all technology decisions. All implementation must reference these exact versions and choices.
+- `linear-3-nodes.yaml` - Linear chain: A → B → C
+- `mesh-4-nodes-*.yaml` - Full mesh: All nodes connect to all others
+- `hub-spoke.yaml` - Hub-and-spoke: Central hub with peripheral nodes
+- `complex-8-node/` - Complex 8-node network with mixed connectivity
 
-### Cloud Infrastructure
+**Usage:** Reference in Docker Compose via `CONFIG_FILE` environment variable:
 
-- **Provider:** None (Local Docker deployment for MVP)
-- **Key Services:** Docker Engine, Docker Compose
-- **Deployment Regions:** Localhost only (future: cloud-agnostic Kubernetes)
+```yaml
+environment:
+  - CONFIG_FILE=/config/linear-3-nodes.yaml
+volumes:
+  - ./examples:/config
+```
 
-### Technology Stack Table
+### Docker Compose Configurations
 
-| Category                       | Technology                | Version          | Purpose                                                    | Rationale                                                                                                                                           |
-| ------------------------------ | ------------------------- | ---------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Language**                   | TypeScript                | 5.3.3            | Primary development language for all packages              | Strong typing ensures RFC compliance, excellent IDE support, enables type sharing between connector/dashboard, aligns with Interledger.js ecosystem |
-| **Runtime**                    | Node.js                   | 20.11.0 LTS      | JavaScript runtime for connector and dashboard backend     | LTS version guarantees stability, wide ecosystem, asynchronous I/O ideal for WebSocket handling, Docker images readily available                    |
-| **Package Manager**            | npm                       | 10.x             | Dependency management and workspace orchestration          | Built-in workspaces feature supports monorepo, standard tooling, no additional setup required                                                       |
-| **Backend Framework**          | None (Express.js minimal) | Express 4.18.x   | HTTP server for dashboard static files and health endpoint | Lightweight, well-documented, sufficient for minimal API needs, avoids framework overhead                                                           |
-| **Frontend Framework**         | React                     | 18.2.x           | Dashboard UI                                               | Mature ecosystem, excellent integration with visualization libraries, large community, component-based architecture fits dashboard modular design   |
-| **Build Tool (Frontend)**      | Vite                      | 5.0.x            | React development server and production bundler            | Lightning-fast HMR, optimized builds, TypeScript support out-of-box, modern alternative to CRA                                                      |
-| **UI Styling**                 | TailwindCSS               | 3.4.x            | Utility-first CSS framework                                | Rapid UI development, small bundle size, easy dark theme implementation, minimal custom CSS needed                                                  |
-| **Network Visualization**      | Cytoscape.js              | 3.28.x           | Interactive network graph rendering                        | Purpose-built for network graphs, performant for 10+ nodes, supports animated layouts, force-directed positioning, MIT licensed                     |
-| **WebSocket Library (Server)** | ws                        | 8.16.x           | WebSocket server for BTP and telemetry                     | Lightweight, standard Node.js WebSocket library, RFC 6455 compliant, widely used                                                                    |
-| **WebSocket Library (Client)** | Native WebSocket API      | Browser built-in | Browser-side WebSocket for dashboard UI                    | No additional dependencies, standard browser API, sufficient for client needs                                                                       |
-| **Logging Library**            | Pino                      | 8.17.x           | Structured JSON logging                                    | High-performance (minimal overhead), excellent TypeScript support, structured JSON output, child logger support for correlation IDs                 |
-| **Testing Framework**          | Jest                      | 29.7.x           | Unit and integration testing                               | Industry standard, excellent TypeScript support, snapshot testing, mocking capabilities, coverage reporting                                         |
-| **Linting**                    | ESLint                    | 8.56.x           | Code quality and consistency                               | Enforce coding standards, catch common errors, TypeScript integration via @typescript-eslint                                                        |
-| **Code Formatting**            | Prettier                  | 3.2.x            | Automated code formatting                                  | Consistent code style, integrates with ESLint, reduces style debates                                                                                |
-| **ILP Packet Encoding**        | Custom OER Implementation | N/A              | Encode/decode ILP packets per RFC-0030                     | Educational value of building from scratch, no suitable existing library with TypeScript types, enables deep RFC understanding                      |
-| **Configuration Format**       | YAML + dotenv             | js-yaml 4.1.x    | Topology definitions (YAML), runtime config (ENV)          | YAML human-readable for topology files, ENV vars integrate with Docker Compose, standard conventions                                                |
-| **Container Base Image**       | node:20-alpine            | 20-alpine        | Docker base image for all containers                       | Small footprint (~150MB), official Node.js image, Alpine Linux security benefits, faster startup                                                    |
-| **Container Orchestration**    | Docker Compose            | 2.24.x           | Multi-node network deployment                              | Simple declarative configuration, standard developer tool, supports health checks and networking                                                    |
-| **Version Control**            | Git                       | 2.x              | Source control with conventional commits                   | Industry standard, conventional commits enable changelog automation                                                                                 |
-| **CI/CD**                      | GitHub Actions            | N/A              | Automated testing, linting, and Docker builds              | Free for open-source, GitHub integration, supports matrix testing across Node versions                                                              |
-| **Database**                   | None (In-memory)          | N/A              | No persistence layer for MVP                               | Simplifies architecture, sufficient for ephemeral routing state, aligns with educational/testing use case                                           |
+**Available Configurations:**
 
-**Important Notes:**
+- `docker-compose.yml` - Default 3-node linear topology (A → B → C)
+- `docker-compose-mesh.yml` - 4-node full mesh topology
+- `docker-compose-hub-spoke.yml` - Hub-and-spoke with central hub
+- `docker-compose-complex.yml` - 8-node complex network
 
-1. **No External APIs Required:** All functionality self-contained except Docker Hub for base images
-2. **Monorepo Package Structure:**
-   - `packages/connector` - Uses Node.js, TypeScript, Pino, ws, Express (health endpoint)
-   - `packages/dashboard` - Uses React, Vite, TailwindCSS, Cytoscape.js
-   - `packages/shared` - Pure TypeScript types and utilities (ILP packet definitions, OER encoding)
-3. **TypeScript Configuration:** Strict mode enabled across all packages, shared tsconfig.base.json in monorepo root
-4. **Version Pinning Strategy:** Patch versions flexible (^), minor versions locked for stability, LTS/stable releases preferred
-5. **License Compatibility:** All dependencies MIT or Apache 2.0 compatible (open-source project)
+**Common Pattern:**
 
-## Data Models
+```yaml
+services:
+  dashboard:
+    build: ./packages/dashboard
+    ports:
+      - '8080:8080'
+    environment:
+      - TELEMETRY_PORT=9000
 
-### ILPPacket (Base)
+  connector-a:
+    build: ./packages/connector
+    environment:
+      - NODE_ID=connector-a
+      - BTP_SERVER_PORT=3000
+      - CONFIG_FILE=/config/linear-3-nodes.yaml
+    volumes:
+      - ./examples:/config
+```
 
-**Purpose:** Abstract base type for all ILP packet types (Prepare, Fulfill, Reject) as defined in RFC-0027
+**Rationale:** Docker Compose provides declarative multi-container orchestration, supports health
+checks, enables container networking, and aligns with standard developer tooling.
 
-**Key Attributes:**
+## Component Architecture
 
-- `type: PacketType` (enum: PREPARE = 12, FULFILL = 13, REJECT = 14) - Discriminator for packet type
-- `data: Buffer` - Binary payload data
-- `amount: bigint` - Payment amount in smallest unit (uint64)
-- `destination: ILPAddress` - Hierarchical ILP address per RFC-0015
+### System Components Overview
 
-**Relationships:**
+#### ConnectorNode
 
-- Extended by ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket
-- Used in BTPMessage payload field
-
-### ILPPreparePacket
-
-**Purpose:** Represents conditional payment packet initiating an ILP transaction (RFC-0027 Section 3.1)
-
-**Key Attributes:**
-
-- `type: PacketType.PREPARE` (12) - Packet type identifier
-- `amount: bigint` - Transfer amount
-- `destination: ILPAddress` - Payment destination address
-- `executionCondition: Buffer` - 32-byte SHA-256 hash condition
-- `expiresAt: Date` - Expiration timestamp (ISO 8601)
-- `data: Buffer` - Optional application data payload
-
-**Relationships:**
-
-- Forwarded through multiple Connectors until reaching destination
-- Responded to with either ILPFulfillPacket or ILPRejectPacket
-- Wrapped in BTPMessage for transmission
-
-### ILPFulfillPacket
-
-**Purpose:** Represents successful payment fulfillment (RFC-0027 Section 3.2)
-
-**Key Attributes:**
-
-- `type: PacketType.FULFILL` (13) - Packet type identifier
-- `fulfillment: Buffer` - 32-byte preimage that hashes to executionCondition
-- `data: Buffer` - Optional return data
-
-**Relationships:**
-
-- Response to ILPPreparePacket
-- Propagates backward through connector chain
-
-### ILPRejectPacket
-
-**Purpose:** Represents payment rejection with error information (RFC-0027 Section 3.3)
-
-**Key Attributes:**
-
-- `type: PacketType.REJECT` (14) - Packet type identifier
-- `code: ILPErrorCode` - Three-character error code (F00-F99, T00-T99, R00-R99)
-- `triggeredBy: ILPAddress` - Address of connector that generated error
-- `message: string` - Human-readable error description
-- `data: Buffer` - Additional error context
-
-**Relationships:**
-
-- Response to ILPPreparePacket when payment cannot be fulfilled
-- Propagates backward through connector chain
-
-**Error Code Categories:**
-
-- F-prefix: Final errors (permanent failures)
-- T-prefix: Temporary errors (retryable)
-- R-prefix: Relative errors (protocol violations)
-
-### RoutingTableEntry
-
-**Purpose:** Maps ILP address prefixes to next-hop peer identifiers for packet forwarding
-
-**Key Attributes:**
-
-- `prefix: string` - ILP address prefix (e.g., "g.alice" or "g.bob.crypto")
-- `nextHop: string` - Peer identifier matching BTP connection
-- `priority: number` - Route priority for tie-breaking (optional, default 0)
-
-**Relationships:**
-
-- Many entries comprise a RoutingTable
-- nextHop references a Peer in the connector's peer list
-
-### Peer
-
-**Purpose:** Represents a BTP-connected peer connector with connection metadata
-
-**Key Attributes:**
-
-- `id: string` - Unique peer identifier
-- `url: string` - WebSocket URL for BTP connection (e.g., "ws://connector-b:3000")
-- `authToken: string` - Shared secret for BTP authentication
-- `connected: boolean` - Current connection state
-- `lastSeen: Date` - Timestamp of last successful communication
-
-**Relationships:**
-
-- Referenced by RoutingTableEntry.nextHop
-- Manages one BTPConnection instance
-
-### BTPMessage
-
-**Purpose:** BTP protocol message wrapping ILP packets for transmission (RFC-0023)
-
-**Key Attributes:**
-
-- `type: BTPMessageType` (enum: MESSAGE, RESPONSE, ERROR, TRANSFER, etc.)
-- `requestId: number` - Correlation ID for request/response matching
-- `data: BTPData` - Message payload containing:
-  - `protocolData: BTPProtocolData[]` - Array of protocol-specific data
-  - `ilpPacket: Buffer` - Serialized ILP packet (OER encoded)
-
-**Relationships:**
-
-- Contains serialized ILPPacket
-- Transmitted over WebSocket connection between Peers
-
-### TelemetryEvent
-
-**Purpose:** Observability event emitted by connectors to dashboard for visualization
-
-**Key Attributes:**
-
-- `type: TelemetryEventType` (enum: NODE_STATUS, PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP)
-- `nodeId: string` - Identifier of connector emitting event
-- `timestamp: Date` - Event occurrence time
-- `data: object` - Event-specific payload (varies by type)
-
-**Event Type Payloads:**
-
-- `NODE_STATUS`: { routes: RoutingTableEntry[], peers: Peer[], health: string }
-- `PACKET_RECEIVED`: { packetId: string, type: PacketType, source: string, destination: string, amount: string }
-- `PACKET_SENT`: { packetId: string, nextHop: string, timestamp: string }
-- `ROUTE_LOOKUP`: { destination: string, selectedPeer: string, reason: string }
-
-**Relationships:**
-
-- Generated by Connector components during packet processing
-- Transmitted to Dashboard via WebSocket
-- Consumed by Dashboard for visualization and logging
-
-### ConnectorConfig
-
-**Purpose:** Configuration object loaded at connector startup defining routing and peer topology
-
-**Key Attributes:**
-
-- `nodeId: string` - Unique identifier for this connector instance
-- `btpServerPort: number` - Port for incoming BTP connections (default 3000)
-- `healthCheckPort: number` - HTTP health endpoint port (default 8080)
-- `peers: Peer[]` - List of peer connectors to connect to
-- `routes: RoutingTableEntry[]` - Initial routing table entries
-- `logLevel: string` - Logging verbosity (DEBUG, INFO, WARN, ERROR)
-- `dashboardTelemetryUrl: string` - WebSocket URL for telemetry emission
-
-**Relationships:**
-
-- Loaded from YAML file or environment variables
-- Initializes RoutingTable and Peer connections
-
-## Components
-
-### ConnectorNode
-
-**Responsibility:** Core ILP connector service that receives, routes, and forwards ILP packets according to RFC-0027. Manages BTP connections to peer connectors and emits telemetry for observability.
+**Responsibility:** Core orchestrator managing ILP packet handling, BTP connections, routing table,
+and telemetry emission
 
 **Key Interfaces:**
 
-- `handleIncomingPacket(packet: ILPPacket): Promise<ILPPacket>` - Process received packet and return response
-- `forwardPacket(packet: ILPPreparePacket, nextHop: string): Promise<void>` - Forward to peer via BTP
-- `getRoutingTable(): RoutingTableEntry[]` - Export current routes for inspection
-- `getHealthStatus(): HealthStatus` - Report connector operational status
+- `async start()` - Initialize BTP server, connect to peers, register telemetry
+- `async handleIncomingPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>` -
+  Process incoming ILP packets
+- `async forwardPacket(packet: ILPPreparePacket, peer: Peer): Promise<void>` - Forward packet to
+  next hop
+- `getRoutingTable(): RoutingTableEntry[]` - Retrieve routing table snapshot
+- `getHealthStatus(): { status: 'healthy' | 'unhealthy', peers: number, routes: number }` - Health
+  check data
 
 **Dependencies:**
 
-- PacketHandler (packet processing logic)
-- RoutingTable (route lookups)
-- BTPServer (accept incoming connections)
-- BTPClientManager (manage outbound connections)
-- TelemetryEmitter (send events to dashboard)
-- Logger (structured logging)
+- `PacketHandler` - ILP packet processing logic
+- `RoutingTable` - Routing table lookups
+- `BTPServer` - Incoming BTP connections
+- `BTPClientManager` - Outbound BTP connections
+- `TelemetryEmitter` - Dashboard event emission
+- `Logger` (Pino) - Structured logging
 
-**Technology Stack:** TypeScript, Node.js 20, Pino logger, ws library for WebSocket, Express for health endpoint
+**Technology Stack:** TypeScript, Node.js 20, Pino logger, ws library, Express health endpoint
 
-### PacketHandler
+#### PacketHandler
 
-**Responsibility:** Implements ILPv4 packet forwarding logic including validation, expiry checking, routing table lookup, and error generation per RFC-0027.
+**Responsibility:** ILPv4 packet forwarding logic - validation, expiry checking, routing, error
+generation
 
 **Key Interfaces:**
 
-- `processPrepare(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>` - Process Prepare packet
-- `validatePacket(packet: ILPPacket): ValidationResult` - Validate packet structure and expiry
-- `generateReject(code: ILPErrorCode, message: string): ILPRejectPacket` - Create reject packet
+- `async processPrepare(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>` -
+  Main packet processing entry point
+- `validatePacket(packet: ILPPreparePacket): { valid: boolean, error?: string }` - Validate packet
+  structure and expiry
+- `generateReject(code: string, message: string): ILPRejectPacket` - Create ILP Reject packet with
+  error code
 
 **Dependencies:**
 
-- RoutingTable (determine next hop)
-- BTPClientManager (send to next hop)
-- Logger (log routing decisions)
+- `RoutingTable` - Lookup next hop for destination address
+- `BTPClientManager` - Send packet to selected peer
+- `Logger` - Log routing decisions
 
-**Technology Stack:** Pure TypeScript business logic with minimal external dependencies
+**Technology Stack:** Pure TypeScript business logic
 
-### RoutingTable
+#### RoutingTable
 
-**Responsibility:** Maintains in-memory mapping of ILP address prefixes to next-hop peers. Implements longest-prefix matching algorithm per RFC-0027 routing requirements.
+**Responsibility:** In-memory routing table with longest-prefix matching for ILP addresses
 
 **Key Interfaces:**
 
-- `addRoute(prefix: string, nextHop: string): void` - Add routing entry
-- `removeRoute(prefix: string): void` - Remove routing entry
-- `lookup(destination: ILPAddress): string | null` - Find next-hop peer using longest-prefix match
-- `getAllRoutes(): RoutingTableEntry[]` - Export all routes
+- `addRoute(entry: RoutingTableEntry): void` - Add route to table
+- `removeRoute(destination: string): void` - Remove route
+- `lookup(destination: string): Peer | null` - Find longest-prefix match (O(log n) complexity)
+- `getAllRoutes(): RoutingTableEntry[]` - Retrieve all routes
 
 **Dependencies:** None (pure data structure)
 
-**Technology Stack:** TypeScript with Map-based storage, optimized for O(log n) prefix matching
+**Technology Stack:** TypeScript Map-based storage with prefix tree algorithm
 
-### BTPServer
+#### BTPServer
 
-**Responsibility:** WebSocket server accepting incoming BTP connections from peer connectors. Implements RFC-0023 authentication and message parsing.
-
-**Key Interfaces:**
-
-- `start(port: number): Promise<void>` - Start listening for connections
-- `onConnection(callback: (peerId: string, connection: WebSocket) => void)` - Connection event handler
-- `onMessage(callback: (peerId: string, message: BTPMessage) => void)` - Message received handler
-- `stop(): Promise<void>` - Graceful shutdown
-
-**Dependencies:**
-
-- ws library (WebSocket server)
-- BTPMessageParser (decode BTP frames)
-- Logger
-
-**Technology Stack:** ws library 8.16.x, Custom BTP protocol implementation per RFC-0023
-
-### BTPClient
-
-**Responsibility:** WebSocket client for outbound BTP connections to peer connectors. Handles connection lifecycle, authentication, and packet transmission.
+**Responsibility:** WebSocket server for incoming BTP connections per RFC-0023
 
 **Key Interfaces:**
 
-- `connect(url: string, authToken: string): Promise<void>` - Establish BTP connection
-- `sendPacket(packet: ILPPacket): Promise<void>` - Send ILP packet wrapped in BTP MESSAGE
-- `onPacket(callback: (packet: ILPPacket) => void)` - Incoming packet handler
-- `disconnect(): Promise<void>` - Close connection gracefully
+- `async start(port: number): Promise<void>` - Start WebSocket server
+- `onConnection(handler: (client: BTPConnection) => void): void` - Register connection handler
+- `onMessage(handler: (message: BTPMessage) => void): void` - Register message handler
+- `async stop(): Promise<void>` - Gracefully shutdown server
 
 **Dependencies:**
 
-- ws library (WebSocket client)
-- BTPMessageParser (encode/decode BTP)
-- Logger
+- `ws` library - WebSocket server implementation
+- `BTPMessageParser` - BTP protocol encoding/decoding
+- `Logger` - Connection logging
 
-**Technology Stack:** ws library 8.16.x, Reconnection logic with exponential backoff
+**Technology Stack:** ws 8.16.x, Custom BTP protocol implementation
 
-### BTPClientManager
+#### BTPClient
 
-**Responsibility:** Manages multiple BTPClient instances (one per peer). Tracks connection state and routes packets to appropriate client based on peer ID.
+**Responsibility:** WebSocket client for outbound BTP connections with reconnection logic
+
+**Key Interfaces:**
+
+- `async connect(url: string): Promise<void>` - Establish BTP connection
+- `async sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>` - Send
+  ILP packet over BTP
+- `onPacket(handler: (packet: ILPPreparePacket) => void): void` - Register packet receive handler
+- `async disconnect(): Promise<void>` - Close connection
+
+**Dependencies:**
+
+- `ws` library - WebSocket client implementation
+- `BTPMessageParser` - BTP protocol encoding/decoding
+- `Logger` - Connection logging
+
+**Technology Stack:** ws 8.16.x, Reconnection with exponential backoff
+
+#### BTPClientManager
+
+**Responsibility:** Manages multiple BTP client instances (one per peer)
 
 **Key Interfaces:**
 
 - `addPeer(peer: Peer): Promise<void>` - Create and connect BTP client for peer
 - `removePeer(peerId: string): Promise<void>` - Disconnect and remove peer
-- `sendToPeer(peerId: string, packet: ILPPacket): Promise<void>` - Send packet to specific peer
-- `getPeerStatus(): Map<string, boolean>` - Get connection state for all peers
+- `sendToPeer(peerId: string, packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>` -
+  Route packet to specific peer
+- `getPeerStatus(peerId: string): { connected: boolean, lastSeen: string }` - Check peer connection
+  status
 
 **Dependencies:**
 
-- BTPClient (manages instances)
-- Logger
+- `BTPClient` - Individual peer connections
+- `Logger` - Peer management logging
 
 **Technology Stack:** TypeScript Map-based client registry
 
-### OERCodec
+#### OERCodec
 
-**Responsibility:** Encode and decode ILP packets to/from binary format using OER (Octet Encoding Rules) per RFC-0030.
+**Responsibility:** ILP packet OER encoding/decoding per RFC-0030
 
 **Key Interfaces:**
 
-- `serializePacket(packet: ILPPacket): Buffer` - Encode to binary
-- `deserializePacket(buffer: Buffer): ILPPacket` - Decode from binary
-- `serializePrepare(packet: ILPPreparePacket): Buffer` - Encode Prepare packet
-- `deserializePrepare(buffer: Buffer): ILPPreparePacket` - Decode Prepare packet
-- (Similar methods for Fulfill and Reject)
+- `serializePacket(packet: ILPPreparePacket): Buffer` - Encode ILP packet to binary
+- `deserializePacket(buffer: Buffer): ILPPreparePacket | ILPFulfillPacket | ILPRejectPacket` -
+  Decode binary to ILP packet
+- `serializePrepare(packet: ILPPreparePacket): Buffer` - Encode ILP Prepare packet
+- `deserializePrepare(buffer: Buffer): ILPPreparePacket` - Decode ILP Prepare packet
 
 **Dependencies:** Node.js Buffer API
 
-**Technology Stack:** Pure TypeScript implementation, Reference: RFC-0030 and existing ilp-packet library for validation
+**Technology Stack:** Pure TypeScript, Reference RFC-0030 and ilp-packet library
 
-### TelemetryEmitter
+**Note:** Throws `InvalidPacketError` for malformed data per coding standards.
 
-**Responsibility:** Sends telemetry events from connector to dashboard via WebSocket for real-time visualization and logging.
+#### TelemetryEmitter
 
-**Key Interfaces:**
-
-- `connect(dashboardUrl: string): Promise<void>` - Connect to dashboard telemetry server
-- `emitNodeStatus(routes: RoutingTableEntry[], peers: Peer[]): void` - Send node status event
-- `emitPacketReceived(packet: ILPPacket): void` - Send packet received event
-- `emitPacketSent(packetId: string, nextHop: string): void` - Send packet sent event
-- `emitRouteLookup(destination: string, selectedPeer: string, reason: string): void` - Send routing decision
-
-**Dependencies:**
-
-- Native WebSocket or ws library
-- Logger
-
-**Technology Stack:** WebSocket client with non-blocking send, JSON serialization for telemetry events
-
-### DashboardBackend
-
-**Responsibility:** Express.js HTTP server serving React static files and WebSocket telemetry aggregation server. Acts as central hub for connector telemetry.
+**Responsibility:** Non-blocking telemetry event emission to dashboard via WebSocket
 
 **Key Interfaces:**
 
-- `start(port: number): Promise<void>` - Start HTTP and WebSocket servers
-- `onTelemetryConnection(callback: (connectorId: string) => void)` - New connector connected
-- `onTelemetryEvent(callback: (event: TelemetryEvent) => void)` - Telemetry event received
-- `broadcastToClients(event: TelemetryEvent): void` - Send to all dashboard UI clients
+- `async connect(url: string): Promise<void>` - Connect to dashboard telemetry server
+- `emitNodeStatus(data: { routes: RoutingTableEntry[], peers: Peer[], health: string }): void` -
+  Emit NODE_STATUS event
+- `emitPacketReceived(data: { packetId: string, type: PacketType, source: string, destination: string, amount: string }): void` -
+  Emit PACKET_RECEIVED event
+- `emitPacketSent(data: { packetId: string, nextHop: string, timestamp: string }): void` - Emit
+  PACKET_SENT event
+- `emitRouteLookup(data: { destination: string, selectedPeer: string, reason: string }): void` -
+  Emit ROUTE_LOOKUP event
 
 **Dependencies:**
 
-- Express.js (HTTP server)
-- ws library (WebSocket server)
-- Logger
+- WebSocket (ws library) - Client connection
+- Logger - Telemetry emission logging
 
-**Technology Stack:** Express 4.18.x for static file serving, ws 8.16.x for WebSocket server, Serves built React app from `packages/dashboard/dist`
+**Technology Stack:** WebSocket client, JSON serialization, non-blocking send
 
-### DashboardUI (React Application)
+**Critical Rule:** All telemetry emission wrapped in try-catch to prevent packet processing
+failures per coding standards.
 
-**Responsibility:** React-based web UI providing network visualization, packet animation, log viewer, and interactive inspection panels.
+#### DashboardBackend
+
+**Responsibility:** Express HTTP server + WebSocket telemetry aggregation server
 
 **Key Interfaces:**
 
-- NetworkGraph component (Cytoscape.js visualization)
-- PacketAnimation component (animated packet flow)
-- LogViewer component (filterable structured logs)
-- PacketDetailPanel component (inspect packet contents)
-- NodeDetailPanel component (inspect connector state)
+- `async start(port: number): Promise<void>` - Start HTTP and WebSocket servers
+- `onTelemetryConnection(handler: (client: WebSocket) => void): void` - Register telemetry client
+  handler
+- `onTelemetryEvent(handler: (event: TelemetryEvent) => void): void` - Register event handler
+- `broadcastToClients(event: TelemetryEvent): void` - Broadcast event to all connected UI clients
 
 **Dependencies:**
 
-- React 18.2.x
-- Cytoscape.js 3.28.x (network graph)
-- TailwindCSS 3.4.x (styling)
-- Native WebSocket API (telemetry connection)
+- Express.js - HTTP server for static files
+- ws library - WebSocket server for telemetry
+- Logger - Server logging
 
-**Technology Stack:** Built with Vite 5.0.x, TypeScript + React, WebSocket client connects to DashboardBackend telemetry endpoint
+**Technology Stack:** Express 4.18.x, ws 8.16.x, serves React build from
+`packages/dashboard/dist`
 
-### TestPacketSender (CLI Tool)
+#### DashboardUI (React Application)
 
-**Responsibility:** Command-line utility for injecting test ILP packets into the network to observe routing behavior.
+**Responsibility:** React-based network visualization and packet inspection UI
+
+**Key Components:**
+
+- `NetworkGraph.tsx` - Cytoscape.js interactive network topology visualization with force-directed
+  layout
+- `PacketAnimation.tsx` - Animated packet flow overlay showing packets moving between nodes
+- `LogViewer.tsx` - Filterable log display (filter by level, connector ID, text search)
+- `PacketDetailPanel.tsx` - Sliding drawer showing decoded ILP packet details
+- `NodeStatusPanel.tsx` - Connector status panel (routing table, peer connections, health)
+
+**Dependencies:**
+
+- React 18.2.x - UI framework
+- Cytoscape.js 3.28.x - Network graph rendering
+- TailwindCSS 3.4.x - Utility-first styling
+- shadcn-ui (v4) - UI component library (Button, Card, Input, Checkbox, Sheet, Tabs, Toast, Table,
+  Badge)
+- Native WebSocket API - Browser WebSocket client
+
+**Technology Stack:** Vite 5.0.x build tool, TypeScript + React, WebSocket client for real-time
+telemetry
+
+**Hooks:**
+
+- `useTelemetry()` - Subscribe to telemetry events from dashboard backend
+- `useNetworkGraph()` - Manage Cytoscape graph state and animations
+- `usePacketAnimation()` - Handle packet animation lifecycle
+- `useLogViewer()` - Manage log filtering and search
+
+#### TestPacketSender (CLI Tool)
+
+**Responsibility:** CLI utility for test packet injection into connector networks
+
+**CLI Interface:**
+
+```bash
+send-packet --source <nodeId> --destination <ilpAddress> --amount <value> [options]
+```
+
+**Options:**
+
+- `--source <nodeId>` - Source connector ID (required)
+- `--destination <ilpAddress>` - ILP destination address (required)
+- `--amount <value>` - Packet amount in base units (required)
+- `--data <payload>` - Optional base64-encoded packet data
+- `--batch <count>` - Send multiple packets concurrently (default: 1)
+- `--sequence <count>` - Send packets sequentially with delay (default: 1)
+- `--delay <ms>` - Delay between sequence packets (default: 1000ms)
 
 **Key Interfaces:**
 
-- CLI: `send-packet --source <nodeId> --destination <address> --amount <value> [--data <payload>]`
-- `createTestPrepare(destination: string, amount: bigint): ILPPreparePacket` - Generate valid packet
-- `sendToConnector(nodeUrl: string, packet: ILPPacket): Promise<void>` - Send via BTP
+- `createTestPrepare(destination: string, amount: string, data?: Buffer): ILPPreparePacket` -
+  Create test ILP Prepare packet
+- `async sendToConnector(connector: string, packet: ILPPreparePacket): Promise<void>` - Send packet
+  to connector via BTP
 
 **Dependencies:**
 
-- BTPClient (connect to target connector)
-- OERCodec (serialize packet)
-- Commander.js (CLI argument parsing)
+- BTPClient - Connect to connector BTP server
+- OERCodec - Serialize ILP packets
+- Commander.js - CLI argument parsing
 
 **Technology Stack:** Node.js CLI script, TypeScript compiled to executable
 
-### Component Diagrams
+### Component Interaction Diagram
 
 ```mermaid
 graph TB
     subgraph "Connector Container"
-        CN[ConnectorNode]
-        PH[PacketHandler]
-        RT[RoutingTable]
-        BTPS[BTPServer]
-        BTPCM[BTPClientManager]
-        BTPC1[BTPClient - Peer A]
-        BTPC2[BTPClient - Peer B]
-        OER[OERCodec]
-        TE[TelemetryEmitter]
-        LOG[Logger]
+        CN[ConnectorNode<br/>Orchestrator]
+        PH[PacketHandler<br/>ILP Processing]
+        RT[RoutingTable<br/>Prefix Matching]
+        BTPS[BTPServer<br/>WebSocket Server]
+        BTPC[BTPClient<br/>WebSocket Client]
+        BTPCM[BTPClientManager<br/>Peer Manager]
+        TE[TelemetryEmitter<br/>WebSocket Client]
 
         CN --> PH
+        CN --> RT
         CN --> BTPS
         CN --> BTPCM
         CN --> TE
         PH --> RT
-        PH --> OER
-        PH --> LOG
-        BTPCM --> BTPC1
-        BTPCM --> BTPC2
-        BTPS --> OER
-        BTPC1 --> OER
+        PH --> BTPCM
+        BTPCM --> BTPC
     end
 
     subgraph "Dashboard Container"
-        DB[DashboardBackend]
-        WSSERVER[WebSocket Server]
-        STATIC[Static File Server]
+        DASH_BE[DashboardBackend<br/>Express + WebSocket Server]
+        DASH_WS[WebSocket Server<br/>Port 9000]
+        DASH_HTTP[Static File Server<br/>Port 8080]
 
-        DB --> WSSERVER
-        DB --> STATIC
+        DASH_BE --> DASH_WS
+        DASH_BE --> DASH_HTTP
     end
 
     subgraph "Browser"
-        UI[DashboardUI - React]
-        NG[NetworkGraph]
-        PA[PacketAnimation]
-        LV[LogViewer]
+        UI[React UI<br/>Vite App]
+        NG[NetworkGraph<br/>Cytoscape.js]
+        PA[PacketAnimation<br/>Animated Overlay]
+        LV[LogViewer<br/>Filterable Logs]
+        PD[PacketDetailPanel<br/>Packet Inspector]
 
         UI --> NG
         UI --> PA
         UI --> LV
+        UI --> PD
     end
 
     subgraph "Shared Package"
-        TYPES[TypeScript Types]
-        SHARED_OER[OER Utilities]
+        TYPES[TypeScript Types<br/>ILP, BTP, Telemetry]
+        OER[OER Codec<br/>Packet Serialization]
+
+        PH -.->|uses| TYPES
+        PH -.->|uses| OER
+        TE -.->|uses| TYPES
+        DASH_BE -.->|uses| TYPES
+        UI -.->|uses| TYPES
     end
 
-    BTPC1 -.->|BTP WebSocket| BTPS
-    TE -.->|Telemetry WebSocket| WSSERVER
-    WSSERVER -.->|Broadcast Events| UI
-    STATIC -->|Serve React Build| UI
-
-    PH --> TYPES
-    OER --> SHARED_OER
-    UI --> TYPES
+    BTPS <-->|BTP WebSocket<br/>Port 3000| BTPC
+    TE -->|Telemetry WebSocket<br/>ws://dashboard:9000| DASH_WS
+    DASH_WS -->|Broadcast Events| UI
+    DASH_HTTP -->|Serve React Build| UI
 
     style CN fill:#059669,color:#fff
-    style DB fill:#2563eb,color:#fff
+    style PH fill:#059669,color:#fff
+    style RT fill:#059669,color:#fff
+    style BTPS fill:#059669,color:#fff
+    style BTPC fill:#059669,color:#fff
+    style BTPCM fill:#059669,color:#fff
+    style TE fill:#059669,color:#fff
+    style DASH_BE fill:#2563eb,color:#fff
+    style DASH_WS fill:#2563eb,color:#fff
+    style DASH_HTTP fill:#2563eb,color:#fff
     style UI fill:#6366f1,color:#fff
-    style TYPES fill:#8b5cf6,color:#fff
+    style NG fill:#6366f1,color:#fff
+    style PA fill:#6366f1,color:#fff
+    style LV fill:#6366f1,color:#fff
+    style PD fill:#6366f1,color:#fff
+    style TYPES fill:#7c3aed,color:#fff
+    style OER fill:#7c3aed,color:#fff
 ```
 
-## External APIs
+**Legend:**
 
-**Decision: No External APIs Required for MVP**
+- **Green:** Connector package components
+- **Blue:** Dashboard backend components
+- **Purple:** Dashboard UI components (browser)
+- **Violet:** Shared package components
+- **Solid arrows:** Direct dependencies and method calls
+- **Dashed arrows:** Type/utility imports
+- **Double arrows:** Bidirectional WebSocket communication
 
-This project is self-contained with no external API integrations needed. All functionality is implemented using:
+### Data Flow: Packet to Visualization
 
-- Official Interledger RFCs (specifications, not API calls)
-- Docker Hub for base images (node:20-alpine)
-- npm registry for package dependencies
+This section describes the end-to-end packet flow from test packet injection to dashboard
+visualization:
 
-**Rationale:**
+**Step 1: User Sends Test Packet**
 
-- Educational/testing tool runs entirely locally
-- No real ledger integration (MVP scope limitation per PRD)
-- No cloud services or third-party APIs
-- BTP connections between connectors are internal (not external APIs)
+```bash
+send-packet --source connector-a --destination g.bob.crypto --amount 1000
+```
 
-**Post-MVP Considerations:**
-Future versions might integrate with:
+- TestPacketSender creates `ILPPreparePacket` with destination `g.bob.crypto`, amount `1000`
+- Packet encoded to binary using OER codec
+- BTP connection established to Connector A's BTP server (port 3000)
+- Packet sent via BTP `TRANSFER` message
 
-- Interledger testnet connectors (real network connectivity)
-- Settlement engine APIs (RFC-0038)
-- External monitoring/alerting services
+**Step 2: Connector A Receives and Routes Packet**
+
+- BTPServer receives BTP message, decodes to `ILPPreparePacket`
+- ConnectorNode hands packet to PacketHandler for processing
+- PacketHandler validates packet (checks expiry, validates OER structure)
+- RoutingTable performs longest-prefix match on `g.bob.crypto`
+  - Matches route: `g.bob` → `connector-b` (peer)
+- TelemetryEmitter emits `PACKET_RECEIVED` event to dashboard:
+  ```json
+  {
+    "type": "PACKET_RECEIVED",
+    "nodeId": "connector-a",
+    "packetId": "pkt_abc123",
+    "source": "g.alice",
+    "destination": "g.bob.crypto",
+    "amount": "1000"
+  }
+  ```
+
+**Step 3: Connector A Forwards to Connector B via BTP**
+
+- PacketHandler calls BTPClientManager to send packet to `connector-b`
+- BTPClient encodes packet to BTP `TRANSFER` message
+- Packet sent over WebSocket to Connector B (ws://connector-b:3000)
+- TelemetryEmitter emits `PACKET_SENT` event:
+  ```json
+  {
+    "type": "PACKET_SENT",
+    "nodeId": "connector-a",
+    "packetId": "pkt_abc123",
+    "nextHop": "connector-b",
+    "timestamp": "2025-12-30T12:00:00.000Z"
+  }
+  ```
+
+**Step 4: Connector B Receives and Routes Packet**
+
+- BTPServer receives packet, hands to PacketHandler
+- Routing table lookup on `g.bob.crypto` matches `g.bob` → `connector-c`
+- TelemetryEmitter emits `PACKET_RECEIVED` and `PACKET_SENT` events
+- Packet forwarded to Connector C
+
+**Step 5: Dashboard Visualizes Packet Animation**
+
+- Dashboard telemetry server receives `PACKET_SENT` events from Connector A and Connector B
+- Events broadcast to all connected browser clients via WebSocket
+- React UI receives events via `useTelemetry()` hook
+- `PacketAnimation` component animates packet moving from:
+  - Connector A → Connector B (500ms animation)
+  - Connector B → Connector C (500ms animation)
+- Network graph updates to highlight active connections
+
+**Step 6: User Inspects Packet Details**
+
+- User clicks on animated packet in dashboard
+- `PacketDetailPanel` drawer slides in from right
+- Panel displays decoded ILP packet:
+  - **Type:** ILP Prepare
+  - **Destination:** `g.bob.crypto`
+  - **Amount:** `1000`
+  - **Data:** `<base64-encoded payload>`
+  - **Execution Condition:** `<32-byte hash>`
+  - **Expiry:** `2025-12-30T12:00:05.000Z`
+- User can copy packet data, view raw OER bytes, trace packet path
+
+**Data Flow Diagram:**
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant TestSender as TestPacketSender CLI
+    participant ConnectorA as Connector A
+    participant ConnectorB as Connector B
+    participant Dashboard as Dashboard Backend
+    participant Browser as React UI
+
+    User->>TestSender: send-packet --destination g.bob.crypto
+    TestSender->>ConnectorA: BTP TRANSFER (ILP Prepare)
+    ConnectorA->>ConnectorA: Validate packet, lookup route
+    ConnectorA->>Dashboard: PACKET_RECEIVED telemetry
+    Dashboard->>Browser: Broadcast PACKET_RECEIVED
+    Browser->>Browser: Show packet received on Connector A
+
+    ConnectorA->>ConnectorB: BTP TRANSFER (forward packet)
+    ConnectorA->>Dashboard: PACKET_SENT telemetry
+    Dashboard->>Browser: Broadcast PACKET_SENT
+    Browser->>Browser: Animate packet: A → B
+
+    ConnectorB->>ConnectorB: Validate packet, lookup route
+    ConnectorB->>Dashboard: PACKET_RECEIVED telemetry
+    Dashboard->>Browser: Broadcast PACKET_RECEIVED
+    Browser->>Browser: Show packet received on Connector B
+
+    ConnectorB->>ConnectorB: Deliver to local destination
+    ConnectorB->>ConnectorA: BTP FULFILL (return)
+    ConnectorB->>Dashboard: PACKET_SENT telemetry (fulfill)
+    Dashboard->>Browser: Broadcast PACKET_SENT
+    Browser->>Browser: Animate fulfill: B → A
+
+    User->>Browser: Click packet to inspect
+    Browser->>Browser: Show PacketDetailPanel with decoded ILP data
+```
 
 ## Core Workflows
 
 ### Packet Forwarding Workflow (Multi-Hop)
 
-The following sequence diagram illustrates the core ILP packet forwarding flow through multiple connector hops with telemetry emission:
+This sequence diagram illustrates how an ILP Prepare packet traverses multiple connectors in a
+linear topology (A → B → C) and how the Fulfill packet propagates back.
 
 ```mermaid
 sequenceDiagram
     participant Sender as Test Packet Sender
-    participant ConnA as Connector A
-    participant DashA as Dashboard
-    participant ConnB as Connector B
-    participant ConnC as Connector C
+    participant ConnectorA as Connector A<br/>PacketHandler
+    participant ConnectorB as Connector B<br/>PacketHandler
+    participant ConnectorC as Connector C<br/>PacketHandler
+    participant Dashboard as Dashboard<br/>Telemetry Server
 
-    Note over Sender,ConnC: Scenario: Send packet from A to C via B
+    Note over Sender,Dashboard: Prepare Phase (Forward)
 
-    Sender->>ConnA: Send ILP Prepare (destination: g.connectorC.dest)
-    activate ConnA
-    ConnA->>ConnA: BTPServer receives packet
-    ConnA->>ConnA: PacketHandler.validatePacket()
-    ConnA->>ConnA: RoutingTable.lookup("g.connectorC.dest")
-    ConnA->>ConnA: Result: nextHop = "connectorB"
-    ConnA->>DashA: Telemetry: PACKET_RECEIVED
-    ConnA->>DashA: Telemetry: ROUTE_LOOKUP (peer=connectorB)
-    ConnA->>ConnB: BTPClient.sendPacket() via WebSocket
-    ConnA->>DashA: Telemetry: PACKET_SENT (nextHop=connectorB)
-    deactivate ConnA
+    Sender->>ConnectorA: BTP TRANSFER (ILP Prepare)<br/>dest: g.charlie.crypto, amount: 1000
+    ConnectorA->>ConnectorA: Validate packet (expiry, structure)
+    ConnectorA->>ConnectorA: RoutingTable.lookup("g.charlie.crypto")<br/>→ connector-b
+    ConnectorA->>Dashboard: Telemetry: PACKET_RECEIVED
+    ConnectorA->>Dashboard: Telemetry: ROUTE_LOOKUP (selected: connector-b)
 
-    activate ConnB
-    ConnB->>ConnB: BTPServer receives packet
-    ConnB->>ConnB: PacketHandler.validatePacket()
-    ConnB->>ConnB: RoutingTable.lookup("g.connectorC.dest")
-    ConnB->>ConnB: Result: nextHop = "connectorC"
-    ConnB->>DashA: Telemetry: PACKET_RECEIVED
-    ConnB->>DashA: Telemetry: ROUTE_LOOKUP (peer=connectorC)
-    ConnB->>ConnC: BTPClient.sendPacket() via WebSocket
-    ConnB->>DashA: Telemetry: PACKET_SENT (nextHop=connectorC)
-    deactivate ConnB
+    ConnectorA->>ConnectorB: BTP TRANSFER (ILP Prepare)<br/>forward to connector-b
+    ConnectorA->>Dashboard: Telemetry: PACKET_SENT (nextHop: connector-b)
 
-    activate ConnC
-    ConnC->>ConnC: BTPServer receives packet
-    ConnC->>ConnC: PacketHandler.validatePacket()
-    ConnC->>ConnC: Packet delivered (destination reached)
-    ConnC->>DashA: Telemetry: PACKET_RECEIVED
-    ConnC->>ConnB: ILP Fulfill (propagate back)
-    deactivate ConnC
+    ConnectorB->>ConnectorB: Validate packet
+    ConnectorB->>ConnectorB: RoutingTable.lookup("g.charlie.crypto")<br/>→ connector-c
+    ConnectorB->>Dashboard: Telemetry: PACKET_RECEIVED
+    ConnectorB->>Dashboard: Telemetry: ROUTE_LOOKUP (selected: connector-c)
 
-    activate ConnB
-    ConnB->>ConnA: ILP Fulfill (propagate back)
-    deactivate ConnB
+    ConnectorB->>ConnectorC: BTP TRANSFER (ILP Prepare)<br/>forward to connector-c
+    ConnectorB->>Dashboard: Telemetry: PACKET_SENT (nextHop: connector-c)
 
-    activate ConnA
-    ConnA->>Sender: ILP Fulfill (final response)
-    deactivate ConnA
+    ConnectorC->>ConnectorC: Validate packet
+    ConnectorC->>ConnectorC: RoutingTable.lookup("g.charlie.crypto")<br/>→ local delivery
+    ConnectorC->>Dashboard: Telemetry: PACKET_RECEIVED
+    ConnectorC->>ConnectorC: Generate ILP Fulfill (fulfillment hash)
 
-    Note over DashA: Dashboard animates packet flow in real-time
+    Note over Sender,Dashboard: Fulfill Phase (Backward)
+
+    ConnectorC->>ConnectorB: BTP TRANSFER (ILP Fulfill)<br/>return to connector-b
+    ConnectorC->>Dashboard: Telemetry: PACKET_SENT (type: fulfill)
+
+    ConnectorB->>ConnectorB: Verify fulfillment hash
+    ConnectorB->>Dashboard: Telemetry: PACKET_RECEIVED (type: fulfill)
+    ConnectorB->>ConnectorA: BTP TRANSFER (ILP Fulfill)<br/>return to connector-a
+    ConnectorB->>Dashboard: Telemetry: PACKET_SENT (type: fulfill)
+
+    ConnectorA->>ConnectorA: Verify fulfillment hash
+    ConnectorA->>Dashboard: Telemetry: PACKET_RECEIVED (type: fulfill)
+    ConnectorA->>Sender: BTP TRANSFER (ILP Fulfill)<br/>return to sender
+    ConnectorA->>Dashboard: Telemetry: PACKET_SENT (type: fulfill)
+
+    Sender->>Sender: Packet successfully delivered!
 ```
+
+**Key Points:**
+
+- Each connector validates the packet before forwarding (expiry check, OER structure validation)
+- Routing table lookup uses longest-prefix matching algorithm
+- Telemetry events emitted at each hop for full observability
+- Fulfill packet propagates backward along the same path
+- Fulfillment hash verified at each hop to prevent fraud
 
 ### Dashboard Telemetry and Visualization Workflow
 
+This diagram shows how telemetry events flow from connectors to the dashboard and drive real-time
+visualizations.
+
 ```mermaid
 sequenceDiagram
-    participant Conn as Connector Nodes (A, B, C)
-    participant TelServer as Dashboard Telemetry Server
-    participant Browser as Browser Client
-    participant Cytoscape as Cytoscape.js Graph
+    participant ConnectorA as Connector A<br/>TelemetryEmitter
+    participant ConnectorB as Connector B<br/>TelemetryEmitter
+    participant TelemetryServer as Dashboard Backend<br/>Telemetry Server
+    participant Browser as Browser Client<br/>React UI
+    participant Cytoscape as Cytoscape.js<br/>Network Graph
 
-    Note over Conn,Cytoscape: Initialization Phase
+    Note over ConnectorA,Cytoscape: Initialization Phase
 
-    Conn->>TelServer: WebSocket Connect (telemetry connection)
-    TelServer->>TelServer: Register connector
-    Conn->>TelServer: Telemetry: NODE_STATUS (routes, peers)
-    Browser->>TelServer: WebSocket Connect (UI client)
-    TelServer->>Browser: Broadcast NODE_STATUS events
-    Browser->>Cytoscape: Render network topology graph
+    ConnectorA->>TelemetryServer: Connect WebSocket<br/>ws://dashboard:9000
+    ConnectorB->>TelemetryServer: Connect WebSocket<br/>ws://dashboard:9000
 
-    Note over Conn,Cytoscape: Runtime - Packet Flow Visualization
+    ConnectorA->>TelemetryServer: NODE_STATUS event<br/>{routes: [...], peers: [...], health: "healthy"}
+    ConnectorB->>TelemetryServer: NODE_STATUS event<br/>{routes: [...], peers: [...], health: "healthy"}
 
-    Conn->>TelServer: Telemetry: PACKET_SENT (packetId, nextHop)
-    TelServer->>Browser: Broadcast PACKET_SENT event
-    Browser->>Browser: Create packet animation object
-    Browser->>Cytoscape: Animate packet along edge (source → destination)
-    Note over Cytoscape: Packet moves smoothly over 500ms
+    Browser->>TelemetryServer: Connect WebSocket<br/>ws://dashboard:9000/ui
+    TelemetryServer->>Browser: Send all cached NODE_STATUS events
+    Browser->>Cytoscape: Initialize network graph<br/>Add nodes: [connector-a, connector-b]<br/>Add edges: BTP connections
+    Cytoscape->>Cytoscape: Apply force-directed layout
 
-    Browser->>Browser: User clicks animated packet
-    Browser->>Browser: Display PacketDetailPanel with ILP packet structure
+    Note over ConnectorA,Cytoscape: Runtime - Packet Flow Visualization
 
-    Note over Conn,Cytoscape: Log Viewer Updates
+    ConnectorA->>TelemetryServer: PACKET_SENT event<br/>{packetId: "pkt_123", nextHop: "connector-b"}
+    TelemetryServer->>Browser: Broadcast PACKET_SENT
+    Browser->>Browser: PacketAnimation: Create packet element
+    Browser->>Browser: Animate packet from connector-a to connector-b (500ms)
 
-    Conn->>TelServer: Telemetry: LOG (structured log entry)
-    TelServer->>Browser: Broadcast LOG event
-    Browser->>Browser: Append to LogViewer component
-    Browser->>Browser: Apply user filters (level, nodeId)
+    ConnectorB->>TelemetryServer: PACKET_RECEIVED event<br/>{packetId: "pkt_123", source: "connector-a"}
+    TelemetryServer->>Browser: Broadcast PACKET_RECEIVED
+    Browser->>Browser: PacketAnimation: Complete animation, fade out
+
+    Note over ConnectorA,Cytoscape: Runtime - User Interaction
+
+    Browser->>Browser: User clicks on packet "pkt_123"
+    Browser->>Browser: PacketDetailPanel: Slide in from right
+    Browser->>Browser: Display decoded ILP packet:<br/>- Type: Prepare<br/>- Destination: g.bob.crypto<br/>- Amount: 1000
+
+    Note over ConnectorA,Cytoscape: Runtime - Log Viewer
+
+    ConnectorA->>TelemetryServer: LOG event<br/>{level: "info", message: "Packet routed", nodeId: "connector-a"}
+    TelemetryServer->>Browser: Broadcast LOG
+    Browser->>Browser: LogViewer: Append log entry
+    Browser->>Browser: User filters logs by nodeId: "connector-a"
+    Browser->>Browser: LogViewer: Show only connector-a logs
 ```
 
+**Key Points:**
+
+- Connectors push telemetry events to dashboard (push model, not pull)
+- Dashboard broadcasts events to all connected browser clients
+- Network graph initializes using `NODE_STATUS` events
+- Packet animations triggered by `PACKET_SENT` and `PACKET_RECEIVED` events
+- Log viewer supports real-time filtering (by level, connector ID, text search)
+- Telemetry emission is non-blocking - failures do not impact packet processing
+
 ### Connector Startup and BTP Connection Establishment
+
+This diagram illustrates the Docker Compose startup sequence and BTP peer connection handshake.
 
 ```mermaid
 sequenceDiagram
     participant Docker as Docker Compose
-    participant ConnA as Connector A
-    participant ConnB as Connector B
-    participant Dashboard as Dashboard
+    participant Dashboard as Dashboard Container
+    participant ConnectorA as Connector A Container
+    participant ConnectorB as Connector B Container
+    participant TelemetryServer as Dashboard Telemetry Server
+    participant BTPServerA as Connector A BTP Server
+    participant BTPClientA as Connector A BTP Client
 
-    Note over Docker,Dashboard: Startup Sequence
+    Note over Docker,BTPClientA: Container Startup
 
     Docker->>Dashboard: Start dashboard container
-    activate Dashboard
-    Dashboard->>Dashboard: Start Express HTTP server
-    Dashboard->>Dashboard: Start WebSocket telemetry server (port 9000)
-    Dashboard->>Dashboard: Health check: READY
-    deactivate Dashboard
+    Dashboard->>Dashboard: Load environment variables
+    Dashboard->>TelemetryServer: Start WebSocket server (port 9000)
+    Dashboard->>Dashboard: Start HTTP server (port 8080)
+    Dashboard->>Docker: Health check: GET /health → 200 OK
 
-    Docker->>ConnA: Start connector-a container
-    activate ConnA
-    ConnA->>ConnA: Load config.yaml (routes, peers)
-    ConnA->>ConnA: Initialize RoutingTable from config
-    ConnA->>ConnA: Start BTPServer (port 3000)
-    ConnA->>ConnA: Health check: STARTING
-    deactivate ConnA
+    Docker->>ConnectorA: Start connector-a container
+    ConnectorA->>ConnectorA: Load config (CONFIG_FILE=/config/linear-3-nodes.yaml)
+    ConnectorA->>ConnectorA: Initialize RoutingTable<br/>Add routes: g.bob → connector-b, g.charlie → connector-b
+    ConnectorA->>BTPServerA: Start BTP server (port 3000)
+    BTPServerA->>Docker: Listening on ws://connector-a:3000
 
-    Docker->>ConnB: Start connector-b container
-    activate ConnB
-    ConnB->>ConnB: Load config.yaml
-    ConnB->>ConnB: Initialize RoutingTable
-    ConnB->>ConnB: Start BTPServer (port 3000)
-    deactivate ConnB
+    Docker->>ConnectorB: Start connector-b container
+    ConnectorB->>ConnectorB: Load config
+    ConnectorB->>ConnectorB: Initialize RoutingTable
+    ConnectorB->>ConnectorB: Start BTP server (port 3000)
 
-    Note over ConnA,ConnB: BTP Peer Connection Phase
+    Note over Docker,BTPClientA: BTP Peer Connection Handshake
 
-    activate ConnA
-    ConnA->>ConnB: BTPClient connects (ws://connector-b:3000)
-    ConnB->>ConnA: BTP AUTH response (handshake)
-    ConnA->>ConnA: Mark peer "connectorB" as CONNECTED
-    ConnA->>ConnA: Health check: READY
-    deactivate ConnA
+    ConnectorA->>ConnectorA: Read peers from config: [{peerId: "connector-b", url: "ws://connector-b:3000"}]
+    ConnectorA->>BTPClientA: BTPClientManager.addPeer("connector-b")
+    BTPClientA->>ConnectorB: WebSocket connect: ws://connector-b:3000
 
-    activate ConnB
-    ConnB->>ConnA: BTPClient connects (ws://connector-a:3000)
-    ConnA->>ConnB: BTP AUTH response
-    ConnB->>ConnB: Mark peer "connectorA" as CONNECTED
-    ConnB->>ConnB: Health check: READY
-    deactivate ConnB
+    ConnectorB->>ConnectorB: Accept WebSocket connection
+    BTPClientA->>ConnectorB: BTP AUTH message<br/>{peerId: "connector-a", authToken: "..."}
+    ConnectorB->>ConnectorB: Validate auth (accept for MVP, no real auth)
+    ConnectorB->>BTPClientA: BTP AUTH_RESPONSE (success)
 
-    Note over ConnA,Dashboard: Telemetry Registration
+    BTPClientA->>ConnectorA: Peer connected: connector-b
+    ConnectorA->>ConnectorA: Mark peer as "connected"
 
-    ConnA->>Dashboard: WebSocket connect (telemetry)
-    ConnA->>Dashboard: Telemetry: NODE_STATUS (routes, peers)
-    ConnB->>Dashboard: WebSocket connect (telemetry)
-    ConnB->>Dashboard: Telemetry: NODE_STATUS (routes, peers)
+    Note over Docker,BTPClientA: Telemetry Registration
 
-    Note over Docker: All containers healthy - system operational
+    ConnectorA->>TelemetryServer: Connect WebSocket: ws://dashboard:9000
+    ConnectorA->>TelemetryServer: NODE_STATUS event<br/>{routes: [...], peers: [{id: "connector-b", connected: true}]}
+
+    ConnectorB->>TelemetryServer: Connect WebSocket: ws://dashboard:9000
+    ConnectorB->>TelemetryServer: NODE_STATUS event<br/>{routes: [...], peers: [...]}
+
+    TelemetryServer->>TelemetryServer: Cache NODE_STATUS events for new UI clients
+
+    Note over Docker,BTPClientA: System Ready
+
+    ConnectorA->>Docker: Health check: GET /health → 200 OK
+    ConnectorB->>Docker: Health check: GET /health → 200 OK
+    Docker->>Docker: All containers healthy - system operational
 ```
 
-## Database Schema
+**Key Points:**
 
-**Decision: No Database Required for MVP**
+- Dashboard starts first to accept telemetry connections
+- Connectors load configuration from YAML files (via `CONFIG_FILE` env var)
+- BTP servers start before BTP clients to avoid connection failures
+- BTP peer connections use WebSocket with simple AUTH handshake (MVP - no real authentication)
+- Telemetry registration happens after BTP connections established
+- Docker health checks verify all containers operational before accepting traffic
 
-The architecture uses **in-memory data structures only** with no persistence layer.
+## Configuration Loading and Precedence
 
-**Rationale:**
+### Configuration Sources
 
-- Routing tables configured at startup from YAML files (ephemeral)
-- Packet history not persisted (real-time observability only)
-- Connector state resets on container restart (acceptable for dev/test tool)
-- Simplifies architecture and reduces dependencies
-- Aligns with educational/testing use case (no production data)
+The system supports three configuration sources for connector nodes:
 
-**Data Storage Strategy:**
+1. **YAML Configuration Files** - Topology definitions in `examples/` directory
+2. **Environment Variables** - Set in `docker-compose.yml` or shell environment
+3. **Default Values** - Hardcoded defaults in `config-loader.ts`
 
-- **Routing Tables:** In-memory Map/Array in each ConnectorNode
-- **Peer Connections:** In-memory Map in BTPClientManager
-- **Telemetry Events:** Streamed to dashboard, not stored
-- **Logs:** Output to stdout, aggregated by Docker logging driver
+### Precedence Order
 
-**Post-MVP Considerations:**
-Future versions might add:
+Configuration values are resolved in this order (highest to lowest priority):
 
-- SQLite for optional packet history logging
-- Redis for shared routing table state (multi-instance connectors)
-- TimescaleDB for performance metrics storage
+1. **Environment Variables** (highest priority) - Overrides YAML and defaults
+2. **YAML Config File** (if `CONFIG_FILE` env var specified) - Overrides defaults
+3. **Default Values** (lowest priority) - Used when no env var or YAML value provided
 
-## Source Tree
+**Example:**
 
-```
-m2m/                                  # Monorepo root
-├── packages/
-│   ├── connector/                    # ILP Connector service
-│   │   ├── src/
-│   │   │   ├── core/
-│   │   │   │   ├── connector-node.ts      # Main ConnectorNode orchestrator
-│   │   │   │   ├── packet-handler.ts      # ILP packet processing logic
-│   │   │   │   └── routing-table.ts       # Routing table implementation
-│   │   │   ├── btp/
-│   │   │   │   ├── btp-server.ts          # BTP WebSocket server
-│   │   │   │   ├── btp-client.ts          # BTP WebSocket client
-│   │   │   │   ├── btp-client-manager.ts  # Peer connection manager
-│   │   │   │   └── btp-message-parser.ts  # BTP protocol encoding/decoding
-│   │   │   ├── telemetry/
-│   │   │   │   └── telemetry-emitter.ts   # Dashboard telemetry client
-│   │   │   ├── config/
-│   │   │   │   └── config-loader.ts       # YAML config loading
-│   │   │   ├── http/
-│   │   │   │   └── health-server.ts       # Express health check endpoint
-│   │   │   ├── utils/
-│   │   │   │   └── logger.ts              # Pino logger configuration
-│   │   │   └── index.ts                   # Connector entry point
-│   │   ├── test/
-│   │   │   ├── unit/
-│   │   │   │   ├── packet-handler.test.ts
-│   │   │   │   ├── routing-table.test.ts
-│   │   │   │   └── btp-message-parser.test.ts
-│   │   │   └── integration/
-│   │   │       └── multi-node-forwarding.test.ts
-│   │   ├── Dockerfile                     # Connector container build
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   │
-│   ├── dashboard/                    # Visualization dashboard
-│   │   ├── server/
-│   │   │   ├── telemetry-server.ts        # WebSocket telemetry aggregator
-│   │   │   ├── http-server.ts             # Express static file server
-│   │   │   └── index.ts                   # Dashboard backend entry point
-│   │   ├── src/                           # React UI source
-│   │   │   ├── components/
-│   │   │   │   ├── NetworkGraph.tsx       # Cytoscape.js network visualization
-│   │   │   │   ├── PacketAnimation.tsx    # Animated packet flow layer
-│   │   │   │   ├── LogViewer.tsx          # Filterable log display
-│   │   │   │   ├── PacketDetailPanel.tsx  # Packet inspection panel
-│   │   │   │   └── NodeDetailPanel.tsx    # Connector status panel
-│   │   │   ├── hooks/
-│   │   │   │   ├── useTelemetry.ts        # WebSocket telemetry hook
-│   │   │   │   └── useNetworkGraph.ts     # Cytoscape graph state
-│   │   │   ├── types/
-│   │   │   │   └── telemetry.ts           # UI-specific types
-│   │   │   ├── App.tsx                    # Main React app
-│   │   │   ├── main.tsx                   # Vite entry point
-│   │   │   └── index.css                  # Tailwind imports
-│   │   ├── public/
-│   │   │   └── index.html
-│   │   ├── test/
-│   │   │   └── components/
-│   │   │       ├── NetworkGraph.test.tsx
-│   │   │       └── LogViewer.test.tsx
-│   │   ├── Dockerfile                     # Dashboard container build
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── vite.config.ts
-│   │   └── tailwind.config.js
-│   │
-│   └── shared/                       # Shared TypeScript types and utilities
-│       ├── src/
-│       │   ├── types/
-│       │   │   ├── ilp.ts                 # ILP packet type definitions
-│       │   │   ├── btp.ts                 # BTP message types
-│       │   │   ├── routing.ts             # Routing table types
-│       │   │   └── telemetry.ts           # Telemetry event types
-│       │   ├── encoding/
-│       │   │   └── oer.ts                 # OER encoder/decoder implementation
-│       │   ├── validation/
-│       │   │   └── ilp-address.ts         # ILP address validation (RFC-0015)
-│       │   └── index.ts                   # Shared package exports
-│       ├── test/
-│       │   ├── encoding/
-│       │   │   └── oer.test.ts            # OER encoding test vectors
-│       │   └── validation/
-│       │       └── ilp-address.test.ts
-│       ├── package.json
-│       └── tsconfig.json
-│
-├── tools/                            # CLI utilities
-│   └── send-packet/
-│       ├── src/
-│       │   └── index.ts                   # Test packet sender CLI
-│       ├── package.json
-│       └── tsconfig.json
-│
-├── docker/                           # Docker configurations
-│   ├── docker-compose.yml                 # Default 3-node linear topology
-│   ├── docker-compose.mesh.yml            # 4-node mesh topology
-│   └── docker-compose.custom.yml          # Custom topology template
-│
-├── examples/                         # Example topology configurations
-│   ├── linear-3-nodes.yaml                # Linear chain topology config
-│   ├── mesh-4-nodes.yaml                  # Full mesh topology config
-│   └── hub-spoke.yaml                     # Hub-and-spoke topology config
-│
-├── docs/                             # Documentation
-│   ├── architecture.md                    # This file
-│   ├── prd.md                             # Product requirements
-│   ├── brief.md                           # Project brief
-│   └── rfcs/                              # Copied relevant Interledger RFCs
-│       ├── rfc-0027-ilpv4.md
-│       ├── rfc-0023-btp.md
-│       └── rfc-0030-oer.md
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                         # GitHub Actions CI pipeline
-│       └── docker-build.yml               # Docker image build workflow
-│
-├── package.json                      # Root package.json (workspaces)
-├── tsconfig.base.json                # Shared TypeScript configuration
-├── .eslintrc.json                    # ESLint configuration
-├── .prettierrc.json                  # Prettier configuration
-├── .gitignore
-├── README.md                         # Project overview and quick start
-├── CONTRIBUTING.md                   # Contribution guidelines
-├── LICENSE                           # MIT or Apache 2.0 license
-└── CHANGELOG.md                      # Version history
+```yaml
+# examples/linear-3-nodes.yaml
+nodeId: connector-a
+btpServerPort: 3000
+peers:
+  - peerId: connector-b
+    url: ws://connector-b:3000
 ```
 
-**Key Directory Decisions:**
-
-1. **Monorepo with npm workspaces:** Simplifies dependency management and type sharing
-2. **Clear package boundaries:** `connector`, `dashboard`, `shared` are independently buildable
-3. **Co-located tests:** Test files alongside source for better discoverability
-4. **Docker configs at root:** Easier access for `docker-compose up`
-5. **Examples directory:** Pre-configured topologies for quick experimentation
-6. **Tools separate:** CLI utilities independent of main packages
-
-## Infrastructure and Deployment
-
-### Infrastructure as Code
-
-- **Tool:** Docker Compose 2.24.x
-- **Location:** `docker/docker-compose.yml` (and topology variants)
-- **Approach:** Declarative container orchestration with environment-based configuration
-
-**Decision Rationale:**
-
-- Docker Compose sufficient for MVP (single-machine deployment)
-- YAML format aligns with topology configuration files
-- No Terraform/Pulumi needed (no cloud resources)
-- Future migration to Kubernetes possible if cloud deployment needed
-
-### Deployment Strategy
-
-- **Strategy:** Local container deployment with manual execution
-- **CI/CD Platform:** GitHub Actions
-- **Pipeline Configuration:** `.github/workflows/ci.yml`
-
-**Deployment Flow:**
-
-1. Developer runs `docker-compose up` locally
-2. Docker pulls pre-built images (if published) or builds from Dockerfiles
-3. Containers start with health checks
-4. Dashboard accessible at `http://localhost:8080`
-
-**CI/CD Pipeline Stages:**
-
-1. **Build:** Compile TypeScript for all packages
-2. **Lint:** Run ESLint and Prettier checks
-3. **Test:** Execute Jest unit and integration tests
-4. **Docker Build:** Build connector and dashboard images (on main branch)
-5. **Optional:** Push images to GitHub Container Registry
-
-### Environments
-
-- **Local Development:** Primary environment - `docker-compose up` on developer machine
-  - All services run on localhost
-  - Hot reload for development (Vite HMR for dashboard)
-  - Direct log access via `docker-compose logs`
-
-- **CI/CD Testing:** GitHub Actions runners
-  - Automated test execution
-  - Docker build validation
-  - No persistent state between runs
-
-- **Future Production (Post-MVP):** Cloud deployment with Kubernetes
-  - Multi-node connector clusters
-  - Hosted dashboard with authentication
-  - Persistent metrics storage
-
-### Environment Promotion Flow
-
-```
-Local Development
-  ↓ (git push)
-GitHub Actions CI
-  ↓ (tests pass)
-Docker Image Build
-  ↓ (manual tag/release)
-GitHub Container Registry
-  ↓ (future: automated deployment)
-Cloud Environment (Kubernetes)
+```yaml
+# docker-compose.yml
+services:
+  connector-a:
+    environment:
+      - NODE_ID=connector-a # Overrides YAML nodeId
+      - CONFIG_FILE=/config/linear-3-nodes.yaml
+      - LOG_LEVEL=DEBUG # Not in YAML, uses env var
+    volumes:
+      - ./examples:/config
 ```
 
-**MVP Scope:** Promotion stops at Docker Image Build. Cloud deployment deferred to post-MVP.
+**Resolution:**
 
-### Rollback Strategy
+- `nodeId`: `"connector-a"` (env var `NODE_ID` overrides YAML)
+- `btpServerPort`: `3000` (from YAML)
+- `logLevel`: `"DEBUG"` (from env var, not in YAML)
+- `healthCheckPort`: `8080` (default value, not in YAML or env)
 
-- **Primary Method:** Container restart with previous image tag
-- **Trigger Conditions:**
-  - Health checks failing after deployment
-  - Critical bugs discovered in new version
-  - Performance degradation beyond NFR thresholds
-- **Recovery Time Objective:** < 2 minutes (restart containers with previous image)
+### Key Configuration Fields
 
-**Rollback Procedure:**
+The `ConnectorConfig` type (defined in `packages/shared/src/types/config.ts`) includes:
 
-```bash
-# Tag current deployment
-docker tag ilp-connector:latest ilp-connector:rollback-backup
-
-# Pull previous version
-docker pull ilp-connector:v0.2.0
-
-# Restart with previous version
-docker-compose down
-docker-compose up -d
+```typescript
+interface ConnectorConfig {
+  nodeId: string; // Unique connector identifier (e.g., "connector-a")
+  btpServerPort: number; // BTP WebSocket server port (default: 3000)
+  healthCheckPort: number; // HTTP health endpoint port (default: 8080)
+  peers: Peer[]; // BTP peer connection targets
+  routes: RoutingTableEntry[]; // Initial routing table entries
+  logLevel: string; // Pino log level: DEBUG, INFO, WARN, ERROR (default: INFO)
+  dashboardTelemetryUrl: string; // WebSocket URL for telemetry (e.g., "ws://dashboard:9000")
+}
 ```
 
-## Error Handling Strategy
+**Peer Configuration:**
 
-### General Approach
+```typescript
+interface Peer {
+  peerId: string; // Unique peer identifier (e.g., "connector-b")
+  url: string; // BTP WebSocket URL (e.g., "ws://connector-b:3000")
+  authToken?: string; // Optional authentication token (not used in MVP)
+}
+```
 
-- **Error Model:** Exception-based error handling with typed error classes
-- **Exception Hierarchy:**
-  - `ILPError` (base class for ILP protocol errors)
-    - `ILPFinalError` (F-prefix errors - permanent failures)
-    - `ILPTemporaryError` (T-prefix errors - retryable)
-    - `ILPRelativeError` (R-prefix errors - protocol violations)
-  - `BTPError` (BTP protocol errors)
-  - `ConfigurationError` (startup configuration issues)
-  - `TelemetryError` (telemetry emission failures - non-critical)
-- **Error Propagation:**
-  - ILP errors converted to ILPRejectPacket and returned to sender
-  - BTP errors logged and trigger connection retry
-  - Configuration errors cause startup failure with clear messages
-  - Telemetry errors logged but do not block packet processing
+**RoutingTableEntry Configuration:**
 
-### Logging Standards
+```typescript
+interface RoutingTableEntry {
+  destination: string; // ILP address prefix (e.g., "g.bob")
+  peer: string; // Peer ID to forward to (e.g., "connector-b")
+}
+```
 
-- **Library:** Pino 8.17.x
-- **Format:** Structured JSON with consistent schema
-- **Levels:** DEBUG, INFO, WARN, ERROR
-  - **DEBUG:** Detailed packet contents, routing table lookups
-  - **INFO:** Packet forwarding events, connection state changes
-  - **WARN:** Retry attempts, degraded performance
-  - **ERROR:** Unrecoverable errors, configuration issues
-- **Required Context:**
-  - **Correlation ID:** Generated for each ILP Prepare packet, tracked through entire flow
-  - **Service Context:** `nodeId` included in every log entry
-  - **User Context:** Not applicable (no user authentication in MVP)
+**Configuration Loading Note:** Configuration is loaded at startup only - no runtime changes
+supported in MVP. Changing configuration requires container restart.
 
-**Example Structured Log Entry:**
+**Full YAML Schema:** See [docs/configuration-schema.md](./configuration-schema.md) for complete
+YAML configuration reference with validation rules.
+
+## Telemetry Protocol
+
+### Telemetry Message Types
+
+All telemetry events follow a common structure with a discriminated union `type` field:
+
+```typescript
+type TelemetryEvent =
+  | NodeStatusEvent
+  | PacketReceivedEvent
+  | PacketSentEvent
+  | RouteLookupEvent
+  | LogEvent;
+```
+
+#### NODE_STATUS
+
+**Purpose:** Advertise connector's routing table, peer connections, and health status
+
+**Schema:**
+
+```typescript
+interface NodeStatusEvent {
+  type: 'NODE_STATUS';
+  nodeId: string; // Connector identifier
+  timestamp: string; // ISO 8601 timestamp
+  routes: RoutingTableEntry[]; // Current routing table
+  peers: Peer[]; // Current peer connections
+  health: 'healthy' | 'unhealthy'; // Health status
+}
+```
+
+**Example:**
 
 ```json
 {
-  "level": "info",
-  "time": 1703620800000,
+  "type": "NODE_STATUS",
   "nodeId": "connector-a",
-  "correlationId": "pkt_abc123",
-  "msg": "Packet forwarded",
-  "packetType": "PREPARE",
-  "destination": "g.connectorC.dest",
-  "nextHop": "connectorB",
+  "timestamp": "2025-12-30T12:00:00.000Z",
+  "routes": [
+    { "destination": "g.bob", "peer": "connector-b" },
+    { "destination": "g.charlie", "peer": "connector-b" }
+  ],
+  "peers": [{ "peerId": "connector-b", "url": "ws://connector-b:3000", "connected": true }],
+  "health": "healthy"
+}
+```
+
+**Emission:** Sent on connector startup and when routing table or peer state changes.
+
+#### PACKET_RECEIVED
+
+**Purpose:** Log incoming ILP packet details for visualization and debugging
+
+**Schema:**
+
+```typescript
+interface PacketReceivedEvent {
+  type: 'PACKET_RECEIVED';
+  nodeId: string;
+  timestamp: string;
+  packetId: string; // Unique packet identifier (hash of packet data)
+  packetType: 'prepare' | 'fulfill' | 'reject'; // ILP packet type
+  source: string; // ILP source address (if available)
+  destination: string; // ILP destination address
+  amount: string; // Packet amount in base units
+}
+```
+
+**Example:**
+
+```json
+{
+  "type": "PACKET_RECEIVED",
+  "nodeId": "connector-a",
+  "timestamp": "2025-12-30T12:00:00.100Z",
+  "packetId": "pkt_abc123",
+  "packetType": "prepare",
+  "source": "g.alice",
+  "destination": "g.bob.crypto",
   "amount": "1000"
 }
 ```
 
-### Error Handling Patterns
+**Emission:** Sent when connector receives ILP packet from BTP peer or test sender.
 
-#### External API Errors (BTP Connections)
+#### PACKET_SENT
 
-- **Retry Policy:** Exponential backoff (1s, 2s, 4s, 8s, 16s) up to 5 attempts
-- **Circuit Breaker:** After 5 consecutive failures, mark peer as DISCONNECTED for 60s before retry
-- **Timeout Configuration:** BTP connection timeout 5s, packet send timeout 10s
-- **Error Translation:**
-  - BTP connection failure → ILP T01 (Ledger Unreachable) error
-  - BTP timeout → ILP T00 (Transfer Timed Out) error
-  - BTP authentication failure → Startup failure (configuration error)
+**Purpose:** Log outgoing ILP packet details for packet flow visualization
 
-#### Business Logic Errors
-
-- **Custom Exceptions:**
-  - `PacketExpiredError` → ILP T00 (Transfer Timed Out)
-  - `RouteNotFoundError` → ILP F02 (Unreachable)
-  - `InvalidPacketError` → ILP R00 (Transfer Cancelled)
-- **User-Facing Errors:** Displayed in dashboard log viewer with human-readable messages
-- **Error Codes:** ILP standard error codes (RFC-0027) used consistently
-
-#### Data Consistency
-
-- **Transaction Strategy:** No database transactions (in-memory only for MVP)
-- **Compensation Logic:** Not applicable for MVP (no distributed transactions)
-- **Idempotency:** Packet IDs used to detect duplicates (best-effort, not guaranteed in MVP)
-
-## Coding Standards
-
-**CRITICAL: These standards are MANDATORY for AI code generation**
-
-### Core Standards
-
-- **Languages & Runtimes:** TypeScript 5.3.3 (strict mode), Node.js 20.11.0 LTS
-- **Style & Linting:** ESLint (@typescript-eslint/recommended), Prettier (line length 100, single quotes)
-- **Test Organization:** Co-located tests (`*.test.ts` next to `*.ts`), `__mocks__` for shared mocks
-
-### Naming Conventions
-
-| Element            | Convention                                | Example                          |
-| ------------------ | ----------------------------------------- | -------------------------------- |
-| Files (TypeScript) | kebab-case                                | `packet-handler.ts`              |
-| Classes            | PascalCase                                | `PacketHandler`                  |
-| Interfaces/Types   | PascalCase with `I` prefix for interfaces | `ILPPacket`, `RoutingTableEntry` |
-| Functions/Methods  | camelCase                                 | `validatePacket()`               |
-| Constants          | UPPER_SNAKE_CASE                          | `DEFAULT_BTP_PORT`               |
-| Private members    | camelCase with `_` prefix                 | `_internalState`                 |
-
-### Critical Rules
-
-- **NEVER use console.log:** Use Pino logger exclusively (`logger.info()`, `logger.error()`, etc.)
-- **All ILP packet responses use typed returns:** Functions return `ILPFulfillPacket | ILPRejectPacket`, never plain objects
-- **BTP connections must use BTPClient/BTPServer classes:** No raw WebSocket usage outside BTP module
-- **Telemetry emission is non-blocking:** Always use `try-catch` around `telemetryEmitter.emit()` to prevent packet processing failures
-- **Configuration loaded at startup only:** No runtime config changes for MVP
-- **NEVER hardcode ports/URLs:** Use environment variables with defaults
-- **All async functions must handle errors:** Use try-catch or .catch() - no unhandled promise rejections
-- **OER encoding must validate packet structure:** Throw `InvalidPacketError` for malformed data
-- **Routing table lookups return null for no match:** Caller handles null by generating F02 error
-
-### Language-Specific Guidelines
-
-#### TypeScript Specifics
-
-- **Strict mode enabled:** `strict: true` in tsconfig.json - no `any` types except in test mocks
-- **Prefer interfaces over type aliases** for object shapes (better error messages)
-- **Use `Buffer` for binary data:** Not `Uint8Array` or `ArrayBuffer` (Node.js convention)
-- **Async/await over callbacks:** All asynchronous code uses `async/await` pattern
-- **Optional chaining for safety:** Use `peer?.connected` instead of `peer && peer.connected`
-
-## Test Strategy and Standards
-
-### Testing Philosophy
-
-- **Approach:** Test-Driven Development (TDD) encouraged but not required
-- **Coverage Goals:**
-  - `packages/shared`: >90% (critical protocol logic)
-  - `packages/connector`: >80% (core routing and BTP)
-  - `packages/dashboard`: >70% (UI components - lower bar acceptable)
-- **Test Pyramid:**
-  - 70% Unit Tests (fast, isolated, comprehensive)
-  - 20% Integration Tests (multi-component, Docker-based)
-  - 10% E2E Tests (full system validation)
-
-### Test Types and Organization
-
-#### Unit Tests
-
-- **Framework:** Jest 29.7.x with TypeScript support (`ts-jest`)
-- **File Convention:** `<filename>.test.ts` co-located with source
-- **Location:** Same directory as source file (e.g., `src/core/packet-handler.test.ts`)
-- **Mocking Library:** Jest built-in mocking (`jest.fn()`, `jest.mock()`)
-- **Coverage Requirement:** >80% line coverage for connector, >90% for shared
-
-**AI Agent Requirements:**
-
-- Generate tests for all public methods and exported functions
-- Cover edge cases: empty inputs, null values, maximum values, expired timestamps
-- Follow AAA pattern (Arrange, Act, Assert) with clear test descriptions
-- Mock all external dependencies (WebSocket, Logger, BTPClient)
-- Use descriptive test names: `should reject packet when expiry time has passed`
-
-**Example Unit Test Structure:**
+**Schema:**
 
 ```typescript
-describe('PacketHandler', () => {
-  let handler: PacketHandler;
-  let mockRoutingTable: jest.Mocked<RoutingTable>;
-  let mockLogger: jest.Mocked<Logger>;
-
-  beforeEach(() => {
-    mockRoutingTable = createMockRoutingTable();
-    mockLogger = createMockLogger();
-    handler = new PacketHandler(mockRoutingTable, mockLogger);
-  });
-
-  it('should reject packet when expiry time has passed', async () => {
-    // Arrange
-    const expiredPacket = createExpiredPreparePacket();
-
-    // Act
-    const result = await handler.processPrepare(expiredPacket);
-
-    // Assert
-    expect(result.type).toBe(PacketType.REJECT);
-    expect(result.code).toBe('T00'); // Transfer Timed Out
-  });
-});
+interface PacketSentEvent {
+  type: 'PACKET_SENT';
+  nodeId: string;
+  timestamp: string;
+  packetId: string; // Matches PACKET_RECEIVED packetId
+  nextHop: string; // Peer ID packet sent to
+  packetType: 'prepare' | 'fulfill' | 'reject';
+}
 ```
-
-#### Integration Tests
-
-- **Scope:** Multi-component interaction within connector package
-- **Location:** `packages/connector/test/integration/`
-- **Test Infrastructure:**
-  - **WebSocket:** Use real ws library with localhost connections (not mocked)
-  - **Routing Table:** Real RoutingTable instance with test data
-  - **BTP:** Real BTPServer + BTPClient connecting locally
-
-**Example Integration Test:**
-
-- Deploy 3 connector instances in-process
-- Send ILP Prepare through Connector A
-- Verify packet routed through B to C
-- Validate telemetry events emitted at each hop
-
-#### End-to-End Tests
-
-- **Framework:** Jest with Docker Compose integration
-- **Scope:** Full system deployment with dashboard
-- **Environment:** Automated Docker Compose startup in test
-- **Test Data:** Pre-configured 3-node linear topology
-
-**Example E2E Test Flow:**
-
-```typescript
-describe('Full System E2E', () => {
-  beforeAll(async () => {
-    await execAsync('docker-compose up -d');
-    await waitForHealthy(['connector-a', 'connector-b', 'connector-c', 'dashboard']);
-  });
-
-  it('should forward packet through network and visualize in dashboard', async () => {
-    // Send packet using CLI tool
-    await sendTestPacket('connector-a', 'g.connectorC.dest', 1000);
-
-    // Wait for telemetry
-    const telemetryEvents = await collectTelemetryEvents(timeout: 5000);
-
-    // Verify packet flow
-    expect(telemetryEvents).toContainEqual(
-      expect.objectContaining({ type: 'PACKET_SENT', nodeId: 'connector-a' })
-    );
-    expect(telemetryEvents).toContainEqual(
-      expect.objectContaining({ type: 'PACKET_RECEIVED', nodeId: 'connector-c' })
-    );
-  });
-
-  afterAll(async () => {
-    await execAsync('docker-compose down');
-  });
-});
-```
-
-### Test Data Management
-
-- **Strategy:** Factory functions for test data generation
-- **Fixtures:** JSON fixtures in `test/fixtures/` for complex scenarios
-- **Factories:** `createTestPreparePacket(overrides)` functions in `test/helpers/`
-- **Cleanup:** Jest `afterEach` hooks reset in-memory state, Docker tests clean up containers
-
-### Continuous Testing
-
-- **CI Integration:**
-  - `npm test` runs all unit tests
-  - `npm run test:integration` runs integration tests
-  - E2E tests run on main branch only (slow)
-- **Performance Tests:** Separate `npm run test:perf` script (Story 4.9)
-- **Security Tests:** `npm audit` in CI pipeline, dependency scanning with Dependabot
-
-## Security
-
-**MANDATORY security requirements for AI-generated code**
-
-### Input Validation
-
-- **Validation Library:** Custom validators in `packages/shared/src/validation/`
-- **Validation Location:** At API boundaries (BTPServer packet reception, config loading)
-- **Required Rules:**
-  - All ILP packets MUST be OER-decoded and validated before processing
-  - ILP addresses MUST match RFC-0015 format (hierarchical, valid characters)
-  - Packet expiry timestamps MUST be validated (not in past, within reasonable future bound)
-  - BTP message structure MUST be validated before extracting ILP packet
-
-### Authentication & Authorization
-
-- **Auth Method:** Shared secrets for BTP authentication (configured per-peer in YAML)
-- **Session Management:** Not applicable (no user sessions - tool runs locally)
-- **Required Patterns:**
-  - BTP handshake MUST validate shared secret before accepting connection
-  - Invalid authentication MUST close WebSocket connection immediately
-  - Dashboard has no authentication for MVP (localhost-only deployment)
-
-### Secrets Management
-
-- **Development:** `.env` file (gitignored) for local secrets
-- **Production:** Environment variables injected by Docker Compose
-- **Code Requirements:**
-  - NEVER hardcode BTP shared secrets - load from environment variables
-  - Access secrets via `process.env` with fallback to defaults for non-sensitive config
-  - No secrets in logs or error messages (redact in Pino serializers)
 
 **Example:**
 
-```typescript
-const btpSecret =
-  process.env.BTP_AUTH_SECRET ||
-  (() => {
-    logger.error('BTP_AUTH_SECRET not configured');
-    process.exit(1);
-  })();
+```json
+{
+  "type": "PACKET_SENT",
+  "nodeId": "connector-a",
+  "timestamp": "2025-12-30T12:00:00.200Z",
+  "packetId": "pkt_abc123",
+  "nextHop": "connector-b",
+  "packetType": "prepare"
+}
 ```
 
-### API Security
+**Emission:** Sent when connector forwards ILP packet to BTP peer.
 
-- **Rate Limiting:** Not implemented for MVP (localhost deployment, trusted environment)
-- **CORS Policy:** Dashboard allows all origins (no CORS restrictions for localhost)
-- **Security Headers:** Not required for MVP (no internet-facing deployment)
-- **HTTPS Enforcement:** Not required for MVP (local Docker network uses ws://)
+#### ROUTE_LOOKUP
 
-**Post-MVP:** Add HTTPS (wss://), CORS restrictions, rate limiting if cloud-deployed
+**Purpose:** Log routing decision details for debugging routing table behavior
 
-### Data Protection
-
-- **Encryption at Rest:** Not required (no persistent data storage)
-- **Encryption in Transit:** Not required for MVP (local Docker network)
-- **PII Handling:** No PII collected or processed
-- **Logging Restrictions:**
-  - DO NOT log BTP shared secrets
-  - DO log packet amounts, addresses (not PII in test environment)
-  - Redact `authToken` field in peer configuration logs
-
-**Pino Serializer Example:**
+**Schema:**
 
 ```typescript
-const logger = pino({
-  serializers: {
-    peer: (peer) => ({
-      ...peer,
-      authToken: '[REDACTED]', // Never log secrets
-    }),
-  },
-});
+interface RouteLookupEvent {
+  type: 'ROUTE_LOOKUP';
+  nodeId: string;
+  timestamp: string;
+  destination: string; // ILP address being looked up
+  selectedPeer: string | null; // Peer selected by routing table (null if no match)
+  reason: string; // Human-readable explanation (e.g., "Longest prefix match: g.bob")
+}
 ```
 
-### Dependency Security
+**Example:**
 
-- **Scanning Tool:** `npm audit` (built-in) + GitHub Dependabot
-- **Update Policy:** Review and update dependencies monthly, critical security patches within 48 hours
-- **Approval Process:** All new dependencies require rationale comment in PR
+```json
+{
+  "type": "ROUTE_LOOKUP",
+  "nodeId": "connector-a",
+  "timestamp": "2025-12-30T12:00:00.150Z",
+  "destination": "g.bob.crypto",
+  "selectedPeer": "connector-b",
+  "reason": "Longest prefix match: g.bob → connector-b"
+}
+```
 
-### Security Testing
+**Emission:** Sent during packet processing when routing table lookup performed.
 
-- **SAST Tool:** ESLint security plugins (`eslint-plugin-security`)
-- **DAST Tool:** Not applicable for MVP (no public-facing endpoints)
-- **Penetration Testing:** Not required for MVP (educational tool, not production system)
+#### LOG
 
-**Security Stance:**
-This is a **development and educational tool**, not a production payment system. Security focuses on:
+**Purpose:** Structured log messages from connector (replaces console.log)
 
-- Preventing accidental secret leakage
-- Basic input validation to avoid crashes
-- No malicious code in dependencies
+**Schema:**
 
-Production-grade security (encryption, formal audits, threat modeling) deferred to post-MVP if tool is adapted for real payment processing.
+```typescript
+interface LogEvent {
+  type: 'LOG';
+  nodeId: string;
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error'; // Log level
+  message: string; // Log message
+  [key: string]: any; // Additional metadata (e.g., packetId, peerId)
+}
+```
 
-## Next Steps
+**Example:**
 
-After completing this architecture document:
+```json
+{
+  "type": "LOG",
+  "nodeId": "connector-a",
+  "timestamp": "2025-12-30T12:00:00.000Z",
+  "level": "info",
+  "message": "BTP peer connected",
+  "peerId": "connector-b",
+  "url": "ws://connector-b:3000"
+}
+```
 
-1. **Proceed to Implementation:**
-   - Use this document as the definitive reference for all coding decisions
-   - Start with Epic 1 (Foundation & Core ILP Protocol Implementation)
-   - Implement stories sequentially as defined in PRD
+**Emission:** Sent for all log messages (Pino logger configured with custom transport that emits
+LOG telemetry events).
 
-2. **Extract Agent-Specific Files:**
-   - **docs/architecture/tech-stack.md** - Technology stack table for quick reference
-   - **docs/architecture/coding-standards.md** - Critical rules for dev agent
-   - **docs/architecture/source-tree.md** - Directory structure for file creation
+### Telemetry Flow Architecture
 
-3. **Review with Product Owner:**
-   - Validate architectural decisions align with MVP goals
-   - Confirm technology choices meet project constraints
-   - Approve before significant implementation begins
+**Connector → Dashboard:**
+
+1. Connector's `TelemetryEmitter` establishes WebSocket connection to dashboard telemetry server
+   (ws://dashboard:9000)
+2. Connector emits telemetry events by sending JSON-serialized `TelemetryEvent` objects over
+   WebSocket
+3. Emission is non-blocking - wrapped in try-catch to prevent packet processing failures
+
+**Dashboard Backend:**
+
+1. Telemetry server receives events from multiple connectors via WebSocket
+2. Events cached in memory for new UI clients (limited buffer, e.g., last 1000 events)
+3. Events broadcast to all connected browser clients via separate WebSocket connection
+
+**Browser → Dashboard:**
+
+1. React UI establishes WebSocket connection to dashboard (ws://dashboard:9000/ui)
+2. Dashboard sends cached events on connection (initial state)
+3. Dashboard broadcasts new events in real-time as received from connectors
+
+**UI Event Handling:**
+
+1. `useTelemetry()` hook subscribes to WebSocket events
+2. Events dispatched to React components:
+   - `NODE_STATUS` → `NetworkGraph` (initialize/update nodes and edges)
+   - `PACKET_SENT` → `PacketAnimation` (animate packet flow)
+   - `PACKET_RECEIVED` → `PacketDetailPanel` (show packet details)
+   - `LOG` → `LogViewer` (append log entry)
+
+**Telemetry Emission Critical Rule:** All telemetry emission wrapped in try-catch to prevent packet
+processing failures per coding standards:
+
+```typescript
+try {
+  telemetryEmitter.emitPacketSent({ packetId, nextHop, timestamp });
+} catch (error) {
+  logger.warn({ error }, 'Telemetry emission failed - continuing packet processing');
+}
+```
+
+### Telemetry Schema Examples
+
+**Full NODE_STATUS Example:**
+
+```json
+{
+  "type": "NODE_STATUS",
+  "nodeId": "connector-a",
+  "timestamp": "2025-12-30T12:00:00.000Z",
+  "routes": [
+    { "destination": "g.bob", "peer": "connector-b" },
+    { "destination": "g.charlie", "peer": "connector-b" },
+    { "destination": "g.alice", "peer": "local" }
+  ],
+  "peers": [
+    {
+      "peerId": "connector-b",
+      "url": "ws://connector-b:3000",
+      "connected": true,
+      "lastSeen": "2025-12-30T12:00:00.000Z"
+    }
+  ],
+  "health": "healthy"
+}
+```
+
+**Full PACKET_RECEIVED Example:**
+
+```json
+{
+  "type": "PACKET_RECEIVED",
+  "nodeId": "connector-b",
+  "timestamp": "2025-12-30T12:00:00.250Z",
+  "packetId": "pkt_abc123",
+  "packetType": "prepare",
+  "source": "g.alice",
+  "destination": "g.bob.crypto",
+  "amount": "1000",
+  "data": "SGVsbG8gV29ybGQ=",
+  "executionCondition": "uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=",
+  "expiresAt": "2025-12-30T12:00:05.000Z"
+}
+```
+
+**Full LOG Example:**
+
+```json
+{
+  "type": "LOG",
+  "nodeId": "connector-a",
+  "timestamp": "2025-12-30T12:00:00.100Z",
+  "level": "info",
+  "message": "Packet routed successfully",
+  "packetId": "pkt_abc123",
+  "destination": "g.bob.crypto",
+  "nextHop": "connector-b",
+  "routingDecision": "Longest prefix match: g.bob → connector-b"
+}
+```
+
+**Note:** Telemetry protocol uses JSON serialization (not binary) for simplicity and human
+readability in dashboard logs.
+
+## Interledger Protocol References
+
+M2M implements the following Interledger RFCs to ensure authentic protocol behavior and compliance:
+
+### RFC-0027: Interledger Protocol v4 (ILPv4)
+
+**URL:** [https://interledger.org/rfcs/0027-interledger-protocol-4/](https://interledger.org/rfcs/0027-interledger-protocol-4/)
+
+**Relevance:**
+
+- Defines the core ILP packet format (Prepare, Fulfill, Reject)
+- Specifies routing semantics (packet forwarding based on ILP addresses)
+- Defines error codes (F00-F99) for reject packets
+- Establishes expiry mechanism for conditional payments
+
+**M2M Implementation:**
+
+- `packages/shared/src/types/ilp.ts` - TypeScript type definitions for ILP packets
+  (`ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket`)
+- `packages/connector/src/core/packet-handler.ts` - ILPv4 packet processing logic (validation,
+  forwarding, error generation)
+- OER encoding/decoding per RFC-0030 (see below)
+- Error code constants: `F00_BAD_REQUEST`, `F02_UNREACHABLE`, `F08_AMOUNT_TOO_LARGE`
+
+**Key Implementation Details:**
+
+- Packet expiry checking: Reject packets with `expiresAt` in the past (error code F00)
+- Fulfillment verification: Validate that fulfillment hash matches execution condition
+- Reject packet generation: Include error code, triggered by, and message
+
+### RFC-0023: Bilateral Transfer Protocol (BTP)
+
+**URL:** [https://interledger.org/rfcs/0023-bilateral-transfer-protocol/](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/)
+
+**Relevance:**
+
+- Defines WebSocket-based ledger plugin protocol for connector peering
+- Specifies BTP message types (AUTH, TRANSFER, RESPONSE, ERROR)
+- Establishes connection handshake and lifecycle management
+
+**M2M Implementation:**
+
+- `packages/connector/src/btp/btp-server.ts` - WebSocket server accepting BTP connections
+- `packages/connector/src/btp/btp-client.ts` - WebSocket client for outbound BTP connections
+- `packages/connector/src/btp/btp-message-parser.ts` - BTP protocol encoding/decoding
+- `packages/shared/src/types/btp.ts` - TypeScript BTP message type definitions
+
+**Key Implementation Details:**
+
+- WebSocket transport: RFC-0023 specifies BTP over WebSocket (ws:// URLs)
+- AUTH handshake: Simplified AUTH (no real authentication in MVP)
+- TRANSFER message: Wraps ILP packet in BTP envelope
+- Reconnection logic: Exponential backoff on connection failures
+
+**BTP Message Format:**
+
+```json
+{
+  "type": "TRANSFER",
+  "requestId": "req_123",
+  "data": {
+    "ilpPacket": "<base64-encoded OER packet>",
+    "amount": "1000"
+  }
+}
+```
+
+### RFC-0030: Notes on OER Encoding
+
+**URL:** [https://interledger.org/rfcs/0030-notes-on-oer-encoding/](https://interledger.org/rfcs/0030-notes-on-oer-encoding/)
+
+**Relevance:**
+
+- Defines Octet Encoding Rules (OER) for ILP packet serialization
+- Specifies binary encoding format for Prepare, Fulfill, Reject packets
+- Ensures efficient, compact packet representation for network transmission
+
+**M2M Implementation:**
+
+- `packages/shared/src/encoding/oer.ts` - OER encoding/decoding implementation
+- `serializePacket()` - Encode ILP packet to binary Buffer
+- `deserializePacket()` - Decode binary Buffer to ILP packet
+- Type-specific encoders: `serializePrepare()`, `serializeFulfill()`, `serializeReject()`
+
+**Key Implementation Details:**
+
+- Variable-length integer encoding (VarUInt) for amounts and lengths
+- Binary format: Type byte (12=Prepare, 13=Fulfill, 14=Reject) + payload
+- Error handling: Throws `InvalidPacketError` for malformed data per coding standards
+- Reference implementation: Based on `ilp-packet` library structure
+
+**OER Prepare Packet Structure:**
+
+```
+[Type: 12] [Amount: VarUInt] [ExpiresAt: 17 bytes] [ExecutionCondition: 32 bytes]
+[Destination: VarOctetString] [Data: VarOctetString]
+```
+
+### RFC-0015: ILP Addresses
+
+**URL:** [https://interledger.org/rfcs/0015-ilp-addresses/](https://interledger.org/rfcs/0015-ilp-addresses/)
+
+**Relevance:**
+
+- Defines hierarchical ILP addressing scheme (e.g., `g.alice`, `g.bob.crypto`)
+- Specifies address validation rules (allowed characters, length limits)
+- Enables longest-prefix matching for routing decisions
+
+**M2M Implementation:**
+
+- `packages/shared/src/validation/ilp-address.ts` - ILP address validation logic
+- `validateILPAddress()` - Check address format and structure
+- `packages/connector/src/routing/routing-table.ts` - Longest-prefix matching algorithm
+
+**Key Implementation Details:**
+
+- Address format: Dot-separated segments (e.g., `g.alice.bob`)
+- Allowed characters: `a-z`, `0-9`, `_`, `-`, `.`
+- Maximum length: 1023 characters
+- Routing algorithm: Find longest matching prefix in routing table (e.g., `g.bob.crypto` matches
+  `g.bob` route)
+
+**Address Examples:**
+
+- `g.alice` - Global address for Alice
+- `g.bob.crypto` - Bob's crypto wallet address
+- `test.connector-a.local` - Test address for Connector A
+
+### RFC-0001: Interledger Architecture
+
+**URL:** [https://interledger.org/rfcs/0001-interledger-architecture/](https://interledger.org/rfcs/0001-interledger-architecture/)
+
+**Relevance:**
+
+- Defines high-level Interledger protocol architecture
+- Establishes layered design philosophy (Application, Transport, Interledger, Ledger layers)
+- Provides context for how ILPv4, BTP, STREAM, and other RFCs fit together
+
+**M2M Implementation:**
+
+- Overall system design follows RFC-0001 layered architecture:
+  - **Ledger Layer:** BTP connections between connectors (RFC-0023)
+  - **Interledger Layer:** ILPv4 packet routing and forwarding (RFC-0027)
+  - **Transport Layer:** (Not implemented - MVP focuses on Interledger layer)
+  - **Application Layer:** Test packet sender CLI tool
+- Hexagonal architecture (ports and adapters) aligns with RFC-0001 separation of concerns
+
+**Architectural Alignment:**
+
+- BTP acts as "ledger plugin" abstracting transport details
+- PacketHandler implements Interledger layer logic independent of transport
+- Routing table enables multi-hop packet forwarding per RFC-0001 connector role
+
+**Future Extensions:**
+
+- STREAM protocol (RFC-0029) - Transport layer for streaming payments
+- SPSP (RFC-0009) - Application layer for payment setup
+- ILP-over-HTTP (RFC-0035) - Alternative ledger layer transport
+
+## Key Design Decisions
+
+### In-Memory State Only
+
+**Decision:** No persistence layer - routing tables configured at startup, packet history ephemeral
+
+**Rationale:**
+
+- **Simplifies architecture:** Eliminates database setup, schema migrations, ORM complexity
+- **Sufficient for educational/testing use case:** Connectors restart frequently during
+  experimentation
+- **Aligns with ephemeral Docker containers:** Containers are stateless, destroyed and recreated
+  easily
+- **Enables rapid iteration:** No database state to manage or clean up between experiments
+
+**Trade-offs:**
+
+- Configuration changes require container restart (no runtime updates)
+- Packet history lost on restart (telemetry not persisted)
+- Not suitable for production use (no state recovery)
+
+**Implementation:**
+
+- Routing table stored in TypeScript `Map` in `RoutingTable` class
+- Peer connections re-established on startup from YAML configuration
+- Telemetry events cached in dashboard memory (limited buffer, e.g., last 1000 events)
+
+### Push-Based Telemetry
+
+**Decision:** Connectors push events to dashboard via WebSocket (not pull-based polling)
+
+**Rationale:**
+
+- **Enables real-time visualization:** Dashboard receives events immediately, no polling delay
+- **Reduces dashboard complexity:** Dashboard is passive aggregator, not active poller
+- **Supports future multi-client scenarios:** Multiple dashboards can subscribe to same connector
+  telemetry
+- **Aligns with event-driven architecture:** Telemetry emission decoupled from packet processing
+
+**Trade-offs:**
+
+- Connectors depend on dashboard availability (but telemetry emission non-blocking)
+- Dashboard becomes single point of failure for observability (but not for packet routing)
+
+**Implementation:**
+
+- `TelemetryEmitter` class in connector establishes WebSocket connection to dashboard on startup
+- Events emitted via `emit()` method wrapped in try-catch (non-blocking)
+- Dashboard broadcasts events to all connected browser clients
+
+### Docker-First Deployment
+
+**Decision:** No non-containerized deployment supported for MVP
+
+**Rationale:**
+
+- **Simplifies multi-node orchestration:** Docker Compose handles N connector containers with
+  declarative YAML
+- **Ensures environment consistency:** All nodes run identical Node.js 20-alpine images
+- **Aligns with developer tooling:** Docker standard for local development, CI/CD pipelines
+- **Enables network topology experimentation:** Easy to deploy linear, mesh, hub-spoke networks
+
+**Trade-offs:**
+
+- Requires Docker installed (barrier for non-Docker users)
+- Slightly higher resource usage vs. native Node.js processes
+- Container startup latency (~2-3 seconds vs. instant for native processes)
+
+**Implementation:**
+
+- All packages have Dockerfile (multi-stage builds with TypeScript compilation)
+- Docker Compose configurations for common topologies (`docker-compose.yml`,
+  `docker-compose-mesh.yml`)
+- Health checks ensure containers operational before accepting traffic
+
+### WebSocket-Centric Communication
+
+**Decision:** BTP uses WebSocket, telemetry uses WebSocket, real-time UI updates use WebSocket
+
+**Rationale:**
+
+- **Real-time bidirectional communication required:** BTP and telemetry both need full-duplex
+  communication
+- **RFC-0023 specifies BTP over WebSocket:** Aligns with Interledger standard
+- **Single protocol simplifies architecture:** No mixing HTTP polling, WebSocket, server-sent
+  events
+- **Native browser support:** WebSocket API built into all modern browsers, no library required
+
+**Trade-offs:**
+
+- WebSocket connections consume server resources (but only N connectors + M UI clients)
+- No HTTP/2 multiplexing (but not needed for MVP)
+- Requires WebSocket-aware load balancers for production (future concern)
+
+**Implementation:**
+
+- `ws` library (8.16.x) for Node.js WebSocket server and client
+- Native WebSocket API for browser clients
+- Reconnection logic with exponential backoff for BTP clients and telemetry emitters
+
+### Cytoscape.js for Network Visualization
+
+**Decision:** Use Cytoscape.js for interactive network graph rendering
+
+**Rationale:**
+
+- **Purpose-built for network graphs:** Designed specifically for node-edge visualizations
+- **Performant for 10+ nodes:** Force-directed layout algorithm scales well for MVP requirements
+- **Supports animation:** Built-in support for animated packet flows, node highlighting
+- **MIT licensed:** No licensing concerns for open-source project
+- **Well-documented:** Extensive documentation, active community, TypeScript type definitions
+  available
+
+**Alternatives Considered:**
+
+- D3.js - Rejected (lower-level API, steeper learning curve, overkill for MVP)
+- vis.js - Rejected (less active development, TypeScript support weaker)
+- React Flow - Rejected (designed for flowcharts, not network topologies)
+
+**Implementation:**
+
+- `NetworkGraph.tsx` component wraps Cytoscape.js in React
+- Force-directed layout: `layout: { name: 'cose' }` (Compound Spring Embedder)
+- Packet animation: Overlay layer with CSS transitions for packet movement
+
+### Educational Over Production
+
+**Decision:** Security, high availability, and performance optimization secondary to observability
+and ease of use
+
+**Rationale:**
+
+- **Aligns with PRD goals:** System designed for learning Interledger, not production use
+- **Reduces MVP complexity:** No need for authentication, encryption, horizontal scaling, disaster
+  recovery
+- **Enables faster iteration:** Focus on core features (visualization, packet routing) rather than
+  operational concerns
+
+**Security Implications:**
+
+- No BTP authentication (AUTH handshake accepts all connections)
+- No TLS/encryption for WebSocket connections (ws:// not wss://)
+- No input sanitization for telemetry data (assumes trusted network)
+- No rate limiting or DDoS protection
+
+**Note:** See [docs/architecture/security.md](./architecture/security.md) for security
+considerations and future hardening recommendations.
+
+### Hexagonal Architecture (Ports and Adapters)
+
+**Decision:** Core ILP packet handling logic independent of BTP transport
+
+**Rationale:**
+
+- **Enables future transport support:** Could add ILP-over-HTTP (RFC-0035) without changing packet
+  handler
+- **Improves testability:** Can mock BTP transport for unit testing packet handler in isolation
+- **Aligns with RFC-0001 layered architecture:** Clear separation between Interledger layer and
+  Ledger layer
+- **Simplifies reasoning:** Packet handler only knows about ILP packets, not BTP protocol details
+
+**Implementation:**
+
+- `PacketHandler` class has no direct BTP dependencies (only `BTPClientManager` interface)
+- BTP is "adapter" implementing ledger plugin interface:
+  ```typescript
+  interface ILedgerPlugin {
+    sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>;
+    onPacket(handler: (packet: ILPPreparePacket) => void): void;
+  }
+  ```
+- `BTPClientManager` and `BTPClient` implement this interface
+- Future: Create `HTTPLedgerPlugin` implementing same interface for ILP-over-HTTP support
+
+**Hexagonal Architecture Diagram:**
+
+```
+┌─────────────────────────────────────────┐
+│         Core Domain Logic               │
+│  ┌────────────────────────────────┐     │
+│  │     PacketHandler              │     │
+│  │  (ILP Packet Processing)       │     │
+│  └────────────────────────────────┘     │
+│  ┌────────────────────────────────┐     │
+│  │     RoutingTable               │     │
+│  │  (Longest Prefix Matching)     │     │
+│  └────────────────────────────────┘     │
+└─────────────────────────────────────────┘
+           ▲                      ▲
+           │ Port Interface       │ Port Interface
+           │ (ILedgerPlugin)      │ (ITelemetry)
+           ▼                      ▼
+┌──────────────────────┐  ┌──────────────────────┐
+│  BTP Adapter         │  │  Telemetry Adapter   │
+│  (BTPClientManager)  │  │  (TelemetryEmitter)  │
+└──────────────────────┘  └──────────────────────┘
+```
+
+## Extending the System
+
+### Adding New Telemetry Event Types
+
+**Use Case:** You want to track additional metrics (e.g., routing table changes, peer latency,
+packet drops)
+
+**Steps:**
+
+1. **Define new event type in `packages/shared/src/types/telemetry.ts`:**
+
+   ```typescript
+   // Add to TelemetryEventType enum
+   export enum TelemetryEventType {
+     NODE_STATUS = 'NODE_STATUS',
+     PACKET_RECEIVED = 'PACKET_RECEIVED',
+     PACKET_SENT = 'PACKET_SENT',
+     ROUTE_LOOKUP = 'ROUTE_LOOKUP',
+     LOG = 'LOG',
+     ROUTE_CHANGED = 'ROUTE_CHANGED', // NEW EVENT TYPE
+   }
+
+   // Define event schema
+   export interface RouteChangedEvent {
+     type: 'ROUTE_CHANGED';
+     nodeId: string;
+     timestamp: string;
+     action: 'added' | 'removed' | 'updated';
+     destination: string;
+     peer: string;
+   }
+
+   // Add to TelemetryEvent union type
+   export type TelemetryEvent =
+     | NodeStatusEvent
+     | PacketReceivedEvent
+     | PacketSentEvent
+     | RouteLookupEvent
+     | LogEvent
+     | RouteChangedEvent; // ADD HERE
+   ```
+
+2. **Emit event from connector using `TelemetryEmitter`:**
+
+   ```typescript
+   // In packages/connector/src/routing/routing-table.ts
+   export class RoutingTable {
+     addRoute(entry: RoutingTableEntry): void {
+       this.routes.set(entry.destination, entry);
+
+       // Emit telemetry event
+       this.telemetryEmitter.emit({
+         type: 'ROUTE_CHANGED',
+         nodeId: this.nodeId,
+         timestamp: new Date().toISOString(),
+         action: 'added',
+         destination: entry.destination,
+         peer: entry.peer,
+       });
+     }
+   }
+   ```
+
+3. **Handle event in dashboard telemetry server (broadcast to clients):**
+
+   ```typescript
+   // In packages/dashboard/server/telemetry-server.ts
+   // No changes needed - server broadcasts all events automatically
+   ```
+
+4. **Subscribe to event in dashboard UI component:**
+
+   ```typescript
+   // In packages/dashboard/src/components/RoutingTablePanel.tsx
+   import { useTelemetry } from '../hooks/useTelemetry';
+
+   export function RoutingTablePanel() {
+     const [routes, setRoutes] = useState<RoutingTableEntry[]>([]);
+
+     useTelemetry((event) => {
+       if (event.type === 'ROUTE_CHANGED') {
+         // Update routes state based on event
+         if (event.action === 'added') {
+           setRoutes((prev) => [...prev, { destination: event.destination, peer: event.peer }]);
+         }
+       }
+     });
+
+     return <div>{/* Render routing table */}</div>;
+   }
+   ```
+
+5. **Example: Add ROUTE_CHANGED event for dynamic routing table updates**
+
+**Testing:** Use integration test to verify event emission and dashboard handling.
+
+### Creating Custom Dashboard Visualizations
+
+**Use Case:** You want to add new UI panels (e.g., routing table viewer, peer latency graph, packet
+history timeline)
+
+**Steps:**
+
+1. **Create new React component in `packages/dashboard/src/components/`:**
+
+   ```typescript
+   // packages/dashboard/src/components/RouteTablePanel.tsx
+   import { useState } from 'react';
+   import { useTelemetry } from '../hooks/useTelemetry';
+   import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+
+   export function RouteTablePanel() {
+     const [routes, setRoutes] = useState<Record<string, RoutingTableEntry[]>>({});
+
+     useTelemetry((event) => {
+       if (event.type === 'NODE_STATUS') {
+         setRoutes((prev) => ({
+           ...prev,
+           [event.nodeId]: event.routes,
+         }));
+       }
+     });
+
+     return (
+       <Card>
+         <CardHeader>
+           <CardTitle>Routing Tables</CardTitle>
+         </CardHeader>
+         <CardContent>
+           {Object.entries(routes).map(([nodeId, nodeRoutes]) => (
+             <div key={nodeId}>
+               <h3>{nodeId}</h3>
+               <Table>
+                 <TableHeader>
+                   <TableRow>
+                     <TableHead>Destination</TableHead>
+                     <TableHead>Next Hop</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {nodeRoutes.map((route) => (
+                     <TableRow key={route.destination}>
+                       <TableCell>{route.destination}</TableCell>
+                       <TableCell>{route.peer}</TableCell>
+                     </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
+             </div>
+           ))}
+         </CardContent>
+       </Card>
+     );
+   }
+   ```
+
+2. **Subscribe to relevant telemetry events using `useTelemetry` hook:**
+
+   See example above - subscribes to `NODE_STATUS` events to get routing table updates.
+
+3. **Add component to `DashboardHome.tsx` layout:**
+
+   ```typescript
+   // packages/dashboard/src/pages/DashboardHome.tsx
+   import { RouteTablePanel } from '../components/RouteTablePanel';
+
+   export function DashboardHome() {
+     return (
+       <div className="grid grid-cols-2 gap-4">
+         <NetworkGraph />
+         <PacketAnimation />
+         <LogViewer />
+         <RouteTablePanel /> {/* ADD HERE */}
+       </div>
+     );
+   }
+   ```
+
+4. **Use shadcn-ui components for consistent styling:**
+
+   Import components from `./ui/*` (Card, Table, Button, Badge, etc.)
+
+5. **Example: Create RouteTablePanel component showing current routing tables for all connectors**
+
+**Best Practices:**
+
+- Use `useTelemetry()` hook for event subscription (handles WebSocket connection, cleanup)
+- Use shadcn-ui components for consistent design system
+- Add loading states while waiting for initial telemetry data
+- Handle edge cases (no connectors connected, empty routing tables)
+
+### Implementing New Transport Protocols
+
+**Use Case:** You want to add ILP-over-HTTP transport (RFC-0035) alongside BTP
+
+**Steps:**
+
+1. **Create adapter implementing `ILedgerPlugin` interface (hexagonal architecture):**
+
+   ```typescript
+   // packages/connector/src/http/http-ledger-plugin.ts
+   import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+
+   export interface ILedgerPlugin {
+     sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>;
+     onPacket(handler: (packet: ILPPreparePacket) => void): void;
+   }
+
+   export class HTTPLedgerPlugin implements ILedgerPlugin {
+     constructor(private readonly peerUrl: string) {}
+
+     async sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket> {
+       // POST packet to peer HTTP endpoint
+       const response = await fetch(`${this.peerUrl}/ilp`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/octet-stream' },
+         body: serializePacket(packet),
+       });
+
+       const buffer = await response.arrayBuffer();
+       return deserializePacket(Buffer.from(buffer));
+     }
+
+     onPacket(handler: (packet: ILPPreparePacket) => void): void {
+       // HTTP is request/response - no incoming packets from this side
+       // Server would handle via Express route
+     }
+   }
+   ```
+
+2. **Implement packet send/receive methods:**
+
+   See example above - `sendPacket()` uses HTTP POST, `onPacket()` handled by Express route.
+
+3. **Update `ConnectorNode` to inject transport adapter:**
+
+   ```typescript
+   // packages/connector/src/core/connector-node.ts
+   export class ConnectorNode {
+     constructor(
+       private readonly config: ConnectorConfig,
+       private readonly transportAdapter: ILedgerPlugin // INJECT ADAPTER
+     ) {}
+
+     async start() {
+       // Use transportAdapter.sendPacket() instead of BTPClientManager
+     }
+   }
+   ```
+
+4. **Add configuration options for transport selection:**
+
+   ```yaml
+   # examples/linear-3-nodes-http.yaml
+   nodeId: connector-a
+   transport: http # NEW FIELD
+   peers:
+     - peerId: connector-b
+       url: http://connector-b:3001/ilp # HTTP URL instead of ws://
+   ```
+
+5. **Example: Add ILP-over-HTTP transport (RFC-0035) alongside BTP**
+
+**Testing:**
+
+- Unit test `HTTPLedgerPlugin` with mocked fetch
+- Integration test verifying HTTP transport works alongside BTP
+
+### Supporting Custom Network Topologies
+
+**Use Case:** You want to deploy a star topology (all nodes connect to single central hub)
+
+**Steps:**
+
+1. **Create YAML topology file in `examples/` directory:**
+
+   ```yaml
+   # examples/star-topology.yaml
+   nodes:
+     - nodeId: hub
+       btpServerPort: 3000
+       peers: [] # Hub has no outbound connections
+       routes:
+         - destination: g.spoke1
+           peer: local
+         - destination: g.spoke2
+           peer: local
+         - destination: g.spoke3
+           peer: local
+
+     - nodeId: spoke-1
+       btpServerPort: 3001
+       peers:
+         - peerId: hub
+           url: ws://hub:3000
+       routes:
+         - destination: g.hub
+           peer: hub
+         - destination: g.spoke2
+           peer: hub # Route to hub, hub forwards to spoke-2
+         - destination: g.spoke3
+           peer: hub
+
+     - nodeId: spoke-2
+       btpServerPort: 3002
+       peers:
+         - peerId: hub
+           url: ws://hub:3000
+       routes:
+         - destination: g.hub
+           peer: hub
+         - destination: g.spoke1
+           peer: hub
+         - destination: g.spoke3
+           peer: hub
+
+     - nodeId: spoke-3
+       btpServerPort: 3003
+       peers:
+         - peerId: hub
+           url: ws://hub:3000
+       routes:
+         - destination: g.hub
+           peer: hub
+         - destination: g.spoke1
+           peer: hub
+         - destination: g.spoke2
+           peer: hub
+   ```
+
+2. **Define `nodeId`, `peers`, `routes` for each connector:**
+
+   See example above - hub has no outbound peers, spokes all connect to hub.
+
+3. **Create corresponding `docker-compose-{topology}.yml` file:**
+
+   ```yaml
+   # docker-compose-star.yml
+   services:
+     dashboard:
+       build: ./packages/dashboard
+       ports:
+         - '8080:8080'
+
+     hub:
+       build: ./packages/connector
+       environment:
+         - NODE_ID=hub
+         - CONFIG_FILE=/config/star-topology.yaml
+       volumes:
+         - ./examples:/config
+
+     spoke-1:
+       build: ./packages/connector
+       environment:
+         - NODE_ID=spoke-1
+         - CONFIG_FILE=/config/star-topology.yaml
+       volumes:
+         - ./examples:/config
+
+     spoke-2:
+       build: ./packages/connector
+       environment:
+         - NODE_ID=spoke-2
+         - CONFIG_FILE=/config/star-topology.yaml
+       volumes:
+         - ./examples:/config
+
+     spoke-3:
+       build: ./packages/connector
+       environment:
+         - NODE_ID=spoke-3
+         - CONFIG_FILE=/config/star-topology.yaml
+       volumes:
+         - ./examples:/config
+   ```
+
+4. **Update README with topology description and usage:**
+
+   ````markdown
+   ### Star Topology
+
+   All nodes connect to a central hub. Packets route through hub to reach other spokes.
+
+   **Start:**
+
+   ```bash
+   docker-compose -f docker-compose-star.yml up
+   ```
+   ````
+
+   **Test packet flow:**
+
+   ```bash
+   send-packet --source spoke-1 --destination g.spoke2.crypto --amount 1000
+   # Packet routes: spoke-1 → hub → spoke-2
+   ```
+
+   ```
+
+   ```
+
+5. **Verify topology with topology validator:**
+
+   ```typescript
+   // packages/connector/src/config/topology-validator.ts
+   import { validateTopology } from './topology-validator';
+
+   const config = loadConfig('./examples/star-topology.yaml');
+   const validation = validateTopology(config);
+
+   if (!validation.valid) {
+     console.error('Topology validation failed:', validation.errors);
+     // Errors: ["Node spoke-1 route to g.spoke2 via hub, but hub not in peers list"]
+   }
+   ```
+
+6. **Example: Creating star topology (all nodes connect to single central hub)**
+
+**Testing:**
+
+- Deploy topology with `docker-compose -f docker-compose-star.yml up`
+- Send test packets between spokes to verify routing through hub
+- Check dashboard visualization shows star layout
+
+## Related Documentation
+
+- **[README.md](../README.md)** - Quick start guide, installation instructions, usage examples
+- **[Configuration Schema](./configuration-schema.md)** - Complete YAML configuration reference
+  with validation rules
+- **[Coding Standards](./architecture/coding-standards.md)** - TypeScript coding standards, naming
+  conventions, critical rules
+- **[Tech Stack](./architecture/tech-stack.md)** - Detailed technology stack table with versions and
+  rationale
+- **[Source Tree](./architecture/source-tree.md)** - Monorepo directory structure and file
+  organization
+- **[Components](./architecture/components.md)** - Detailed component specifications and interfaces
+- **[Data Models](./architecture/data-models.md)** - TypeScript type definitions for ILP packets,
+  BTP messages, telemetry events
+- **[Core Workflows](./architecture/core-workflows.md)** - Sequence diagrams for packet forwarding,
+  telemetry, startup
+- **[Test Strategy](./architecture/test-strategy-and-standards.md)** - Testing philosophy, test
+  types, coverage standards
+- **[Security](./architecture/security.md)** - Security considerations for educational MVP
+- **[Sharded Architecture Directory](./architecture/)** - Comprehensive sharded architecture
+  documentation for deep dives
+
+---
+
+**Document Version:** 1.0
+
+**Last Updated:** 2025-12-30
+
+**Authors:** Winston (Architect), James (Developer)

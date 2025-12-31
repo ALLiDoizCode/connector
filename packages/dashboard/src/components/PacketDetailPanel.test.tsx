@@ -51,25 +51,13 @@ describe('PacketDetailPanel', () => {
   };
 
   it('renders "No packet selected" when packet is null', () => {
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={null}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={null} />);
 
     expect(screen.getByText('No packet selected')).toBeInTheDocument();
   });
 
   it('renders PREPARE packet details correctly', () => {
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={mockPreparePacket}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={mockPreparePacket} />);
 
     // Check packet type badge (multiple instances from tabs)
     expect(screen.getAllByText('PREPARE').length).toBeGreaterThan(0);
@@ -84,13 +72,7 @@ describe('PacketDetailPanel', () => {
   });
 
   it('renders FULFILL packet details correctly', () => {
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={mockFulfillPacket}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={mockFulfillPacket} />);
 
     // Check packet type badge
     expect(screen.getAllByText('FULFILL').length).toBeGreaterThan(0);
@@ -100,13 +82,7 @@ describe('PacketDetailPanel', () => {
   });
 
   it('renders REJECT packet details correctly', () => {
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={mockRejectPacket}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={mockRejectPacket} />);
 
     // Check packet type badge
     expect(screen.getAllByText('REJECT').length).toBeGreaterThan(0);
@@ -118,13 +94,7 @@ describe('PacketDetailPanel', () => {
   });
 
   it('displays routing path correctly', () => {
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={mockPreparePacket}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={mockPreparePacket} />);
 
     expect(screen.getByText('Routing Path')).toBeInTheDocument();
     expect(screen.getAllByText('connector-a')[0]).toBeInTheDocument();
@@ -139,13 +109,7 @@ describe('PacketDetailPanel', () => {
       routingPath: [],
     };
 
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={packetWithoutPath}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={packetWithoutPath} />);
 
     expect(screen.getByText('Path not yet determined')).toBeInTheDocument();
   });
@@ -154,19 +118,13 @@ describe('PacketDetailPanel', () => {
     const handleOpenChange = jest.fn();
 
     render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={handleOpenChange}
-        packet={mockPreparePacket}
-      />
+      <PacketDetailPanel open={true} onOpenChange={handleOpenChange} packet={mockPreparePacket} />
     );
 
     // Find close button (usually in the SheetPrimitive)
     // Note: This test assumes shadcn-ui Sheet has a close button
     const closeButtons = screen.getAllByRole('button');
-    const closeButton = closeButtons.find((btn) =>
-      btn.className.includes('absolute')
-    );
+    const closeButton = closeButtons.find((btn) => btn.className.includes('absolute'));
 
     if (closeButton) {
       fireEvent.click(closeButton);
@@ -175,13 +133,7 @@ describe('PacketDetailPanel', () => {
   });
 
   it('switches between formatted and JSON views', () => {
-    render(
-      <PacketDetailPanel
-        open={true}
-        onOpenChange={jest.fn()}
-        packet={mockPreparePacket}
-      />
-    );
+    render(<PacketDetailPanel open={true} onOpenChange={jest.fn()} packet={mockPreparePacket} />);
 
     // Check tabs exist
     expect(screen.getByText('Formatted View')).toBeInTheDocument();
@@ -208,9 +160,9 @@ describe('PacketDetailPanel', () => {
     expect(screen.getByText('Recently Viewed')).toBeInTheDocument();
 
     // Recent packets should show packet-2 and packet-3 (excluding current packet-1)
-    const recentButtons = screen.getAllByRole('button').filter((btn) =>
-      btn.textContent?.startsWith('packet-')
-    );
+    const recentButtons = screen
+      .getAllByRole('button')
+      .filter((btn) => btn.textContent?.startsWith('packet-'));
 
     expect(recentButtons.length).toBeGreaterThan(0);
 
