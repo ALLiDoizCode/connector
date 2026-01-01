@@ -1,0 +1,97 @@
+# Docker Compose configuration for Production Single-Node ILP Connector
+#
+# This configuration deploys a production-ready single ILP connector with security hardening:
+# - Non-root container user (security)
+# - Environment-based secrets management (no hardcoded secrets)
+# - Minimal port exposure (BTP only, health internal)
+# - Auto-restart policy (restart: unless-stopped)
+# - Structured JSON logging at INFO level
+#
+# Prerequisites:
+#   1. Build the connector image: docker build -t ilp-connector .
+#   2. Create .env file from template: cp .env.production.example .env
+#   3. Edit .env file with your production secrets and configuration
+#   4. Configure peers in examples/production-single-node.yaml
+#   5. Docker Engine 20.10+ and Docker Compose 2.x installed
+#
+# Usage:
+#   Start:  docker-compose -f docker-compose-production.yml up -d
+#   Logs:   docker logs -f ilp-production-connector
+#   Health: docker exec ilp-production-connector wget -qO- http://localhost:8080/health
+#   Stop:   docker-compose -f docker-compose-production.yml down
+#
+# Configuration:
+#   - Connector config: examples/production-single-node.yaml (mounted read-only)
+#   - Secrets/env vars: .env file (never commit to git!)
+#   - BTP peer secrets: BTP_PEER_<PEER_ID>_SECRET environment variables
+#
+# Security Notes:
+#   - ALL secrets MUST be in .env file, not in YAML files
+#   - Container runs as non-root user (nodejs, uid 1001)
+#   - Only essential BTP port exposed to host
+#   - Health check port internal only (not exposed)
+#   - Use strong secrets: openssl rand -base64 32
+
+version: '3.8'
+
+services:
+  # Production Connector - Single Node Deployment
+  production-connector:
+    image: ilp-connector
+    container_name: ilp-production-connector
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: ${NODE_ID:-production-connector}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-8080}
+      # Optional dashboard telemetry (leave empty to disable)
+      DASHBOARD_TELEMETRY_URL: ${DASHBOARD_TELEMETRY_URL:-}
+      # BTP peer authentication secrets loaded from .env file
+      # Pattern: BTP_PEER_<PEER_ID_UPPERCASE>_SECRET=<secret_value>
+      # Example: BTP_PEER_REMOTE_CONNECTOR_SECRET=${BTP_PEER_REMOTE_CONNECTOR_SECRET:-}
+      # Add your peer secrets here following the pattern above
+    volumes:
+      # Configuration file (read-only for security)
+      - ./examples/production-single-node.yaml:/app/config.yaml:ro
+      # Optional: Persistent logs (uncomment if needed)
+      # - ./production-logs:/var/log/ilp:rw
+    ports:
+      # BTP server port (configurable via .env, default 3000)
+      - "${BTP_PORT:-3000}:3000"
+      # Note: Health check port NOT exposed to host (internal only for Docker health check)
+    networks:
+      - ilp-production-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Dashboard (commented out by default)
+  # Uncomment if you need visualization/monitoring in production
+  # dashboard:
+  #   build:
+  #     context: .
+  #     dockerfile: packages/dashboard/Dockerfile
+  #   container_name: ilp-production-dashboard
+  #   environment:
+  #     TELEMETRY_WS_PORT: 9000
+  #     LOG_LEVEL: ${LOG_LEVEL:-info}
+  #   ports:
+  #     - "${DASHBOARD_HTTP_PORT:-8080}:8080"  # Dashboard HTTP port
+  #     - "${DASHBOARD_WS_PORT:-9000}:9000"    # Telemetry WebSocket port
+  #   networks:
+  #     - ilp-production-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
+
+networks:
+  ilp-production-network:
+    driver: bridge

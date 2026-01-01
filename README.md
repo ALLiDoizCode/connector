@@ -19,6 +19,7 @@ Educational implementation of an Interledger Protocol (ILP) connector with Bilat
 - [Quick Start](#quick-start)
 - [Testing Packet Routing with send-packet Tool](#testing-packet-routing-with-send-packet-tool)
 - [Docker Compose Deployment](#docker-compose-deployment)
+- [Production Deployment](#production-deployment)
 - [Dashboard](#dashboard)
 - [Documentation](#documentation)
 - [Technology Stack](#technology-stack)
@@ -1212,6 +1213,455 @@ connector-a:
         cpus: '0.25'
         memory: 256M
 ```
+
+## Production Deployment
+
+Deploy a production-ready single-node ILP connector with security hardening, secrets management, and operational best practices.
+
+### Overview
+
+The production deployment configuration (`docker-compose-production.yml`) is optimized for running a single ILP connector in production environments. Unlike development deployments that prioritize multi-node testing and observability, production deployments focus on:
+
+- **Security**: Non-root container user, environment-based secrets, minimal port exposure
+- **Reliability**: Auto-restart policy, health checks, structured logging
+- **Simplicity**: Single-node deployment, production-appropriate defaults
+- **Best Practices**: No hardcoded secrets, read-only config mounts, restricted file permissions
+
+### Production vs Development
+
+| Aspect | Development (docker-compose.yml) | Production (docker-compose-production.yml) |
+|--------|----------------------------------|-------------------------------------------|
+| **Nodes** | Multi-node (3-5-8 nodes) | Single node |
+| **Logging** | DEBUG level, pretty-printed | INFO level, JSON structured |
+| **Secrets** | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file) |
+| **Ports** | All exposed to host | Minimal (BTP only, health internal) |
+| **Restart** | No restart policy | `restart: unless-stopped` |
+| **User** | Root (default) | Non-root (node user) |
+| **Dashboard** | Always deployed | Optional (disabled by default) |
+
+### Prerequisites
+
+- **Docker Engine**: 20.10+ ([Install Docker](https://docs.docker.com/engine/install/))
+- **Docker Compose**: 2.x ([Install Docker Compose](https://docs.docker.com/compose/install/))
+- **Connector Image**: Build the image first: `docker build -t ilp-connector .`
+
+### Quick Start
+
+#### 1. Copy Environment Template
+
+```bash
+cp .env.production.example .env
+```
+
+This creates a `.env` file for your production secrets and configuration. **Never commit the `.env` file to git** - it's in `.gitignore` for security.
+
+#### 2. Edit Environment Variables
+
+```bash
+# Edit .env file with your production values
+nano .env  # or vim, code, etc.
+```
+
+**Key variables to configure:**
+
+```bash
+# Connector identifier
+NODE_ID=production-connector
+
+# Log level (info, warn, error - do NOT use debug in production)
+LOG_LEVEL=info
+
+# BTP server port (exposed to host)
+BTP_PORT=3000
+
+# Optional: Dashboard telemetry WebSocket URL
+# Leave empty to disable dashboard in production
+DASHBOARD_TELEMETRY_URL=
+```
+
+#### 3. Generate BTP Secrets
+
+Generate strong random secrets for BTP peer authentication:
+
+```bash
+# Generate a secure random secret
+openssl rand -base64 32
+```
+
+**Example output:**
+```
+h3xK9mP2vQ7wL5nR8tY1uI4oA6sD3fG0jH2kL9mN5bV8cX1zW4qE7rT0yU3iO6pA
+```
+
+Add these secrets to your `.env` file following the `BTP_PEER_<PEER_ID>_SECRET` pattern:
+
+```bash
+# Example: If your YAML config has peer with id "remote-connector"
+BTP_PEER_REMOTE_CONNECTOR_SECRET=h3xK9mP2vQ7wL5nR8tY1uI4oA6sD3fG0jH2kL9mN5bV8cX1zW4qE7rT0yU3iO6pA
+```
+
+#### 4. Configure BTP Peers
+
+Edit the production connector configuration to add your BTP peers:
+
+```bash
+nano examples/production-single-node.yaml
+```
+
+**Example peer configuration:**
+
+```yaml
+peers:
+  - id: remote-connector
+    url: ws://remote-connector-host:3000
+    # Authentication token loaded from .env file
+    authToken: ${BTP_PEER_REMOTE_CONNECTOR_SECRET}
+```
+
+**Add corresponding routes:**
+
+```yaml
+routes:
+  - prefix: g.production.connector
+    nextHop: production-connector
+    priority: 0
+  - prefix: g.remote.network
+    nextHop: remote-connector
+    priority: 0
+```
+
+#### 5. Deploy Production Connector
+
+```bash
+docker-compose -f docker-compose-production.yml up -d
+```
+
+**Expected output:**
+
+```
+Creating network "m2m_ilp-production-network" ... done
+Creating ilp-production-connector ... done
+```
+
+#### 6. Verify Deployment
+
+Check container health:
+
+```bash
+# View container status
+docker-compose -f docker-compose-production.yml ps
+
+# Expected output:
+# NAME                       STATUS
+# ilp-production-connector   Up 30 seconds (healthy)
+```
+
+Check logs:
+
+```bash
+# View recent logs
+docker logs ilp-production-connector
+
+# Follow logs in real-time
+docker logs -f ilp-production-connector
+```
+
+Verify health endpoint:
+
+```bash
+# Query health endpoint (inside container)
+docker exec ilp-production-connector wget -qO- http://localhost:8080/health
+
+# Expected output: health check response (200 OK)
+```
+
+### BTP Peer Configuration
+
+#### Adding BTP Peers
+
+To connect your production connector to other ILP connectors, add peers to `examples/production-single-node.yaml`:
+
+```yaml
+peers:
+  - id: peer-1
+    url: ws://peer1.example.com:3000
+    authToken: ${BTP_PEER_PEER_1_SECRET}
+
+  - id: peer-2
+    url: ws://peer2.example.com:3000
+    authToken: ${BTP_PEER_PEER_2_SECRET}
+```
+
+**Then add corresponding secrets to `.env`:**
+
+```bash
+# Generate secrets for each peer
+BTP_PEER_PEER_1_SECRET=$(openssl rand -base64 32)
+BTP_PEER_PEER_2_SECRET=$(openssl rand -base64 32)
+```
+
+**Important:** Coordinate secrets with peer administrators - both sides must use the same secret for authentication.
+
+#### Environment Variable Pattern
+
+BTP peer secrets follow the naming pattern: `BTP_PEER_<PEER_ID_UPPERCASE>_SECRET`
+
+**Examples:**
+
+| Peer ID in YAML | Environment Variable |
+|----------------|---------------------|
+| `remote-connector` | `BTP_PEER_REMOTE_CONNECTOR_SECRET` |
+| `peer-1` | `BTP_PEER_PEER_1_SECRET` |
+| `backup-node` | `BTP_PEER_BACKUP_NODE_SECRET` |
+
+The peer ID is converted to uppercase and hyphens/underscores are preserved.
+
+### Monitoring and Health Checks
+
+#### Health Check Endpoint
+
+The connector exposes an HTTP health check endpoint on port 8080 (internal only, not exposed to host):
+
+```bash
+# Check health from inside container
+docker exec ilp-production-connector wget -qO- http://localhost:8080/health
+```
+
+**Health Check Behavior:**
+
+- Returns `200 OK` when connector is healthy (≥50% peers connected)
+- Returns `503 Service Unavailable` when unhealthy or starting
+- Checked automatically by Docker every 30 seconds
+- Container marked unhealthy after 3 consecutive failures
+
+#### Viewing Logs
+
+Production logs are structured JSON format for log aggregation and analysis:
+
+```bash
+# View recent logs
+docker logs ilp-production-connector
+
+# Follow logs in real-time
+docker logs -f ilp-production-connector
+
+# Filter by log level (Pino uses numeric levels: 30=info, 40=warn, 50=error)
+docker logs ilp-production-connector | grep '"level":50'  # Errors only
+docker logs ilp-production-connector | grep '"level":40'  # Warnings only
+```
+
+**Example log entry:**
+
+```json
+{
+  "level": 30,
+  "time": 1704067200000,
+  "nodeId": "production-connector",
+  "event": "btp_peer_connected",
+  "peerId": "remote-connector",
+  "msg": "BTP peer connected successfully"
+}
+```
+
+#### Optional: Enable Dashboard Telemetry
+
+To enable real-time visualization in production (optional):
+
+1. Uncomment the dashboard service in `docker-compose-production.yml`
+2. Set `DASHBOARD_TELEMETRY_URL` in `.env`:
+
+```bash
+DASHBOARD_TELEMETRY_URL=ws://dashboard:9000
+```
+
+3. Redeploy:
+
+```bash
+docker-compose -f docker-compose-production.yml up -d
+```
+
+Access dashboard at `http://localhost:8080` (or configured `DASHBOARD_HTTP_PORT`).
+
+**Note:** The dashboard is primarily for development/testing. For production monitoring, consider using dedicated observability tools (Prometheus, Grafana, ELK stack, etc.) that consume the structured JSON logs.
+
+### Security Best Practices
+
+#### Secrets Management
+
+**Critical security rules:**
+
+1. **NEVER hardcode secrets in YAML files** - always use environment variables
+2. **Generate strong random secrets** - use `openssl rand -base64 32`
+3. **Restrict .env file permissions** - run `chmod 600 .env` to prevent other users from reading
+4. **Rotate secrets regularly** - update secrets periodically (e.g., every 90 days)
+5. **Use different secrets per environment** - never reuse development secrets in production
+6. **Use different secrets per peer** - each BTP peer connection should have a unique secret
+
+#### File Permissions
+
+Secure your `.env` file immediately after creation:
+
+```bash
+chmod 600 .env
+```
+
+This ensures only the file owner can read/write the secrets.
+
+#### Non-Root Container User
+
+The production connector runs as a non-root user (`node` user, uid 1000) inside the container for security:
+
+```bash
+# Verify non-root user
+docker exec ilp-production-connector id
+
+# Expected output:
+# uid=1000(node) gid=1000(node) groups=1000(node)
+```
+
+This prevents privilege escalation attacks if the container is compromised.
+
+#### Minimal Port Exposure
+
+Production deployment only exposes the essential BTP server port to the host. The health check port (8080) is internal only, accessible via `docker exec` for monitoring but not exposed to the network.
+
+### Troubleshooting
+
+#### Container Won't Start
+
+**Check .env file exists and is properly formatted:**
+
+```bash
+# Verify .env file exists
+ls -la .env
+
+# Check file contents (be careful not to expose secrets in logs)
+head .env
+```
+
+**Verify YAML config syntax:**
+
+```bash
+# Check for YAML syntax errors
+docker run --rm -v $(pwd)/examples/production-single-node.yaml:/config.yaml alpine/yamllint /config.yaml
+```
+
+**Check Docker logs for startup errors:**
+
+```bash
+docker logs ilp-production-connector
+```
+
+#### BTP Authentication Fails
+
+**Common causes:**
+
+1. **Mismatched secrets:** Verify `BTP_PEER_*_SECRET` environment variable matches peer's expected secret
+2. **Incorrect variable naming:** Ensure peer ID is correctly converted to uppercase (e.g., `remote-connector` → `BTP_PEER_REMOTE_CONNECTOR_SECRET`)
+3. **Missing environment variable:** Check `.env` file includes the peer secret
+4. **Whitespace in secrets:** Ensure no trailing whitespace in `.env` file
+
+**Verify secrets are loaded:**
+
+```bash
+# Check environment variables (be careful - this exposes secrets!)
+docker exec ilp-production-connector env | grep BTP_PEER
+```
+
+#### Health Check Fails
+
+**Check health endpoint accessibility:**
+
+```bash
+# Test health endpoint from inside container
+docker exec ilp-production-connector wget -qO- http://localhost:8080/health
+
+# Check if connector is listening on port 8080
+docker exec ilp-production-connector netstat -tlnp | grep 8080
+```
+
+**Verify HEALTH_CHECK_PORT environment variable:**
+
+```bash
+docker exec ilp-production-connector env | grep HEALTH_CHECK_PORT
+```
+
+**Check container logs for errors:**
+
+```bash
+docker logs ilp-production-connector | grep -i error
+```
+
+#### Connector Not Accepting BTP Connections
+
+**Verify BTP server port is exposed:**
+
+```bash
+# Check port mapping
+docker port ilp-production-connector
+
+# Expected output:
+# 3000/tcp -> 0.0.0.0:3000
+```
+
+**Check if BTP server is listening:**
+
+```bash
+docker exec ilp-production-connector netstat -tlnp | grep 3000
+```
+
+**Verify firewall rules allow incoming connections on BTP port (3000 by default).**
+
+### Stopping and Restarting
+
+#### Stop Production Connector
+
+```bash
+docker-compose -f docker-compose-production.yml down
+```
+
+This stops and removes the container but preserves configuration files.
+
+#### Restart Production Connector
+
+```bash
+docker-compose -f docker-compose-production.yml restart
+```
+
+Restarts the container without rebuilding (useful for reloading configuration).
+
+#### Update Configuration and Redeploy
+
+After editing `examples/production-single-node.yaml` or `.env`:
+
+```bash
+# Restart to apply configuration changes
+docker-compose -f docker-compose-production.yml restart
+
+# Or fully redeploy
+docker-compose -f docker-compose-production.yml up -d
+```
+
+**Note:** Configuration changes require a restart. The connector loads configuration at startup only (no hot-reloading).
+
+### Production Checklist
+
+Before deploying to production, verify:
+
+- [ ] `.env` file created from `.env.production.example`
+- [ ] All BTP peer secrets generated with `openssl rand -base64 32`
+- [ ] `.env` file permissions restricted: `chmod 600 .env`
+- [ ] BTP peers configured in `examples/production-single-node.yaml`
+- [ ] Routes added for all peer address prefixes
+- [ ] `LOG_LEVEL` set to `info` (not `debug`)
+- [ ] Dashboard telemetry disabled or secured (set `DASHBOARD_TELEMETRY_URL` appropriately)
+- [ ] Firewall rules configured to allow BTP port (default 3000)
+- [ ] Health check endpoint accessible via `docker exec`
+- [ ] Container runs as non-root user (verified with `docker exec ... id`)
+- [ ] Restart policy configured (`restart: unless-stopped`)
+- [ ] Monitoring/alerting configured (log aggregation, health checks, etc.)
+- [ ] Secrets rotation schedule established
+- [ ] Backup and disaster recovery plan documented
 
 ## Dashboard
 

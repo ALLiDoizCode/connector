@@ -1,0 +1,89 @@
+# Production Single-Node ILP Connector Configuration
+#
+# This is a production-hardened configuration template for a single ILP connector.
+# Unlike development configurations, this template:
+# - Uses INFO-level structured JSON logging (not DEBUG/pretty-printed)
+# - Loads all secrets from environment variables (not hardcoded in YAML)
+# - Contains minimal configuration (peers/routes added as needed)
+# - Follows production security best practices
+#
+# Usage:
+#   1. Copy .env.production.example to .env
+#   2. Edit .env with your production secrets
+#   3. Add peers to the peers array below (if needed)
+#   4. Add routes to the routes array below (if needed)
+#   5. Deploy with: docker-compose -f docker-compose-production.yml up -d
+#
+# Security Notes:
+#   - NEVER hardcode secrets in this file
+#   - ALL BTP authentication tokens MUST be in .env file
+#   - This file is committed to git, .env is NOT
+#   - Use environment variable pattern: ${BTP_PEER_<PEER_ID>_SECRET}
+
+# Node Identity
+# This identifies the connector in the ILP network
+nodeId: production-connector
+
+# BTP Server Configuration
+# The connector will listen for incoming BTP connections on this port
+btpServerPort: 3000
+
+# Logging Configuration (Production)
+# - Level: info (no debug logs in production)
+# - Format: json (structured logging for log aggregation)
+# - Can be overridden via LOG_LEVEL environment variable
+logLevel: info
+
+# Health Check Configuration
+# HTTP endpoint for Docker health checks and monitoring
+# Note: This port is NOT exposed to the host (internal only)
+healthCheckPort: 8080
+
+# Peer Connections (BTP Clients)
+# Add BTP peers here as you configure them
+# CRITICAL: Authentication tokens MUST be environment variables, NOT hardcoded
+#
+# Example peer configuration (uncomment and modify as needed):
+# peers:
+#   - id: remote-connector
+#     url: ws://remote-connector-host:3000
+#     # Authentication token loaded from environment variable
+#     # Set in .env file: BTP_PEER_REMOTE_CONNECTOR_SECRET=your-secret-here
+#     authToken: ${BTP_PEER_REMOTE_CONNECTOR_SECRET}
+#
+# Multiple peers example:
+# peers:
+#   - id: peer-1
+#     url: ws://peer1.example.com:3000
+#     authToken: ${BTP_PEER_PEER_1_SECRET}
+#   - id: peer-2
+#     url: ws://peer2.example.com:3000
+#     authToken: ${BTP_PEER_PEER_2_SECRET}
+
+# Empty peers array by default (single node with no outgoing connections)
+# Add peers as needed following the pattern above
+peers: []
+
+# Routing Table
+# Add routes here to direct ILP packets to the appropriate next hop
+#
+# Example route configuration (uncomment and modify as needed):
+# routes:
+#   - prefix: g.production.connector
+#     nextHop: production-connector
+#     priority: 0
+#   - prefix: g.remote.network
+#     nextHop: remote-connector
+#     priority: 0
+#
+# Route explanation:
+# - prefix: ILP address prefix to match (g.production.connector matches all addresses starting with this)
+# - nextHop: Peer ID to forward packets to (must match a peer ID above, or own nodeId for local)
+# - priority: Lower priority wins (0 is highest priority)
+
+# Empty routes by default (single node with no routing)
+# Add routes as you configure peers
+routes:
+  - prefix: g.production.connector
+    nextHop: production-connector
+    priority: 0

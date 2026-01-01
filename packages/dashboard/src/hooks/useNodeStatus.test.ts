@@ -199,7 +199,7 @@ describe('useNodeStatus', () => {
   describe('processedEventCount Prevents Event Reprocessing (AC 8)', () => {
     it('should not reprocess events on component re-render', () => {
       // Arrange: Create initial events
-      let events: TelemetryEvent[] = [
+      const events: TelemetryEvent[] = [
         {
           type: 'NODE_STATUS',
           nodeId: 'connector-a',
