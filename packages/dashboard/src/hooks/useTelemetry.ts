@@ -42,7 +42,9 @@ export function useTelemetry(): UseTelemetryResult {
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY);
 
   // Read telemetry server URL from environment variable with default
-  const telemetryUrl = import.meta.env.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
+  // Access via globalThis to avoid TypeScript compile errors in Jest
+  const telemetryUrl =
+    (globalThis as any).import?.meta?.env?.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
 
   useEffect(() => {
     const connect = (): void => {
