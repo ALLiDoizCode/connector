@@ -20,13 +20,23 @@ describe('AccountManager', () => {
   let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
-    // Create mock logger using pino silent mode for tests
-    mockLogger = pino({ level: 'silent' }) as jest.Mocked<Logger>;
+    // Create mock logger with jest mock functions
+    mockLogger = {
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      trace: jest.fn(),
+      fatal: jest.fn(),
+      child: jest.fn().mockReturnThis(),
+      level: 'silent',
+      silent: jest.fn(),
+    } as unknown as jest.Mocked<Logger>;
 
     // Create mock TigerBeetleClient
     mockTigerBeetleClient = new TigerBeetleClient(
       { clusterId: 0, replicaAddresses: ['localhost:3000'] },
-      mockLogger
+      pino({ level: 'silent' })
     ) as jest.Mocked<TigerBeetleClient>;
 
     // Reset all mocks
@@ -46,8 +56,9 @@ describe('AccountManager', () => {
         expect.objectContaining({
           nodeId: 'test-node',
           defaultLedger: AccountLedgerCodes.DEFAULT_LEDGER,
+          creditLimitsEnabled: false,
         }),
-        'AccountManager initialized'
+        'AccountManager initialized (credit limits disabled - unlimited exposure)'
       );
     });
 
@@ -73,8 +84,9 @@ describe('AccountManager', () => {
         expect.objectContaining({
           nodeId: 'test-node',
           defaultLedger: 99,
+          creditLimitsEnabled: false,
         }),
-        'AccountManager initialized'
+        'AccountManager initialized (credit limits disabled - unlimited exposure)'
       );
     });
   });

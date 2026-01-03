@@ -7,9 +7,10 @@
  * @module settlement/settlement-monitor.test
  */
 
-import { SettlementMonitor, SettlementMonitorConfig, TelemetryEmitter } from './settlement-monitor';
+import { SettlementMonitor, SettlementMonitorConfig } from './settlement-monitor';
 import { AccountManager } from './account-manager';
 import { SettlementState, SettlementTriggerEvent } from '../config/types';
+import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { Logger } from 'pino';
 import pino from 'pino';
 

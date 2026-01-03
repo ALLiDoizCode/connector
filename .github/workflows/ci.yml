@@ -147,6 +147,8 @@ jobs:
         run: npm ci
 
       - name: Verify RFC Links
+        env:
+          RFC_LINKS_TEST: 'true'
         run: npm run test:rfc-links
 
   e2e-test:
