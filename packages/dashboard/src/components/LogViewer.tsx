@@ -4,7 +4,7 @@
  */
 
 import { useRef, useEffect, useMemo } from 'react';
-import { TableVirtuoso } from 'react-virtuoso';
+import { TableVirtuoso, TableVirtuosoHandle } from 'react-virtuoso';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
@@ -112,9 +112,7 @@ export function LogViewer({
   clearFilters,
   allLogEntries,
 }: LogViewerProps) {
-  const virtuosoRef = useRef<{
-    scrollToIndex: (options: { index: number; align: string; behavior: string }) => void;
-  } | null>(null);
+  const virtuosoRef = useRef<TableVirtuosoHandle>(null);
   const isAtBottomRef = useRef<boolean>(true);
 
   // Derive unique node IDs from all log entries
@@ -263,8 +261,8 @@ export function LogViewer({
                   </TableRow>
                 </TableHeader>
               ),
-              TableBody: TableBody as React.ComponentType<React.PropsWithChildren>,
-              TableRow: TableRow as React.ComponentType<React.PropsWithChildren>,
+              TableBody: TableBody as any,
+              TableRow: TableRow as any,
             }}
             fixedHeaderContent={() => (
               <TableRow>
@@ -274,7 +272,7 @@ export function LogViewer({
                 <TableHead className="text-gray-300 bg-gray-800">Message</TableHead>
               </TableRow>
             )}
-            itemContent={(index, entry) => (
+            itemContent={(_index, entry) => (
               <>
                 {/* Timestamp */}
                 <TableCell
