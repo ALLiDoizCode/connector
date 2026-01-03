@@ -44,6 +44,7 @@ export function useTelemetry(): UseTelemetryResult {
   // Read telemetry server URL from environment variable with default
   // Access via globalThis to avoid TypeScript compile errors in Jest
   const telemetryUrl =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).import?.meta?.env?.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
 
   useEffect(() => {
