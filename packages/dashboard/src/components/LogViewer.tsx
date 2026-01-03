@@ -261,7 +261,9 @@ export function LogViewer({
                   </TableRow>
                 </TableHeader>
               ),
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               TableBody: TableBody as any,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               TableRow: TableRow as any,
             }}
             fixedHeaderContent={() => (
