@@ -162,7 +162,9 @@ function buildDockerImage(): void {
 // Skip all tests if Docker or Docker Compose are not available
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
   // Build image before all tests

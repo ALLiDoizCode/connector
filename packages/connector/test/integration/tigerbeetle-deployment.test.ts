@@ -158,15 +158,19 @@ async function waitForRunning(containerName: string, timeoutMs: number = 30000):
   throw new Error(`Container ${containerName} did not start within ${timeoutMs}ms`);
 }
 
-describe('TigerBeetle Deployment Integration Tests', () => {
-  // Skip all tests if Docker is not available
+// Check if Docker and Docker Compose are available
+const dockerAvailable = isDockerAvailable();
+const composeAvailable = isDockerComposeAvailable();
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+
+// Skip tests if Docker/Compose not available or E2E tests not enabled
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
+
+describeIfDockerCompose('TigerBeetle Deployment Integration Tests', () => {
+  // Cleanup before starting tests
   beforeAll(() => {
-    if (!isDockerAvailable()) {
-      console.log('Docker is not available, skipping TigerBeetle deployment tests');
-    }
-    if (!isDockerComposeAvailable()) {
-      console.log('Docker Compose is not available, skipping TigerBeetle deployment tests');
-    }
+    cleanupDockerCompose();
   });
 
   // Cleanup after each test

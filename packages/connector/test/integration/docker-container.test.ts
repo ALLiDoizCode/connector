@@ -91,7 +91,8 @@ async function waitForLog(
 }
 
 // Skip all tests if Docker is not available
-const describeIfDocker = isDockerAvailable() ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDocker = isDockerAvailable() && e2eEnabled ? describe : describe.skip;
 
 describeIfDocker('Docker Container Integration Tests', () => {
   // Cleanup before all tests
