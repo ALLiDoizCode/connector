@@ -262,6 +262,8 @@ Use `Ctrl+C` to exit log viewer.
 - **Development**: Local testing, smart contract development, payment channel experimentation
 - **Production**: Deploying connectors to public networks with real cryptocurrency
 
+**Configuration Guide:** For production deployment configuration and environment switching, see [Production Configuration Guide](docs/guides/local-vs-production-config.md)
+
 ### Available Make Commands
 
 M2M includes a Makefile with commands for common development workflows:
@@ -373,6 +375,65 @@ lsof -i :8545
 
 # Stop conflicting service or change port in docker-compose-dev.yml
 ```
+
+### Development Workflows
+
+M2M supports two main blockchain development workflows for Epic 8 (EVM smart contracts on Base L2) and Epic 9 (XRP payment channels):
+
+**Workflow 1: Smart Contract Development (Epic 8 - Base L2)**
+
+- Write contract → Test on Anvil → Deploy locally → Test with connectors → Deploy testnet
+- **See**: [Smart Contract Development Workflow](docs/guides/local-blockchain-development.md#workflow-1-smart-contract-development-epic-8) for complete tutorial
+- **Tools**: Foundry (forge/cast), Anvil, Solidity
+- **Best For**: Payment channel smart contracts, EVM-based settlement logic
+
+**Workflow 2: XRP Payment Channel Testing (Epic 9 - XRP Ledger)**
+
+- Start rippled → Create accounts → Fund accounts → Open channel → Sign claims → Test settlement
+- **See**: [XRP Payment Channel Workflow](docs/guides/local-blockchain-development.md#workflow-2-xrp-payment-channel-testing-epic-9) for complete tutorial
+- **Tools**: rippled RPC, helper scripts, curl
+- **Best For**: XRPL payment channels, off-ledger claim signing and validation
+
+### When to Use Each Makefile Command
+
+Choose the right development command for your workflow:
+
+**`make dev-up`** - Default development mode (no dashboard, manual ledger advancement)
+
+- **Best for**: Rapid iteration, minimal resource usage
+- **Use when**: Developing connectors, testing ILP routing without visualization
+- **Resource usage**: Low (~2GB RAM)
+
+**`make dev-up-dashboard`** - Development with network visualization
+
+- **Best for**: Debugging packet routing, visualizing network topology
+- **Use when**: Working on multi-connector deployments, debugging packet flow
+- **Resource usage**: Medium (~3GB RAM)
+
+**`make dev-up-auto-ledger`** - Development with automatic XRPL ledger advancement
+
+- **Best for**: XRP payment channel testing (Epic 9), continuous integration testing
+- **Use when**: Testing payment channels without manual ledger advancement
+- **Resource usage**: Low (~2GB RAM)
+
+**`make dev-up-all`** - All optional services (dashboard + auto-ledger)
+
+- **Best for**: Full-featured development environment
+- **Use when**: Working on both Epic 8 (EVM) and Epic 9 (XRP) simultaneously
+- **Resource usage**: High (~4GB RAM)
+
+**`make dev-reset`** - Clean state reset (WARNING: deletes all blockchain data)
+
+- **Best for**: Starting fresh after corrupted state or major config changes
+- **Use when**: Blockchain state corrupted, testing from genesis, changing fork block
+- **Data loss**: YES - all blockchain data, deployed contracts, payment channels deleted
+
+**`make dev-test`** - Run integration tests
+
+- **Best for**: Validating full stack before committing changes
+- **Use when**: Pre-commit validation, CI/CD pipeline integration
+
+**For detailed deployment tutorials and debugging workflows**, see [Local Blockchain Development Guide](docs/guides/local-blockchain-development.md).
 
 ### Further Reading
 

@@ -232,6 +232,30 @@ export interface ConnectorConfig {
    * Defaults to settlement disabled if not specified
    */
   settlement?: SettlementConfig;
+
+  /**
+   * Deployment environment for the connector
+   * Determines which blockchain configuration defaults are applied
+   * and which validation rules are enforced
+   *
+   * Defaults to 'development' if not specified
+   *
+   * Environment types:
+   * - development: Local Anvil and rippled standalone
+   * - staging: Public testnets (Base Sepolia, XRPL Testnet)
+   * - production: Public mainnets (Base mainnet, XRPL Mainnet)
+   */
+  environment: Environment;
+
+  /**
+   * Optional blockchain configuration for Base L2 and XRP Ledger integration
+   * When provided, enables blockchain-specific features (payment channels, smart contracts)
+   * Defaults to blockchain integration disabled if not specified
+   *
+   * Epic 8 (EVM Payment Channels) uses config.blockchain.base
+   * Epic 9 (XRP Payment Channels) uses config.blockchain.xrpl
+   */
+  blockchain?: BlockchainConfig;
 }
 
 /**
@@ -473,6 +497,19 @@ export interface SettlementConfig {
    */
   thresholds?: SettlementThresholdConfig;
 }
+
+/**
+ * Environment Type
+ *
+ * Defines the deployment environment for the connector.
+ * Used to apply environment-specific configuration defaults and validations.
+ *
+ * Environment types:
+ * - development: Local development with Anvil and rippled standalone
+ * - staging: Public testnets (Base Sepolia, XRPL Testnet)
+ * - production: Public mainnets (Base mainnet, XRPL Mainnet)
+ */
+export type Environment = 'development' | 'staging' | 'production';
 
 /**
  * Settlement Transfer Metadata Interface
@@ -786,4 +823,206 @@ export interface SettlementTriggerEvent {
    * Enables tracking time between threshold detection and settlement completion
    */
   timestamp: Date;
+}
+
+/**
+ * Blockchain Configuration Interface
+ *
+ * Top-level blockchain configuration containing optional Base L2 and XRPL configurations.
+ * Both are optional to support connectors that only integrate with one blockchain.
+ *
+ * @property base - Optional Base L2 / EVM configuration
+ * @property xrpl - Optional XRP Ledger configuration
+ *
+ * @example
+ * ```typescript
+ * const blockchain: BlockchainConfig = {
+ *   base: {
+ *     enabled: true,
+ *     rpcUrl: 'http://anvil:8545',
+ *     chainId: 84532,
+ *     privateKey: '0xac0974...',
+ *     registryAddress: '0x1234...'
+ *   },
+ *   xrpl: {
+ *     enabled: true,
+ *     rpcUrl: 'http://rippled:5005',
+ *     network: 'standalone'
+ *   }
+ * };
+ * ```
+ */
+export interface BlockchainConfig {
+  /**
+   * Optional Base L2 / EVM blockchain configuration
+   * Used for Epic 8 payment channel smart contracts
+   * Enabled when connector needs to interact with Base L2
+   */
+  base?: BaseBlockchainConfig;
+
+  /**
+   * Optional XRP Ledger blockchain configuration
+   * Used for Epic 9 XRP payment channels
+   * Enabled when connector needs to interact with XRPL
+   */
+  xrpl?: XRPLBlockchainConfig;
+}
+
+/**
+ * Base L2 Blockchain Configuration
+ *
+ * Configuration for Base L2 (OP Stack) blockchain integration.
+ * Supports both local Anvil development and public Base mainnet/testnet.
+ *
+ * @property enabled - Whether Base blockchain integration is enabled
+ * @property rpcUrl - RPC endpoint URL (local Anvil or public mainnet/testnet)
+ * @property chainId - Expected chain ID (84532 = Base Sepolia, 8453 = Base mainnet)
+ * @property privateKey - Optional private key for contract interactions (dev only)
+ * @property registryAddress - Optional payment channel registry contract address
+ *
+ * @example
+ * ```typescript
+ * // Development configuration
+ * const baseDev: BaseBlockchainConfig = {
+ *   enabled: true,
+ *   rpcUrl: 'http://anvil:8545',
+ *   chainId: 84532,
+ *   privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+ * };
+ *
+ * // Production configuration
+ * const baseProd: BaseBlockchainConfig = {
+ *   enabled: true,
+ *   rpcUrl: 'https://mainnet.base.org',
+ *   chainId: 8453,
+ *   privateKey: process.env.BASE_PRIVATE_KEY,  // From secure KMS
+ *   registryAddress: '0x1234567890123456789012345678901234567890'
+ * };
+ * ```
+ */
+export interface BaseBlockchainConfig {
+  /**
+   * Feature flag to enable/disable Base blockchain integration
+   * When false, connector will not interact with Base L2
+   * Default: false (backward compatible with pre-Epic 8 connectors)
+   */
+  enabled: boolean;
+
+  /**
+   * RPC endpoint URL for Base L2 blockchain
+   *
+   * Environment-specific defaults:
+   * - Development: http://anvil:8545 (local Anvil fork)
+   * - Staging: https://sepolia.base.org (Base Sepolia testnet)
+   * - Production: https://mainnet.base.org (Base mainnet)
+   *
+   * Custom endpoints (Alchemy, Infura) recommended for production reliability
+   */
+  rpcUrl: string;
+
+  /**
+   * Expected chain ID for validation
+   *
+   * Standard chain IDs:
+   * - 84532: Base Sepolia testnet
+   * - 8453: Base mainnet
+   *
+   * Validated at runtime against RPC endpoint's actual chain ID
+   */
+  chainId: number;
+
+  /**
+   * Optional private key for contract interactions
+   *
+   * Development: Can use Anvil pre-funded account private key
+   * Production: MUST use secure key from KMS/HSM (validation enforced)
+   *
+   * Known dev key (rejected in production):
+   * 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+   */
+  privateKey?: string;
+
+  /**
+   * Optional payment channel registry contract address
+   *
+   * Epic 8 will deploy PaymentChannelRegistry contract
+   * Address varies by network (local Anvil vs testnet vs mainnet)
+   *
+   * Example: 0x1234567890123456789012345678901234567890
+   */
+  registryAddress?: string;
+}
+
+/**
+ * XRP Ledger Blockchain Configuration
+ *
+ * Configuration for XRP Ledger (XRPL) integration.
+ * Supports local rippled standalone, XRPL Testnet, and XRPL Mainnet.
+ *
+ * @property enabled - Whether XRPL integration is enabled
+ * @property rpcUrl - XRPL RPC endpoint URL (local rippled or public mainnet/testnet)
+ * @property network - XRPL network type ('standalone' | 'testnet' | 'mainnet')
+ * @property privateKey - Optional private key for payment channel operations (dev only)
+ *
+ * @example
+ * ```typescript
+ * // Development configuration
+ * const xrplDev: XRPLBlockchainConfig = {
+ *   enabled: true,
+ *   rpcUrl: 'http://rippled:5005',
+ *   network: 'standalone',
+ *   privateKey: 'snoPBrXtMeMyMHUVTgbuqAfg1SUTb'
+ * };
+ *
+ * // Production configuration
+ * const xrplProd: XRPLBlockchainConfig = {
+ *   enabled: true,
+ *   rpcUrl: 'https://xrplcluster.com',
+ *   network: 'mainnet',
+ *   privateKey: process.env.XRPL_PRIVATE_KEY  // From secure KMS
+ * };
+ * ```
+ */
+export interface XRPLBlockchainConfig {
+  /**
+   * Feature flag to enable/disable XRPL integration
+   * When false, connector will not interact with XRP Ledger
+   * Default: false (backward compatible with pre-Epic 9 connectors)
+   */
+  enabled: boolean;
+
+  /**
+   * RPC endpoint URL for XRP Ledger
+   *
+   * Environment-specific defaults:
+   * - Development: http://rippled:5005 (local rippled standalone)
+   * - Staging: https://s.altnet.rippletest.net:51234 (XRPL Testnet)
+   * - Production: https://xrplcluster.com (XRPL Mainnet)
+   *
+   * WebSocket URLs (ws:// or wss://) also supported
+   */
+  rpcUrl: string;
+
+  /**
+   * XRPL network type
+   *
+   * Network types:
+   * - standalone: Local rippled in standalone mode (no consensus)
+   * - testnet: XRPL Testnet for public testing
+   * - mainnet: XRPL Mainnet for production
+   *
+   * Validated to match ENVIRONMENT (production requires mainnet)
+   */
+  network: 'standalone' | 'testnet' | 'mainnet';
+
+  /**
+   * Optional private key for payment channel operations
+   *
+   * Development: Can generate from rippled standalone
+   * Production: MUST use secure key from KMS/HSM
+   *
+   * Format: XRPL seed format (starts with 's')
+   * Example: snoPBrXtMeMyMHUVTgbuqAfg1SUTb
+   */
+  privateKey?: string;
 }
