@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { AnimatedPacket } from '../types/animation';
 import Cytoscape from 'cytoscape';
+import { createLogger } from '../utils/logger';
 
 export interface PacketAnimationProps {
   /** Currently active packets to animate */
@@ -17,6 +18,9 @@ export interface PacketAnimationProps {
   /** Callback when packet is clicked */
   onPacketClick?: (packetId: string) => void;
 }
+
+// Create logger instance for this component
+const logger = createLogger('PacketAnimation');
 
 /**
  * PacketAnimation component manages real-time packet flow visualization
@@ -53,8 +57,7 @@ export const PacketAnimation = React.memo(
 
       // If user prefers reduced motion, skip animations
       if (prefersReducedMotion) {
-        // eslint-disable-next-line no-console
-        console.debug('[PacketAnimation] Reduced motion preference detected, skipping animations');
+        logger.debug('Reduced motion preference detected, skipping animations');
         return;
       }
 
@@ -74,7 +77,7 @@ export const PacketAnimation = React.memo(
       });
 
       // Animation loop function
-      const animate = () => {
+      const animate = (): void => {
         if (!cyInstance) {
           return;
         }
@@ -95,9 +98,9 @@ export const PacketAnimation = React.memo(
 
           if (isComplete || isStale) {
             if (isStale) {
-              // eslint-disable-next-line no-console
-              console.warn(
-                `[PacketAnimation] Packet animation timeout, forcing cleanup (packetId: ${packet.id}, elapsed: ${elapsed}ms)`
+              logger.warn(
+                { packetId: packet.id, elapsed },
+                'Packet animation timeout, forcing cleanup'
               );
             }
 
@@ -116,9 +119,13 @@ export const PacketAnimation = React.memo(
           const targetNode = cyInstance.getElementById(packet.targetNodeId);
 
           if (sourceNode.length === 0 || targetNode.length === 0) {
-            // eslint-disable-next-line no-console
-            console.warn(
-              `[PacketAnimation] Missing nodes for packet ${packet.id}: source=${packet.sourceNodeId}, target=${packet.targetNodeId}`
+            logger.warn(
+              {
+                packetId: packet.id,
+                sourceNodeId: packet.sourceNodeId,
+                targetNodeId: packet.targetNodeId,
+              },
+              'Missing nodes for packet'
             );
             return;
           }
@@ -252,7 +259,7 @@ export const PacketAnimation = React.memo(
           animationFrameRef.current = null;
         }
       };
-    }, [activePackets, cyInstance, packetsByEdge, prefersReducedMotion]);
+    }, [activePackets, cyInstance, packetsByEdge, prefersReducedMotion, onPacketClick]);
 
     // Cleanup all packet nodes on unmount
     useEffect(() => {

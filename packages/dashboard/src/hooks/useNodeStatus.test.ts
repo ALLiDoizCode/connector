@@ -219,14 +219,16 @@ describe('useNodeStatus', () => {
         initialProps: { events },
       });
 
-      const initialReceived = result.current.nodeStatuses.get('connector-a')?.statistics.packetsReceived;
+      const initialReceived =
+        result.current.nodeStatuses.get('connector-a')?.statistics.packetsReceived;
       expect(initialReceived).toBe(1);
 
       // Re-render with SAME events (simulating React re-render with same props)
       rerender({ events });
 
       // Assert: Counters should NOT increment again (processedEventCount prevents reprocessing)
-      const afterRerender = result.current.nodeStatuses.get('connector-a')?.statistics.packetsReceived;
+      const afterRerender =
+        result.current.nodeStatuses.get('connector-a')?.statistics.packetsReceived;
       expect(afterRerender).toBe(1); // Still 1, not 2
     });
 

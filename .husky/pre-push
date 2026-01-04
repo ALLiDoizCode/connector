@@ -1,0 +1,21 @@
+# Run linter on all files
+echo "Running linter..."
+npm run lint
+
+# Check if linter passed
+if [ $? -ne 0 ]; then
+  echo "❌ Linter failed. Please fix the errors before pushing."
+  exit 1
+fi
+
+# Run format check
+echo "Checking code formatting..."
+npm run format:check
+
+# Check if format check passed
+if [ $? -ne 0 ]; then
+  echo "❌ Code formatting check failed. Run 'npm run format' to fix."
+  exit 1
+fi
+
+echo "✅ All pre-push checks passed!"

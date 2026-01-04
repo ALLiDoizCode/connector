@@ -9,6 +9,7 @@
 **Foundation:** This epic implements the recommendations from `docs/research/local-blockchain-nodes-setup-guide.md`, providing local blockchain infrastructure for Epic 8 (EVM Payment Channels) and Epic 9 (XRP Payment Channels) development and testing.
 
 **Important:** These local blockchain nodes are **for development and testing only**. Production deployments will connect to:
+
 - **Base L2:** Public mainnet via RPC endpoint (https://mainnet.base.org)
 - **XRP Ledger:** Public mainnet via RPC endpoint (https://xrplcluster.com)
 
@@ -50,14 +51,20 @@ services:
       --chain-id 84532
       --optimism
     ports:
-      - "8545:8545"
+      - '8545:8545'
     networks:
       - m2m_dev_network
     environment:
       - BASE_SEPOLIA_RPC_URL=${BASE_SEPOLIA_RPC_URL}
       - FORK_BLOCK_NUMBER=${FORK_BLOCK_NUMBER}
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:8545 -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' || exit 1"]
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'curl -f http://localhost:8545 -X POST -H ''Content-Type: application/json'' --data ''{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'' || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -137,14 +144,20 @@ services:
   rippled:
     image: xrpllabsofficial/xrpld:latest
     container_name: rippled_standalone
-    command: ["-a"]  # standalone mode
+    command: ['-a'] # standalone mode
     ports:
-      - "5005:5005"  # JSON-RPC
-      - "6006:6006"  # WebSocket
+      - '5005:5005' # JSON-RPC
+      - '6006:6006' # WebSocket
     networks:
       - m2m_dev_network
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:5005 -X POST -H 'Content-Type: application/json' --data '{\"method\":\"server_info\",\"params\":[]}' || exit 1"]
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'curl -f http://localhost:5005 -X POST -H ''Content-Type: application/json'' --data ''{"method":"server_info","params":[]}'' || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -173,7 +186,7 @@ services:
       "
     restart: unless-stopped
     profiles:
-      - auto-ledger  # Only start with: docker-compose --profile auto-ledger up
+      - auto-ledger # Only start with: docker-compose --profile auto-ledger up
 
 volumes:
   rippled_data:
@@ -182,6 +195,7 @@ volumes:
 ### Helper Scripts
 
 **scripts/rippled-advance-ledger.sh:**
+
 ```bash
 #!/bin/bash
 # Manually advance rippled ledger
@@ -194,6 +208,7 @@ curl -X POST http://localhost:5005 \
 ```
 
 **scripts/rippled-fund-account.sh:**
+
 ```bash
 #!/bin/bash
 # Fund a test account in standalone mode
@@ -211,6 +226,7 @@ curl -X POST http://localhost:5005 \
 ```
 
 **scripts/rippled-reset.sh:**
+
 ```bash
 #!/bin/bash
 # Reset rippled state (stop, remove volume, restart)
@@ -293,11 +309,17 @@ services:
       --chain-id 84532
       --optimism
     ports:
-      - "8545:8545"
+      - '8545:8545'
     networks:
       - m2m_dev_network
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:8545 -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' || exit 1"]
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'curl -f http://localhost:8545 -X POST -H ''Content-Type: application/json'' --data ''{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'' || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -306,14 +328,20 @@ services:
   rippled:
     image: xrpllabsofficial/xrpld:latest
     container_name: rippled_standalone
-    command: ["-a"]
+    command: ['-a']
     ports:
-      - "5005:5005"
-      - "6006:6006"
+      - '5005:5005'
+      - '6006:6006'
     networks:
       - m2m_dev_network
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:5005 -X POST -H 'Content-Type: application/json' --data '{\"method\":\"server_info\",\"params\":[]}' || exit 1"]
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'curl -f http://localhost:5005 -X POST -H ''Content-Type: application/json'' --data ''{"method":"server_info","params":[]}'' || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -349,13 +377,13 @@ services:
     container_name: tigerbeetle_dev
     command: start --addresses=0.0.0.0:3000
     ports:
-      - "3000:3000"
+      - '3000:3000'
     networks:
       - m2m_dev_network
     volumes:
       - tigerbeetle_data:/var/lib/tigerbeetle
     healthcheck:
-      test: ["CMD", "tigerbeetle", "version"]
+      test: ['CMD', 'tigerbeetle', 'version']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -375,8 +403,8 @@ services:
       - TIGERBEETLE_URL=tigerbeetle:3000
       - DASHBOARD_TELEMETRY_URL=http://dashboard:8080/telemetry
     ports:
-      - "3001:3001"
-      - "8081:8080"
+      - '3001:3001'
+      - '8081:8080'
     networks:
       - m2m_dev_network
     depends_on:
@@ -387,8 +415,8 @@ services:
       tigerbeetle:
         condition: service_healthy
     volumes:
-      - ./packages/connector/src:/app/src  # Hot-reload
-      - ./packages/shared/src:/app/node_modules/@m2m/shared/src  # Hot-reload shared
+      - ./packages/connector/src:/app/src # Hot-reload
+      - ./packages/shared/src:/app/node_modules/@m2m/shared/src # Hot-reload shared
 
   connector-bob:
     build:
@@ -403,8 +431,8 @@ services:
       - TIGERBEETLE_URL=tigerbeetle:3000
       - DASHBOARD_TELEMETRY_URL=http://dashboard:8080/telemetry
     ports:
-      - "3002:3002"
-      - "8082:8080"
+      - '3002:3002'
+      - '8082:8080'
     networks:
       - m2m_dev_network
     depends_on:
@@ -426,11 +454,11 @@ services:
       dockerfile: Dockerfile.dev
     container_name: dashboard_dev
     ports:
-      - "8080:8080"
+      - '8080:8080'
     networks:
       - m2m_dev_network
     volumes:
-      - ./packages/dashboard/src:/app/src  # Hot-reload
+      - ./packages/dashboard/src:/app/src # Hot-reload
     profiles:
       - dashboard
 
@@ -519,7 +547,7 @@ so that I can quickly set up my development machine and start contributing.
 
 **docs/guides/local-blockchain-development.md:**
 
-```markdown
+````markdown
 # Local Blockchain Development Guide
 
 ## Quick Start (5 minutes)
@@ -545,6 +573,7 @@ so that I can quickly set up my development machine and start contributing.
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
+````
 
 ### 2. Clone M2M Repository
 
@@ -568,6 +597,7 @@ make dev-up
 ```
 
 This starts:
+
 - Anvil (Base L2 fork) on http://localhost:8545
 - rippled (XRPL standalone) on http://localhost:5005
 
@@ -624,6 +654,7 @@ curl -X POST http://localhost:5005 \
 **Problem:** Port 8545 already in use
 
 **Solution:**
+
 ```bash
 # Find process using port
 lsof -i :8545
@@ -635,6 +666,7 @@ lsof -i :8545
 **Problem:** Transactions submitted but not confirmed
 
 **Solution:**
+
 ```bash
 # Manually advance ledger
 ./scripts/rippled-advance-ledger.sh
@@ -653,7 +685,8 @@ A: Yes, but local nodes provide faster iteration and no rate limits.
 
 **Q: Do I need to run both Anvil and rippled?**
 A: Only if working on both Epic 8 (EVM) and Epic 9 (XRP).
-```
+
+````
 
 ---
 
@@ -706,9 +739,10 @@ settlement:
 telemetry:
   enabled: true
   dashboardUrl: http://dashboard:8080/telemetry
-```
+````
 
 **connector-config.prod.yaml:**
+
 ```yaml
 # Production configuration (public mainnets)
 nodeId: ${NODE_ID}
@@ -717,21 +751,21 @@ environment: production
 blockchain:
   base:
     enabled: true
-    rpcUrl: https://mainnet.base.org  # Base mainnet
+    rpcUrl: https://mainnet.base.org # Base mainnet
     chainId: 8453
-    privateKey: ${BASE_PRIVATE_KEY}  # Secure key from KMS/HSM
-    registryAddress: "0x..."  # Production contract address
+    privateKey: ${BASE_PRIVATE_KEY} # Secure key from KMS/HSM
+    registryAddress: '0x...' # Production contract address
 
   xrpl:
     enabled: true
-    rpcUrl: https://xrplcluster.com  # XRPL mainnet
-    privateKey: ${XRP_PRIVATE_KEY}  # Secure key from KMS/HSM
+    rpcUrl: https://xrplcluster.com # XRPL mainnet
+    privateKey: ${XRP_PRIVATE_KEY} # Secure key from KMS/HSM
     network: mainnet
 
 settlement:
   tigerbeetleUrl: ${TIGERBEETLE_CLUSTER_URL}
   thresholds:
-    default: 10000  # Higher threshold for production
+    default: 10000 # Higher threshold for production
 
 telemetry:
   enabled: true
@@ -746,13 +780,17 @@ telemetry:
 export function validateEnvironment(config: ConnectorConfig) {
   if (config.environment === 'production') {
     // Production validations
-    if (!config.blockchain.base.privateKey.startsWith('0x') ||
-        config.blockchain.base.privateKey === KNOWN_DEV_KEY) {
+    if (
+      !config.blockchain.base.privateKey.startsWith('0x') ||
+      config.blockchain.base.privateKey === KNOWN_DEV_KEY
+    ) {
       throw new Error('Cannot use development private key in production');
     }
 
-    if (config.blockchain.base.rpcUrl.includes('localhost') ||
-        config.blockchain.base.rpcUrl.includes('127.0.0.1')) {
+    if (
+      config.blockchain.base.rpcUrl.includes('localhost') ||
+      config.blockchain.base.rpcUrl.includes('127.0.0.1')
+    ) {
       throw new Error('Cannot use localhost RPC in production');
     }
 
@@ -787,11 +825,13 @@ export function validateEnvironment(config: ConnectorConfig) {
 ## Dependencies and Integration Points
 
 **Enables:**
+
 - **Epic 8:** EVM Payment Channels (Base L2) - Local Anvil for contract development and testing
 - **Epic 9:** XRP Payment Channels - Local rippled for PayChan development and testing
 - **Epic 10:** Multi-Chain Settlement - Local environment for cross-chain testing
 
 **Integrates With:**
+
 - **Epic 6:** Settlement Foundation - TigerBeetle added to dev compose file
 - **Epic 2:** BTP Protocol - Connectors start with blockchain dependencies healthy
 - **Epic 3:** Dashboard - Optional dashboard service for development visualization
@@ -803,12 +843,14 @@ export function validateEnvironment(config: ConnectorConfig) {
 ### Development vs. Production Architecture
 
 **Development (Local Nodes):**
+
 ```
 Connector → Anvil (localhost:8545) → Forked Base Sepolia state
 Connector → rippled (localhost:5005) → Standalone mode (offline)
 ```
 
 **Production (Public Mainnets):**
+
 ```
 Connector → Base Mainnet (https://mainnet.base.org) → Live blockchain
 Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
@@ -822,6 +864,7 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 4. **Identical to mainnet:** Full EVM compatibility, contracts work identically
 
 **When to fork mainnet:**
+
 - Testing production contract deployments
 - Verifying interactions with deployed mainnet contracts
 - Performance testing with real state size
@@ -834,6 +877,7 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 4. **Payment channel testing:** Full support, but claims must be manually validated
 
 **Mitigation:**
+
 - Auto-ledger advancer service (optional) advances ledgers every 5 seconds
 - Helper scripts automate common operations
 - Documentation clearly explains standalone mode behavior
@@ -845,6 +889,7 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 ### Integration Tests
 
 **Test 1: Full Stack Startup**
+
 1. Start all services with `docker-compose-dev.yml`
 2. Verify all health checks pass
 3. Verify Anvil serves Base Sepolia forked state
@@ -852,12 +897,14 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 5. Verify connectors connect to both blockchain nodes
 
 **Test 2: Smart Contract Deployment to Local Anvil**
+
 1. Deploy payment channel contract to Anvil
 2. Verify deployment transaction succeeds
 3. Verify contract address returned
 4. Verify contract state accessible via RPC
 
 **Test 3: XRP Payment Channel on Local rippled**
+
 1. Create two test accounts in rippled
 2. Fund accounts
 3. Open payment channel
@@ -865,6 +912,7 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 5. Verify channel exists on ledger
 
 **Test 4: Connector Blockchain Integration**
+
 1. Start connector with dev config
 2. Verify connector connects to Anvil
 3. Verify connector connects to rippled

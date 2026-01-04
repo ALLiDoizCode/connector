@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { createLogger } from '../utils/logger';
 
 /**
  * Telemetry event structure received from telemetry server
@@ -27,6 +28,9 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 const INITIAL_RECONNECT_DELAY = 5000; // 5 seconds
 const MAX_RECONNECT_DELAY = 60000; // 60 seconds
 
+// Create logger instance for this hook
+const logger = createLogger('useTelemetry');
+
 /**
  * Custom hook to connect to dashboard telemetry WebSocket server
  * Handles connection lifecycle, message parsing, and automatic reconnection
@@ -42,19 +46,20 @@ export function useTelemetry(): UseTelemetryResult {
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY);
 
   // Read telemetry server URL from environment variable with default
-  const telemetryUrl = import.meta.env.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
+  // Access via globalThis to avoid TypeScript compile errors in Jest
+  const telemetryUrl =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).import?.meta?.env?.VITE_TELEMETRY_WS_URL || 'ws://localhost:9000';
 
   useEffect(() => {
     const connect = (): void => {
       try {
-        // eslint-disable-next-line no-console
-        console.debug(`[useTelemetry] Connecting to telemetry server: ${telemetryUrl}`);
+        logger.debug({ url: telemetryUrl }, 'Connecting to telemetry server');
         const ws = new WebSocket(telemetryUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
-          // eslint-disable-next-line no-console
-          console.debug('[useTelemetry] WebSocket connection established');
+          logger.debug('WebSocket connection established');
           setConnected(true);
           setError(null);
           // Reset reconnection state on successful connection
@@ -69,41 +74,40 @@ export function useTelemetry(): UseTelemetryResult {
             data: {},
           };
           ws.send(JSON.stringify(clientConnectMessage));
-          // eslint-disable-next-line no-console
-          console.debug('[useTelemetry] Sent CLIENT_CONNECT message');
+          logger.debug('Sent CLIENT_CONNECT message');
         };
 
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data) as TelemetryEvent;
-            // eslint-disable-next-line no-console
-            console.debug('[useTelemetry] Received telemetry event:', message);
+            logger.debug({ message }, 'Received telemetry event');
             setEvents((prev) => [...prev, message]);
           } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error('[useTelemetry] Failed to parse telemetry message:', err);
+            logger.error({ error: err }, 'Failed to parse telemetry message');
             // Ignore malformed messages, continue processing
           }
         };
 
         ws.onerror = (event) => {
-          // eslint-disable-next-line no-console
-          console.error('[useTelemetry] WebSocket error:', event);
+          logger.error({ error: event }, 'WebSocket error');
           setError(new Error('WebSocket connection error'));
         };
 
         ws.onclose = () => {
-          // eslint-disable-next-line no-console
-          console.debug('[useTelemetry] WebSocket connection closed');
+          logger.debug('WebSocket connection closed');
           setConnected(false);
 
           // Attempt reconnection with exponential backoff
           if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
             reconnectAttemptsRef.current += 1;
             const delay = reconnectDelayRef.current;
-            // eslint-disable-next-line no-console
-            console.debug(
-              `[useTelemetry] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`
+            logger.debug(
+              {
+                delay,
+                attempt: reconnectAttemptsRef.current,
+                maxAttempts: MAX_RECONNECT_ATTEMPTS,
+              },
+              'Reconnecting to telemetry server'
             );
 
             reconnectTimeoutRef.current = setTimeout(() => {
@@ -116,14 +120,12 @@ export function useTelemetry(): UseTelemetryResult {
               MAX_RECONNECT_DELAY
             );
           } else {
-            // eslint-disable-next-line no-console
-            console.error('[useTelemetry] Max reconnection attempts reached. Connection failed.');
+            logger.error('Max reconnection attempts reached. Connection failed.');
             setError(new Error('Connection Failed: Max reconnection attempts reached'));
           }
         };
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[useTelemetry] Failed to create WebSocket:', err);
+        logger.error({ error: err }, 'Failed to create WebSocket');
         setError(err instanceof Error ? err : new Error('Unknown error'));
       }
     };

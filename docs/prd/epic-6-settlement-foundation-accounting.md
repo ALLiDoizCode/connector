@@ -188,17 +188,20 @@ so that I can monitor the financial health of connector peers in real-time.
 ## Dependencies and Integration Points
 
 **Depends On:**
+
 - Epic 1: Core ILP packet handling and routing table
 - Epic 2: BTP protocol and multi-node deployment
 - Epic 3: Dashboard telemetry infrastructure
 
 **Integrates With:**
+
 - `PacketHandler` - Records transfers on packet forward
 - `BTPClient/BTPServer` - Peer connection management for account creation
 - `TelemetryEmitter` - Sends balance and settlement events to dashboard
 - `ConnectorNode` - Configuration loading for credit limits and thresholds
 
 **Enables:**
+
 - Epic 7: EVM Payment Channels (Base L2) - Settlement execution via smart contracts
 - Epic 8: XRP Payment Channels - Settlement execution via XRP Ledger
 - Epic 9: Multi-Chain Settlement - Cross-chain settlement coordination
@@ -242,6 +245,7 @@ if (outboundBalance > settlementThreshold) {
 ### Future Settlement Execution (Deferred to Epics 7-8)
 
 This epic implements the **accounting foundation**. Actual cryptocurrency settlement via:
+
 - Epic 7: EVM payment channels on Base L2
 - Epic 8: XRP Ledger payment channels
 
@@ -252,18 +256,21 @@ Will replace the mock settlement API with real blockchain transactions.
 ## Testing Strategy
 
 **Unit Tests:**
+
 - TigerBeetle client wrapper error handling
 - Account manager balance calculations
 - Credit limit validation logic
 - Settlement threshold detection
 
 **Integration Tests:**
+
 - TigerBeetle container deployment
 - Multi-node packet flow with balance updates
 - Credit limit enforcement across network
 - Settlement trigger and mock execution
 
 **Performance Tests:**
+
 - 1000 packets/second with TigerBeetle recording
 - Balance query latency (<10ms p99)
 - Settlement threshold detection latency

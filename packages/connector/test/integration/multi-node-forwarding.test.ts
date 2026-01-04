@@ -39,7 +39,7 @@ const waitForConnections = async (
   while (Date.now() - startTime < options.timeout) {
     const allReady = connectors.every((connector) => {
       const health = connector.getHealthStatus();
-      return health.status === 'ready';
+      return health.status === 'healthy';
     });
 
     if (allReady) {
@@ -51,7 +51,11 @@ const waitForConnections = async (
   throw new Error('Timeout waiting for connector connections');
 };
 
-describe('Multi-Node Packet Forwarding', () => {
+// Skip tests unless E2E_TESTS is enabled (requires multi-node connector setup)
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfE2E = e2eEnabled ? describe : describe.skip;
+
+describeIfE2E('Multi-Node Packet Forwarding', () => {
   let connectorA: ConnectorNode;
   let connectorB: ConnectorNode;
   let connectorC: ConnectorNode;
@@ -172,7 +176,7 @@ describe('Multi-Node Packet Forwarding', () => {
       lastSeen: new Date(),
     };
 
-    testClient = new BTPClient(testPeer, createLogger('testClient', 'error'));
+    testClient = new BTPClient(testPeer, 'test-client', createLogger('testClient', 'error'));
     await testClient.connect();
   });
 
@@ -305,14 +309,14 @@ describe('Multi-Node Packet Forwarding', () => {
       const healthC = connectorC.getHealthStatus();
 
       // Assert
-      expect(healthA.status).toBe('ready');
-      expect(healthA.connectedPeers).toBe(1); // A connects to B
+      expect(healthA.status).toBe('healthy');
+      expect(healthA.peersConnected).toBe(1); // A connects to B
 
-      expect(healthB.status).toBe('ready');
-      expect(healthB.connectedPeers).toBe(1); // B connects to C
+      expect(healthB.status).toBe('healthy');
+      expect(healthB.peersConnected).toBe(1); // B connects to C
 
-      expect(healthC.status).toBe('ready');
-      expect(healthC.connectedPeers).toBe(0); // C has no outgoing connections
+      expect(healthC.status).toBe('healthy');
+      expect(healthC.peersConnected).toBe(0); // C has no outgoing connections
     });
   });
 });

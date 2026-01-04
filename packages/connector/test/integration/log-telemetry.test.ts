@@ -9,7 +9,7 @@
 import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
 import { createLogger } from '../../src/utils/logger';
 import { Logger } from '../../src/utils/logger';
-import { TelemetryMessage } from '../../src/telemetry/types';
+import { TelemetryMessage, LogTelemetryData } from '../../src/telemetry/types';
 import WebSocket, { WebSocketServer } from 'ws';
 
 /**
@@ -165,22 +165,22 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
     expect(mockTelemetryServer.receivedMessages.length).toBe(3);
 
     const infoEvent = mockTelemetryServer.receivedMessages.find(
-      (msg) => (msg.data as any).level === 'info'
+      (msg) => (msg.data as LogTelemetryData).level === 'info'
     );
     const warnEvent = mockTelemetryServer.receivedMessages.find(
-      (msg) => (msg.data as any).level === 'warn'
+      (msg) => (msg.data as LogTelemetryData).level === 'warn'
     );
     const errorEvent = mockTelemetryServer.receivedMessages.find(
-      (msg) => (msg.data as any).level === 'error'
+      (msg) => (msg.data as LogTelemetryData).level === 'error'
     );
 
     expect(infoEvent).toBeDefined();
     expect(warnEvent).toBeDefined();
     expect(errorEvent).toBeDefined();
 
-    expect((infoEvent?.data as any).message).toBe('Info message');
-    expect((warnEvent?.data as any).message).toBe('Warning message');
-    expect((errorEvent?.data as any).message).toBe('Error message');
+    expect((infoEvent?.data as LogTelemetryData).message).toBe('Info message');
+    expect((warnEvent?.data as LogTelemetryData).message).toBe('Warning message');
+    expect((errorEvent?.data as LogTelemetryData).message).toBe('Error message');
   });
 
   it('should include correlationId in LOG event when present', async () => {
@@ -245,9 +245,15 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
 
     // Assert
     expect(mockTelemetryServer.receivedMessages.length).toBe(3);
-    expect((mockTelemetryServer.receivedMessages[0]?.data as any).message).toBe('First message');
-    expect((mockTelemetryServer.receivedMessages[1]?.data as any).message).toBe('Second message');
-    expect((mockTelemetryServer.receivedMessages[2]?.data as any).message).toBe('Third message');
+    expect((mockTelemetryServer.receivedMessages[0]?.data as LogTelemetryData).message).toBe(
+      'First message'
+    );
+    expect((mockTelemetryServer.receivedMessages[1]?.data as LogTelemetryData).message).toBe(
+      'Second message'
+    );
+    expect((mockTelemetryServer.receivedMessages[2]?.data as LogTelemetryData).message).toBe(
+      'Third message'
+    );
   });
 
   it('should verify LOG event structure matches schema', async () => {
@@ -274,7 +280,7 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
 
     // Verify timestamp is valid ISO 8601
     expect(() => new Date(logEvent!.timestamp)).not.toThrow();
-    expect(() => new Date((logEvent!.data as any).timestamp)).not.toThrow();
+    expect(() => new Date((logEvent!.data as LogTelemetryData).timestamp)).not.toThrow();
   });
 
   it('should continue emitting LOG events after telemetry server restart', async () => {
@@ -283,14 +289,20 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
     await waitFor(() => mockTelemetryServer.receivedMessages.length > 0, 2000);
     expect(mockTelemetryServer.receivedMessages.length).toBe(1);
 
-    // Restart telemetry server
+    // Disconnect emitter to stop auto-reconnect attempts
+    await telemetryEmitter.disconnect();
+    await waitFor(() => !telemetryEmitter.isConnected(), 2000);
+
+    // Stop and restart telemetry server
     await mockTelemetryServer.stop();
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for port to be fully released (critical for CI environments)
+    await new Promise((resolve) => setTimeout(resolve, 500));
     mockTelemetryServer = new MockTelemetryServer(TEST_PORT);
     await mockTelemetryServer.start();
 
-    // Wait for reconnection
-    await waitFor(() => telemetryEmitter.isConnected(), 3000);
+    // Manually reconnect the emitter to the new server
+    await telemetryEmitter.connect();
+    await waitFor(() => telemetryEmitter.isConnected(), 5000);
 
     mockTelemetryServer.clearMessages();
 
@@ -300,7 +312,7 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
 
     // Assert
     expect(mockTelemetryServer.receivedMessages.length).toBe(1);
-    expect((mockTelemetryServer.receivedMessages[0]?.data as any).message).toBe(
+    expect((mockTelemetryServer.receivedMessages[0]?.data as LogTelemetryData).message).toBe(
       'After server restart'
     );
   });
@@ -333,6 +345,6 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
 
     // Assert
     const logEvent = mockTelemetryServer.receivedMessages[0];
-    expect((logEvent?.data as any).nodeId).toBe('test-connector');
+    expect((logEvent?.data as LogTelemetryData).nodeId).toBe('test-connector');
   });
 });

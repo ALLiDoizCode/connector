@@ -40,6 +40,31 @@ export async function main(): Promise<void> {
       res.status(200).json({ status: 'ok', version });
     });
 
+    // Settlement telemetry API endpoints (Story 6.8)
+    app.get('/api/balances', (_req, res) => {
+      try {
+        const balances = telemetryServer.getAccountBalances();
+        res.status(200).json(balances);
+      } catch (error) {
+        logger.error('Failed to fetch balances', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        res.status(500).json({ error: 'Failed to fetch balances' });
+      }
+    });
+
+    app.get('/api/settlements/recent', (_req, res) => {
+      try {
+        const events = telemetryServer.getSettlementEvents();
+        res.status(200).json(events);
+      } catch (error) {
+        logger.error('Failed to fetch settlement events', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        res.status(500).json({ error: 'Failed to fetch settlement events' });
+      }
+    });
+
     // Serve static files
     app.use(express.static(staticDir));
 

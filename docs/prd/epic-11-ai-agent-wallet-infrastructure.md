@@ -32,6 +32,7 @@ so that I can derive thousands of agent wallets from a single master seed with p
 ### Technical Specification
 
 **BIP-39 Mnemonic Generation:**
+
 ```typescript
 // packages/connector/src/wallet/wallet-seed-manager.ts
 
@@ -40,15 +41,15 @@ import { HDKey } from 'ethereum-cryptography/hdkey';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 interface MasterSeed {
-  mnemonic: string;        // BIP-39 mnemonic phrase
-  seed: Buffer;            // 512-bit seed from mnemonic
+  mnemonic: string; // BIP-39 mnemonic phrase
+  seed: Buffer; // 512-bit seed from mnemonic
   createdAt: number;
-  encryptionKey?: Buffer;  // AES-256 key for encrypted storage
+  encryptionKey?: Buffer; // AES-256 key for encrypted storage
 }
 
 class WalletSeedManager {
   constructor(
-    private keyManager?: KeyManager,  // Optional HSM/KMS integration
+    private keyManager?: KeyManager, // Optional HSM/KMS integration
     private config: SeedConfig
   ) {}
 
@@ -61,7 +62,7 @@ class WalletSeedManager {
     return {
       mnemonic,
       seed,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
   }
 
@@ -76,7 +77,7 @@ class WalletSeedManager {
     return {
       mnemonic,
       seed,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
   }
 
@@ -86,10 +87,7 @@ class WalletSeedManager {
     const iv = randomBytes(16);
     const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv);
 
-    const encrypted = Buffer.concat([
-      cipher.update(masterSeed.mnemonic, 'utf8'),
-      cipher.final()
-    ]);
+    const encrypted = Buffer.concat([cipher.update(masterSeed.mnemonic, 'utf8'), cipher.final()]);
 
     const authTag = cipher.getAuthTag();
 
@@ -114,10 +112,7 @@ class WalletSeedManager {
     const decipher = createDecipheriv('aes-256-gcm', encryptionKey, iv);
     decipher.setAuthTag(authTag);
 
-    const mnemonic = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final()
-    ]).toString('utf8');
+    const mnemonic = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
 
     return this.importMasterSeed(mnemonic);
   }
@@ -131,7 +126,7 @@ class WalletSeedManager {
       createdAt: masterSeed.createdAt,
       encryptedSeed,
       backupDate: Date.now(),
-      checksum: this.calculateChecksum(encryptedSeed)
+      checksum: this.calculateChecksum(encryptedSeed),
     };
   }
 
@@ -146,10 +141,12 @@ class WalletSeedManager {
 ### Derivation Paths
 
 **Ethereum (Base L2):**
+
 - Standard: `m/44'/60'/0'/0/{index}`
 - Agent wallets: `m/44'/60'/1'/0/{agentIndex}`
 
 **XRP Ledger:**
+
 - Standard: `m/44'/144'/0'/0/{index}`
 - Agent wallets: `m/44'/144'/1'/0/{agentIndex}`
 
@@ -204,9 +201,7 @@ class AgentWalletDerivation {
   private walletCache = new Map<string, AgentWallet>();
   private indexToAgentId = new Map<number, string>();
 
-  constructor(
-    private seedManager: WalletSeedManager
-  ) {}
+  constructor(private seedManager: WalletSeedManager) {}
 
   // Derive wallet for new agent
   async deriveAgentWallet(agentId: string): Promise<AgentWallet> {
@@ -236,7 +231,7 @@ class AgentWalletDerivation {
       derivationIndex,
       evmAddress: evmWallet.address,
       xrpAddress: xrpWallet.address,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
 
     // Cache and persist
@@ -280,9 +275,7 @@ class AgentWalletDerivation {
 
   // Batch derive wallets for multiple agents
   async batchDeriveWallets(agentIds: string[]): Promise<AgentWallet[]> {
-    const wallets = await Promise.all(
-      agentIds.map(id => this.deriveAgentWallet(id))
-    );
+    const wallets = await Promise.all(agentIds.map((id) => this.deriveAgentWallet(id)));
     return wallets;
   }
 
@@ -298,7 +291,7 @@ class AgentWalletDerivation {
       derivationIndex: wallet.derivationIndex,
       evmAddress: wallet.evmAddress,
       xrpAddress: wallet.xrpAddress,
-      createdAt: wallet.createdAt
+      createdAt: wallet.createdAt,
     });
   }
 
@@ -311,7 +304,7 @@ class AgentWalletDerivation {
       derivationIndex: record.derivationIndex,
       evmAddress: record.evmAddress,
       xrpAddress: record.xrpAddress,
-      createdAt: record.createdAt
+      createdAt: record.createdAt,
     };
 
     // Update cache
@@ -324,6 +317,7 @@ class AgentWalletDerivation {
 ### Wallet Metadata Storage
 
 **Database Schema:**
+
 ```sql
 CREATE TABLE agent_wallets (
   agent_id VARCHAR(255) PRIMARY KEY,
@@ -371,7 +365,7 @@ import { Client as XRPLClient } from 'xrpl';
 interface AgentBalance {
   agentId: string;
   chain: 'evm' | 'xrp';
-  token: string;        // 'ETH', 'USDC', 'XRP', etc.
+  token: string; // 'ETH', 'USDC', 'XRP', etc.
   balance: bigint;
   lastUpdated: number;
 }
@@ -408,7 +402,7 @@ class AgentBalanceTracker {
       chain,
       token,
       balance,
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
     });
 
     return balance;
@@ -423,22 +417,44 @@ class AgentBalanceTracker {
 
     // EVM balances
     const ethBalance = await this.getBalance(agentId, 'evm', 'ETH');
-    balances.push({ agentId, chain: 'evm', token: 'ETH', balance: ethBalance, lastUpdated: Date.now() });
+    balances.push({
+      agentId,
+      chain: 'evm',
+      token: 'ETH',
+      balance: ethBalance,
+      lastUpdated: Date.now(),
+    });
 
     // ERC20 token balances (USDC, DAI, etc.)
     for (const tokenAddress of this.config.erc20Tokens) {
       const tokenBalance = await this.getBalance(agentId, 'evm', tokenAddress);
-      balances.push({ agentId, chain: 'evm', token: tokenAddress, balance: tokenBalance, lastUpdated: Date.now() });
+      balances.push({
+        agentId,
+        chain: 'evm',
+        token: tokenAddress,
+        balance: tokenBalance,
+        lastUpdated: Date.now(),
+      });
     }
 
     // XRP balance
     const xrpBalance = await this.getBalance(agentId, 'xrp', 'XRP');
-    balances.push({ agentId, chain: 'xrp', token: 'XRP', balance: xrpBalance, lastUpdated: Date.now() });
+    balances.push({
+      agentId,
+      chain: 'xrp',
+      token: 'XRP',
+      balance: xrpBalance,
+      lastUpdated: Date.now(),
+    });
 
     return balances;
   }
 
-  private async fetchBalance(agentId: string, chain: 'evm' | 'xrp', token: string): Promise<bigint> {
+  private async fetchBalance(
+    agentId: string,
+    chain: 'evm' | 'xrp',
+    token: string
+  ): Promise<bigint> {
     const wallet = await this.walletDerivation.getAgentWallet(agentId);
     if (!wallet) throw new Error(`No wallet for agent ${agentId}`);
 
@@ -461,7 +477,7 @@ class AgentBalanceTracker {
       // XRP balance
       const accountInfo = await this.xrplClient.request({
         command: 'account_info',
-        account: wallet.xrpAddress
+        account: wallet.xrpAddress,
       });
 
       const drops = accountInfo.result.account_data.Balance;
@@ -483,7 +499,13 @@ class AgentBalanceTracker {
   }
 
   // Emit telemetry event on balance change
-  private emitBalanceChange(agentId: string, chain: string, token: string, oldBalance: bigint, newBalance: bigint) {
+  private emitBalanceChange(
+    agentId: string,
+    chain: string,
+    token: string,
+    oldBalance: bigint,
+    newBalance: bigint
+  ) {
     this.telemetryEmitter.emit('AGENT_BALANCE_CHANGED', {
       agentId,
       chain,
@@ -491,7 +513,7 @@ class AgentBalanceTracker {
       oldBalance: oldBalance.toString(),
       newBalance: newBalance.toString(),
       change: (newBalance - oldBalance).toString(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 }
@@ -525,13 +547,13 @@ so that agents can begin transacting immediately without manual funding interven
 
 interface FundingConfig {
   evm: {
-    initialETH: bigint;        // e.g., 0.01 ETH for gas
+    initialETH: bigint; // e.g., 0.01 ETH for gas
     initialTokens: {
-      [tokenAddress: string]: bigint;  // e.g., 100 USDC
+      [tokenAddress: string]: bigint; // e.g., 100 USDC
     };
   };
   xrp: {
-    initialXRP: bigint;        // e.g., 15 XRP (minimum reserve + buffer)
+    initialXRP: bigint; // e.g., 15 XRP (minimum reserve + buffer)
   };
   rateLimits: {
     maxFundingsPerHour: number;
@@ -563,7 +585,7 @@ class AgentWalletFunder {
     const results: FundingResult = {
       agentId,
       transactions: [],
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     // Fund EVM wallet (ETH for gas)
@@ -589,7 +611,7 @@ class AgentWalletFunder {
       evmAddress: wallet.evmAddress,
       xrpAddress: wallet.xrpAddress,
       transactions: results.transactions,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     return results;
@@ -604,11 +626,15 @@ class AgentWalletFunder {
       to: address,
       amount: amount.toString(),
       txHash: tx.hash,
-      status: 'pending'
+      status: 'pending',
     };
   }
 
-  private async fundERC20Token(address: string, tokenAddress: string, amount: bigint): Promise<FundingTransaction> {
+  private async fundERC20Token(
+    address: string,
+    tokenAddress: string,
+    amount: bigint
+  ): Promise<FundingTransaction> {
     const tx = await this.treasuryWallet.sendERC20(address, tokenAddress, amount);
 
     return {
@@ -617,7 +643,7 @@ class AgentWalletFunder {
       to: address,
       amount: amount.toString(),
       txHash: tx.hash,
-      status: 'pending'
+      status: 'pending',
     };
   }
 
@@ -630,7 +656,7 @@ class AgentWalletFunder {
       to: address,
       amount: amount.toString(),
       txHash: tx.id,
-      status: 'pending'
+      status: 'pending',
     };
   }
 
@@ -644,7 +670,7 @@ class AgentWalletFunder {
 
     // Check fundings in last hour
     const oneHourAgo = Date.now() - 3600000;
-    const recentFundings = history.filter(f => f.timestamp > oneHourAgo);
+    const recentFundings = history.filter((f) => f.timestamp > oneHourAgo);
 
     if (recentFundings.length >= this.config.rateLimits.maxFundingsPerHour) {
       return false;
@@ -657,7 +683,7 @@ class AgentWalletFunder {
     const history = this.fundingHistory.get(agentId) || [];
     history.push({
       timestamp: result.timestamp,
-      transactions: result.transactions
+      transactions: result.transactions,
     });
     this.fundingHistory.set(agentId, history);
   }
@@ -718,7 +744,7 @@ enum WalletState {
   PENDING = 'pending',
   ACTIVE = 'active',
   SUSPENDED = 'suspended',
-  ARCHIVED = 'archived'
+  ARCHIVED = 'archived',
 }
 
 interface WalletLifecycleRecord {
@@ -730,7 +756,7 @@ interface WalletLifecycleRecord {
   archivedAt?: number;
   lastActivity?: number;
   totalTransactions: number;
-  totalVolume: Record<string, bigint>;  // token → volume
+  totalVolume: Record<string, bigint>; // token → volume
   suspensionReason?: string;
 }
 
@@ -757,7 +783,7 @@ class AgentWalletLifecycle {
       state: WalletState.PENDING,
       createdAt: Date.now(),
       totalTransactions: 0,
-      totalVolume: {}
+      totalVolume: {},
     };
 
     this.lifecycleRecords.set(agentId, record);
@@ -836,7 +862,7 @@ class AgentWalletLifecycle {
       wallet,
       balances,
       lifecycleRecord: record,
-      archivedAt: Date.now()
+      archivedAt: Date.now(),
     };
 
     // Transition to archived
@@ -866,7 +892,10 @@ class AgentWalletLifecycle {
       const inactiveDuration = now - lastActivity;
 
       if (inactiveDuration > inactivityThreshold) {
-        this.logger.info('Auto-archiving inactive wallet', { agentId, inactiveDays: inactiveDuration / 86400000 });
+        this.logger.info('Auto-archiving inactive wallet', {
+          agentId,
+          inactiveDays: inactiveDuration / 86400000,
+        });
         await this.archiveWallet(agentId);
       }
     }
@@ -895,12 +924,16 @@ class AgentWalletLifecycle {
     this.emitStateChange(agentId, oldState, newState);
   }
 
-  private emitStateChange(agentId: string, oldState: WalletState | null, newState: WalletState): void {
+  private emitStateChange(
+    agentId: string,
+    oldState: WalletState | null,
+    newState: WalletState
+  ): void {
     this.telemetryEmitter.emit('AGENT_WALLET_STATE_CHANGED', {
       agentId,
       oldState,
       newState,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -943,8 +976,8 @@ so that I can execute micropayments with low fees and high speed.
 class AgentChannelManager {
   constructor(
     private walletDerivation: AgentWalletDerivation,
-    private evmChannelSDK: PaymentChannelSDK,      // Epic 8
-    private xrpChannelSDK: XRPChannelSDK,          // Epic 9
+    private evmChannelSDK: PaymentChannelSDK, // Epic 8
+    private xrpChannelSDK: XRPChannelSDK, // Epic 9
     private lifecycleManager: AgentWalletLifecycle
   ) {}
 
@@ -973,7 +1006,7 @@ class AgentChannelManager {
       channelId = await this.evmChannelSDK.openChannel(
         peerWallet.evmAddress,
         token,
-        3600,  // Settlement timeout: 1 hour
+        3600, // Settlement timeout: 1 hour
         amount
       );
     } else {
@@ -981,8 +1014,8 @@ class AgentChannelManager {
       const peerWallet = await this.getPeerWallet(peerId);
       channelId = await this.xrpChannelSDK.openChannel(
         peerWallet.xrpAddress,
-        amount.toString(),  // XRP drops
-        3600  // Settlement delay: 1 hour
+        amount.toString(), // XRP drops
+        3600 // Settlement delay: 1 hour
       );
     }
 
@@ -996,18 +1029,14 @@ class AgentChannelManager {
       chain,
       peerId,
       amount: amount.toString(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     return channelId;
   }
 
   // Send payment through channel
-  async sendPayment(
-    agentId: string,
-    channelId: string,
-    amount: bigint
-  ): Promise<void> {
+  async sendPayment(agentId: string, channelId: string, amount: bigint): Promise<void> {
     const channel = await this.getAgentChannel(agentId, channelId);
     if (!channel) throw new Error('Channel not found');
 
@@ -1030,7 +1059,7 @@ class AgentChannelManager {
         channelId,
         nonce: newNonce,
         transferredAmount: newTransferred,
-        signature
+        signature,
       });
     } else {
       // Sign XRP claim
@@ -1068,7 +1097,7 @@ class AgentChannelManager {
       agentId,
       channelId,
       chain: channel.chain,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -1088,7 +1117,7 @@ class AgentChannelManager {
       channelId,
       chain,
       peerId,
-      openedAt: Date.now()
+      openedAt: Date.now(),
     });
   }
 
@@ -1154,7 +1183,7 @@ interface AgentBalanceChangedEvent {
   agentId: string;
   chain: 'evm' | 'xrp';
   token: string;
-  oldBalance: string;  // bigint as string
+  oldBalance: string; // bigint as string
   newBalance: string;
   change: string;
 }
@@ -1174,6 +1203,7 @@ interface AgentChannelOpenedEvent {
 ### Dashboard UI Components
 
 **Agent Wallets Panel:**
+
 ```
 ┌─ Agent Wallets (Filter: Active ▼) ────────────┐
 │ Agent: agent-001 | State: ✅ Active             │
@@ -1189,6 +1219,7 @@ interface AgentChannelOpenedEvent {
 ```
 
 **Agent Wallet Details View:**
+
 ```
 ┌─ Agent Wallet Details: agent-001 ─────────────┐
 │ Derivation Index: 42                          │
@@ -1290,7 +1321,7 @@ class WalletBackupManager {
       wallets,
       lifecycleRecords,
       balanceSnapshots,
-      checksum: ''  // Calculated below
+      checksum: '', // Calculated below
     };
 
     // Calculate checksum
@@ -1301,7 +1332,7 @@ class WalletBackupManager {
 
     this.logger.info('Full wallet backup created', {
       walletCount: wallets.length,
-      timestamp: backup.timestamp
+      timestamp: backup.timestamp,
     });
 
     return backup;
@@ -1311,7 +1342,7 @@ class WalletBackupManager {
   async restoreFromBackup(backupData: WalletBackup, password: string): Promise<void> {
     this.logger.warn('Starting wallet restore from backup', {
       timestamp: backupData.timestamp,
-      walletCount: backupData.wallets.length
+      walletCount: backupData.wallets.length,
     });
 
     // Validate backup integrity
@@ -1346,7 +1377,7 @@ class WalletBackupManager {
 
       for (const expected of expectedBalances) {
         const actual = actualBalances.find(
-          b => b.chain === expected.chain && b.token === expected.token
+          (b) => b.chain === expected.chain && b.token === expected.token
         );
 
         if (!actual || actual.balance !== expected.balance) {
@@ -1355,7 +1386,7 @@ class WalletBackupManager {
             chain: expected.chain,
             token: expected.token,
             expected: expected.balance.toString(),
-            actual: actual?.balance.toString()
+            actual: actual?.balance.toString(),
           });
         }
       }
@@ -1373,7 +1404,7 @@ class WalletBackupManager {
   private calculateChecksum(backup: WalletBackup): string {
     const data = JSON.stringify({
       ...backup,
-      checksum: ''  // Exclude checksum itself
+      checksum: '', // Exclude checksum itself
     });
     return crypto.createHash('sha256').update(data).digest('hex');
   }
@@ -1434,34 +1465,44 @@ class WalletSecurityManager {
 
   constructor(
     private config: SecurityConfig,
-    private fraudDetector: FraudDetector  // Epic 12
+    private fraudDetector: FraudDetector // Epic 12
   ) {}
 
   // Validate transaction against spending limits
-  async validateTransaction(
-    agentId: string,
-    amount: bigint,
-    token: string
-  ): Promise<boolean> {
+  async validateTransaction(agentId: string, amount: bigint, token: string): Promise<boolean> {
     const limits = await this.getSpendingLimits(agentId);
 
     // Check transaction size limit
     if (amount > limits.maxTransactionSize) {
-      this.logger.warn('Transaction exceeds size limit', { agentId, amount, limit: limits.maxTransactionSize });
+      this.logger.warn('Transaction exceeds size limit', {
+        agentId,
+        amount,
+        limit: limits.maxTransactionSize,
+      });
       return false;
     }
 
     // Check daily limit
     const dailySpent = await this.getDailySpending(agentId, token);
     if (dailySpent + amount > limits.dailyLimit) {
-      this.logger.warn('Transaction exceeds daily limit', { agentId, amount, dailySpent, limit: limits.dailyLimit });
+      this.logger.warn('Transaction exceeds daily limit', {
+        agentId,
+        amount,
+        dailySpent,
+        limit: limits.dailyLimit,
+      });
       return false;
     }
 
     // Check monthly limit
     const monthlySpent = await this.getMonthlySpending(agentId, token);
     if (monthlySpent + amount > limits.monthlyLimit) {
-      this.logger.warn('Transaction exceeds monthly limit', { agentId, amount, monthlySpent, limit: limits.monthlyLimit });
+      this.logger.warn('Transaction exceeds monthly limit', {
+        agentId,
+        amount,
+        monthlySpent,
+        limit: limits.monthlyLimit,
+      });
       return false;
     }
 
@@ -1470,7 +1511,7 @@ class WalletSecurityManager {
       agentId,
       amount,
       token,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     if (fraudCheck.detected) {
@@ -1482,18 +1523,14 @@ class WalletSecurityManager {
   }
 
   // Audit log for wallet operations
-  async auditLog(
-    operation: string,
-    agentId: string,
-    details: Record<string, any>
-  ): Promise<void> {
+  async auditLog(operation: string, agentId: string, details: Record<string, any>): Promise<void> {
     const auditEntry = {
       timestamp: Date.now(),
       operation,
       agentId,
       details,
       ip: this.getRequestIP(),
-      userAgent: this.getRequestUserAgent()
+      userAgent: this.getRequestUserAgent(),
     };
 
     await this.db.auditLog.insert(auditEntry);
@@ -1507,7 +1544,7 @@ class WalletSecurityManager {
       ...wallet,
       privateKey: undefined,
       mnemonic: undefined,
-      seed: undefined
+      seed: undefined,
     };
   }
 }
@@ -1537,54 +1574,62 @@ so that I can easily provision wallets for my agents and enable micropayments.
 ### Documentation Deliverables
 
 **`docs/guides/agent-wallet-integration.md`:**
-```markdown
+
+````markdown
 # Agent Wallet Integration Guide
 
 ## Quick Start (5 minutes)
 
 ### 1. Create Agent Wallet
+
 ```typescript
 const agentWallet = await walletLifecycle.createAgentWallet('my-agent-001');
 
 console.log('EVM Address:', agentWallet.evmAddress);
 console.log('XRP Address:', agentWallet.xrpAddress);
 ```
+````
 
 ### 2. Check Balance
+
 ```typescript
 const balance = await balanceTracker.getBalance('my-agent-001', 'evm', 'USDC');
 console.log('USDC Balance:', ethers.formatUnits(balance, 6));
 ```
 
 ### 3. Open Payment Channel
+
 ```typescript
 const channelId = await agentChannelManager.openChannel(
   'my-agent-001',
   'peer-agent-002',
   'evm',
   'USDC',
-  ethers.parseUnits('100', 6)  // 100 USDC
+  ethers.parseUnits('100', 6) // 100 USDC
 );
 ```
 
 ### 4. Send Payment
+
 ```typescript
 await agentChannelManager.sendPayment(
   'my-agent-001',
   channelId,
-  ethers.parseUnits('5', 6)  // 5 USDC
+  ethers.parseUnits('5', 6) // 5 USDC
 );
 ```
 
 ## API Reference
 
 ### WalletLifecycle
+
 - `createAgentWallet(agentId)` - Create new agent wallet
 - `getAgentWallet(agentId)` - Get existing wallet
 - `suspendWallet(agentId, reason)` - Suspend wallet
 - `archiveWallet(agentId)` - Archive inactive wallet
 
 [Full API documentation...]
+
 ```
 
 ---
@@ -1662,3 +1707,4 @@ await agentChannelManager.sendPayment(
 ---
 
 **This epic delivers the wallet infrastructure foundation for AI agents to autonomously participate in the M2M economy with cryptocurrency micropayments across multiple blockchains.**
+```

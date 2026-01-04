@@ -32,12 +32,14 @@ so that I can develop XRP-style payment channels for EVM chains.
 ### Technical Notes
 
 **Development Stack:**
+
 - **Foundry:** Smart contract development framework (forge, cast, anvil)
 - **Local Anvil:** Provided by "Local Blockchain Development Infrastructure" epic at http://localhost:8545
 - **Base Sepolia:** Testnet for testing ($0 gas, faucet available)
 - **Base Mainnet:** Production deployment (low gas costs ~$0.001-0.01)
 
 **Development Workflow:**
+
 ```
 1. Develop locally: Deploy to Anvil (instant, free, offline)
    ↓
@@ -49,6 +51,7 @@ so that I can develop XRP-style payment channels for EVM chains.
 ```
 
 **Configuration:**
+
 ```toml
 # foundry.toml
 [profile.default]
@@ -68,6 +71,7 @@ base_mainnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api.basescan.org/a
 ```
 
 **Deployment Targets:**
+
 - **Local Anvil:** `http://localhost:8545` (from dev infrastructure epic, instant testing)
 - **Base Sepolia testnet:** `https://sepolia.base.org` (public testnet for integration testing)
 - **Base Mainnet:** `https://mainnet.base.org` (production)
@@ -97,6 +101,7 @@ so that payment channels can support multiple tokens with security isolation.
 ### Technical Specification
 
 **Contract Interface:**
+
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
@@ -122,6 +127,7 @@ contract TokenNetworkRegistry is Ownable {
 ```
 
 **Security Considerations:**
+
 - Validate token is not zero address
 - Ensure token is valid ERC20 (check for `totalSupply()` function)
 - Emit events for all state changes
@@ -199,6 +205,7 @@ so that participants can exit channels unilaterally with protection against stal
 ### Balance Proof Verification
 
 **EIP-712 Signature Scheme:**
+
 ```solidity
 struct BalanceProof {
     bytes32 channelId;
@@ -268,6 +275,7 @@ so that payment channels are safe for production use with real cryptocurrency.
 ### Edge Cases Covered
 
 **1. Fee-on-Transfer Tokens:**
+
 ```solidity
 uint256 balanceBefore = token.balanceOf(address(this));
 token.safeTransferFrom(participant, address(this), amount);
@@ -277,14 +285,17 @@ uint256 actualReceived = balanceAfter - balanceBefore;
 ```
 
 **2. Reentrancy via Malicious ERC20:**
+
 - All state changes BEFORE external calls (checks-effects-interactions)
 - ReentrancyGuard on all public/external functions with token transfers
 
 **3. Griefing via Locked Channels:**
+
 - Force close after max channel lifetime
 - Penalty for submitting fraudulent balance proofs (slash deposit)
 
 **4. Signature Malleability:**
+
 - Use OpenZeppelin ECDSA library (handles malleability)
 - Validate `v`, `r`, `s` parameters
 
@@ -312,6 +323,7 @@ so that payment channels are safe for production deployment with real funds.
 ### Testing Strategy
 
 **Unit Tests (Foundry):**
+
 ```solidity
 // packages/contracts/test/TokenNetwork.t.sol
 contract TokenNetworkTest is Test {
@@ -327,6 +339,7 @@ contract TokenNetworkTest is Test {
 ```
 
 **Fuzz Tests:**
+
 ```solidity
 function testFuzz_Deposit(uint256 amount) public {
     vm.assume(amount > 0 && amount < type(uint128).max);
@@ -335,6 +348,7 @@ function testFuzz_Deposit(uint256 amount) public {
 ```
 
 **Invariant Tests:**
+
 ```solidity
 function invariant_TotalBalanceConserved() public {
     uint256 totalDeposits = getTotalDeposits();
@@ -347,12 +361,14 @@ function invariant_TotalBalanceConserved() public {
 ### Audit Requirements
 
 **Audit Scope:**
+
 - TokenNetworkRegistry.sol
 - TokenNetwork.sol
 - All library contracts (ChannelLibrary, SignatureValidator, BalanceProof)
 - Off-chain signature generation (TypeScript SDK)
 
 **Audit Focus Areas:**
+
 1. Signature verification correctness
 2. Reentrancy attack vectors
 3. Integer overflow/underflow (even with Solidity 0.8.x)
@@ -362,6 +378,7 @@ function invariant_TotalBalanceConserved() public {
 7. Gas optimization and DoS attack vectors
 
 **Timeline:**
+
 - Audit engagement: 4-6 weeks
 - Remediation: 2-3 weeks
 - Re-audit: 1-2 weeks
@@ -405,11 +422,7 @@ interface ChannelState {
 }
 
 class PaymentChannelSDK {
-  constructor(
-    provider: ethers.Provider,
-    signer: ethers.Signer,
-    registryAddress: string
-  );
+  constructor(provider: ethers.Provider, signer: ethers.Signer, registryAddress: string);
 
   // Channel management
   async openChannel(
@@ -422,11 +435,7 @@ class PaymentChannelSDK {
   async deposit(channelId: string, amount: bigint): Promise<void>;
 
   // Off-chain operations
-  signBalanceProof(
-    channelId: string,
-    nonce: number,
-    transferredAmount: bigint
-  ): Promise<string>; // Returns signature
+  signBalanceProof(channelId: string, nonce: number, transferredAmount: bigint): Promise<string>; // Returns signature
 
   verifyBalanceProof(
     channelId: string,
@@ -458,8 +467,8 @@ class PaymentChannelSDK {
 const domain = {
   name: 'PaymentChannel',
   version: '1',
-  chainId: await provider.getNetwork().then(n => n.chainId),
-  verifyingContract: tokenNetworkAddress
+  chainId: await provider.getNetwork().then((n) => n.chainId),
+  verifyingContract: tokenNetworkAddress,
 };
 
 // EIP-712 types
@@ -469,8 +478,8 @@ const types = {
     { name: 'nonce', type: 'uint256' },
     { name: 'transferredAmount', type: 'uint256' },
     { name: 'lockedAmount', type: 'uint256' },
-    { name: 'locksRoot', type: 'bytes32' }
-  ]
+    { name: 'locksRoot', type: 'bytes32' },
+  ],
 };
 
 // Sign balance proof
@@ -553,16 +562,19 @@ class SettlementExecutor {
 ### Integration with Epic 6
 
 **Epic 6 provides:**
+
 - TigerBeetle account balances
 - Settlement threshold detection
 - `SETTLEMENT_REQUIRED` event triggers
 
 **Epic 8 adds:**
+
 - Payment channel smart contracts
 - On-chain settlement execution
 - Blockchain transaction handling
 
 **Combined flow:**
+
 1. Packets flow through connector (Epic 1-2)
 2. TigerBeetle records balances (Epic 6)
 3. Threshold exceeded triggers settlement (Epic 6)
@@ -633,11 +645,11 @@ paymentChannels:
   base:
     enabled: true
     rpcUrl: http://base-node:8545
-    registryAddress: "0x..."
-    defaultSettlementTimeout: 86400  # 24 hours
-    initialDepositMultiplier: 10      # 10x settlement threshold
-    idleChannelThreshold: 86400       # Close after 24h idle
-    minDepositThreshold: 0.5          # Add funds when below 50% of initial
+    registryAddress: '0x...'
+    defaultSettlementTimeout: 86400 # 24 hours
+    initialDepositMultiplier: 10 # 10x settlement threshold
+    idleChannelThreshold: 86400 # Close after 24h idle
+    minDepositThreshold: 0.5 # Add funds when below 50% of initial
 ```
 
 ---
@@ -706,10 +718,12 @@ interface PaymentChannelSettledEvent {
 ### Dashboard UI Components
 
 **Network Graph Enhancement:**
+
 - Channel badge on peer edges (🔗 icon with status color)
 - Hover shows channel details
 
 **Payment Channels Panel:**
+
 ```
 ┌─ Payment Channels ────────────────────────┐
 │ Peer: Alice | Token: USDC | Status: Active│
@@ -745,18 +759,21 @@ interface PaymentChannelSettledEvent {
 ## Dependencies and Integration Points
 
 **Depends On:**
+
 - **Epic 7: Local Blockchain Development Infrastructure** - Anvil and rippled for local testing (REQUIRED for development)
 - Epic 6: TigerBeetle accounting and settlement thresholds
 - Epic 2: BTP protocol for peer connections
 - Epic 3: Dashboard telemetry infrastructure
 
 **Integrates With:**
+
 - `AccountManager` (Epic 6) - TigerBeetle balance tracking
 - `SettlementMonitor` (Epic 6) - Settlement trigger events
 - `PaymentChannelSDK` (Epic 8) - Blockchain interactions
 - `TelemetryEmitter` - Channel event reporting
 
 **Enables:**
+
 - Epic 9: XRP payment channels (dual-settlement)
 - Epic 10: Multi-chain settlement coordination
 
@@ -767,18 +784,21 @@ interface PaymentChannelSettledEvent {
 ### Payment Channel vs. TigerBeetle Balance
 
 **TigerBeetle (Off-chain accounting):**
+
 - Tracks every ILP packet transfer instantly
 - High-frequency updates (1000s per second)
 - No transaction fees
 - No blockchain finality delay
 
 **Payment Channels (On-chain settlement):**
+
 - Settles accumulated balances periodically
 - Low-frequency updates (hourly/daily)
 - Gas costs for settlement transactions
 - Blockchain finality (seconds on Base L2)
 
 **Flow:**
+
 ```
 ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Settlement
 (milliseconds)  (instant)            (30s polling)       (2-3 seconds on Base)
@@ -795,6 +815,7 @@ ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Se
 5. **Growing Ecosystem:** AI agent platforms building on Base
 
 **But smart contracts are EVM-compatible and can deploy to:**
+
 - Ethereum mainnet
 - Optimism
 - Arbitrum
@@ -802,6 +823,7 @@ ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Se
 - Any EVM-compatible chain
 
 **Connectors just need:**
+
 - RPC endpoint URL (e.g., `https://mainnet.base.org`)
 - No local blockchain node required
 - Can use public endpoints or paid providers (Alchemy, Infura)
@@ -813,23 +835,27 @@ ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Se
 ### Smart Contract Testing (Foundry)
 
 **Unit Tests:**
+
 - Channel lifecycle (open, deposit, close, settle)
 - Signature verification (EIP-712)
 - Balance calculations
 - Challenge mechanism
 
 **Fuzz Tests:**
+
 - Random deposit amounts
 - Random nonce sequences
 - Malformed signatures
 - Concurrent operations
 
 **Invariant Tests:**
+
 - Total deposits = withdrawals + locked
 - Nonces always increasing
 - Balance proofs always valid
 
 **Gas Benchmarks:**
+
 - openChannel: <150k gas
 - deposit: <80k gas
 - closeChannel: <100k gas
@@ -838,6 +864,7 @@ ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Se
 ### Integration Testing
 
 **Scenario 1: Happy Path Settlement**
+
 1. Connector A forwards 100 packets to Connector B
 2. TigerBeetle balance reaches threshold (1000 units)
 3. Settlement monitor triggers settlement
@@ -847,6 +874,7 @@ ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Se
 7. TigerBeetle balance reset to zero
 
 **Scenario 2: Disputed Closure**
+
 1. Channel opened between A and B
 2. A initiates unilateral close with stale state
 3. B submits newer balance proof during challenge
@@ -854,6 +882,7 @@ ILP Packets → TigerBeetle Balance → Threshold Trigger → Payment Channel Se
 5. Final balances distributed correctly
 
 **Scenario 3: Multi-Token Settlement**
+
 1. Channels opened for USDC, DAI, USDT
 2. Packets flow for all three tokens
 3. All tokens reach settlement thresholds

@@ -52,9 +52,9 @@ ILP v4 defines three packet types: **Prepare**, **Fulfill**, and **Reject**. All
 
 ```typescript
 enum PacketType {
-  PREPARE = 12,  // Initiate payment
-  FULFILL = 13,  // Complete payment
-  REJECT  = 14,  // Reject payment
+  PREPARE = 12, // Initiate payment
+  FULFILL = 13, // Complete payment
+  REJECT = 14, // Reject payment
 }
 ```
 
@@ -64,12 +64,12 @@ The **Prepare packet** initiates a conditional payment. It contains all informat
 
 ```typescript
 interface ILPPreparePacket {
-  type: PacketType.PREPARE;           // Always 12
-  amount: bigint;                      // Transfer amount (uint64, asset-agnostic)
-  destination: ILPAddress;             // Payment destination (hierarchical address)
-  executionCondition: Buffer;          // 32-byte SHA-256 hash lock
-  expiresAt: Date;                     // Payment expiration timestamp (ISO 8601)
-  data: Buffer;                        // Application-layer protocol data (e.g., STREAM)
+  type: PacketType.PREPARE; // Always 12
+  amount: bigint; // Transfer amount (uint64, asset-agnostic)
+  destination: ILPAddress; // Payment destination (hierarchical address)
+  executionCondition: Buffer; // 32-byte SHA-256 hash lock
+  expiresAt: Date; // Payment expiration timestamp (ISO 8601)
+  data: Buffer; // Application-layer protocol data (e.g., STREAM)
 }
 ```
 
@@ -87,9 +87,9 @@ The **Fulfill packet** completes a payment by providing the preimage (fulfillmen
 
 ```typescript
 interface ILPFulfillPacket {
-  type: PacketType.FULFILL;     // Always 13
-  fulfillment: Buffer;           // 32-byte preimage (SHA-256(fulfillment) = executionCondition)
-  data: Buffer;                  // Optional return data
+  type: PacketType.FULFILL; // Always 13
+  fulfillment: Buffer; // 32-byte preimage (SHA-256(fulfillment) = executionCondition)
+  data: Buffer; // Optional return data
 }
 ```
 
@@ -104,11 +104,11 @@ The **Reject packet** indicates payment failure with an error code and message.
 
 ```typescript
 interface ILPRejectPacket {
-  type: PacketType.REJECT;       // Always 14
-  code: ILPErrorCode;             // Three-character error code (F00-F99, T00-T99, R00-R99)
-  triggeredBy: ILPAddress;        // Address of connector that generated this error
-  message: string;                // Human-readable error description
-  data: Buffer;                   // Additional error context
+  type: PacketType.REJECT; // Always 14
+  code: ILPErrorCode; // Three-character error code (F00-F99, T00-T99, R00-R99)
+  triggeredBy: ILPAddress; // Address of connector that generated this error
+  message: string; // Human-readable error description
+  data: Buffer; // Additional error context
 }
 ```
 
@@ -172,6 +172,7 @@ g.alice.wallet.USD
 ```
 
 Connectors route based on **longest-prefix matching**. If a routing table has entries for:
+
 - `g` → connector-hub
 - `g.alice` → connector-alice
 - `g.alice.wallet` → connector-wallet
@@ -188,9 +189,9 @@ Connectors maintain an in-memory routing table that maps ILP address **prefixes*
 
 ```typescript
 interface RoutingTableEntry {
-  prefix: string;     // ILP address prefix (e.g., "g.alice")
-  nextHop: string;    // Peer identifier (matches BTP peer ID)
-  priority: number;   // Tie-breaker for equal-length prefixes (higher wins)
+  prefix: string; // ILP address prefix (e.g., "g.alice")
+  nextHop: string; // Peer identifier (matches BTP peer ID)
+  priority: number; // Tie-breaker for equal-length prefixes (higher wins)
 }
 ```
 
@@ -198,9 +199,9 @@ interface RoutingTableEntry {
 
 ```typescript
 const routingTable = [
-  { prefix: 'g.alice',          nextHop: 'peer-alice',   priority: 10 },
-  { prefix: 'g.bob',            nextHop: 'peer-bob',     priority: 5  },
-  { prefix: 'g.charlie.wallet', nextHop: 'peer-charlie', priority: 0  }
+  { prefix: 'g.alice', nextHop: 'peer-alice', priority: 10 },
+  { prefix: 'g.bob', nextHop: 'peer-bob', priority: 5 },
+  { prefix: 'g.charlie.wallet', nextHop: 'peer-charlie', priority: 0 },
 ];
 ```
 
@@ -232,16 +233,16 @@ Configuration files define static routes. Example from `examples/linear-3-nodes-
 
 ```yaml
 routes:
-  - prefix: g.connectora      # Local delivery (this connector)
+  - prefix: g.connectora # Local delivery (this connector)
     nextHop: connector-a
     priority: 0
 
-  - prefix: g.connectorb      # Route to connector B
+  - prefix: g.connectorb # Route to connector B
     nextHop: connector-b
     priority: 0
 
-  - prefix: g.connectorc      # Route to connector C (via B)
-    nextHop: connector-b       # Note: Next hop is B, not C directly
+  - prefix: g.connectorc # Route to connector C (via B)
+    nextHop: connector-b # Note: Next hop is B, not C directly
     priority: 0
 ```
 
@@ -258,6 +259,7 @@ Connectors learn routes through several mechanisms. This implementation primaril
 **Most common approach** for this implementation. Routes are manually configured in YAML files before connector startup.
 
 **Advantages:**
+
 - Simple, predictable routing
 - No dynamic protocol complexity
 - Suitable for controlled networks and testing
@@ -273,6 +275,7 @@ routes:
 ```
 
 **Use cases:**
+
 - Small-scale deployments (3-10 connectors)
 - Testing and development environments
 - Educational implementations
@@ -284,6 +287,7 @@ routes:
 Peers can exchange routing information during **BTP connection establishment**. This is a bilateral exchange, not a full routing protocol.
 
 **How it works:**
+
 1. Two connectors establish a BTP connection
 2. Each connector shares its local route prefixes
 3. Peers update routing tables with learned prefixes
@@ -295,6 +299,7 @@ Peers can exchange routing information during **BTP connection establishment**. 
 **CCP** is a BGP-like routing protocol for Interledger that enables dynamic route propagation across connector networks.
 
 **How it works:**
+
 1. Connectors broadcast route announcements to peers
 2. Peers propagate routes through the network
 3. Routing tables automatically update based on announcements
@@ -309,6 +314,7 @@ Peers can exchange routing information during **BTP connection establishment**. 
 **IL-DCP** ([RFC-0031](https://interledger.org/developers/rfcs/dynamic-configuration-protocol/)) allows clients to discover their ILP address and asset configuration from a parent connector.
 
 **How it works:**
+
 1. Client sends an IL-DCP request packet to its parent connector
 2. Connector responds with:
    - Client's assigned ILP address
@@ -326,6 +332,7 @@ Peers can exchange routing information during **BTP connection establishment**. 
 ```
 
 This tells Alice that:
+
 - Her ILP address is `g.connector-hub.alice`
 - Amounts are denominated in USD
 - Asset scale is 2 (amounts represent cents, e.g., 100 = $1.00)
@@ -342,7 +349,7 @@ ILP packet amounts are **unsigned 64-bit integers** with **no currency informati
 
 ```typescript
 interface ILPPreparePacket {
-  amount: bigint;  // Just a number - no currency, no decimals
+  amount: bigint; // Just a number - no currency, no decimals
   // ...
 }
 ```
@@ -387,13 +394,13 @@ Real-world value: 123.45 USD
 
 **Common Asset Scales:**
 
-| Asset          | Scale | Example Amount | Real Value      |
-|----------------|-------|----------------|-----------------|
-| USD (dollars)  | 2     | 12345          | $123.45         |
-| BTC (bitcoin)  | 8     | 100000000      | 1.00000000 BTC  |
-| EUR (euros)    | 2     | 5000           | €50.00          |
-| JPY (yen)      | 0     | 1000           | ¥1,000          |
-| ETH (ether)    | 18    | 1000000000000000000 | 1.0 ETH   |
+| Asset         | Scale | Example Amount      | Real Value     |
+| ------------- | ----- | ------------------- | -------------- |
+| USD (dollars) | 2     | 12345               | $123.45        |
+| BTC (bitcoin) | 8     | 100000000           | 1.00000000 BTC |
+| EUR (euros)   | 2     | 5000                | €50.00         |
+| JPY (yen)     | 0     | 1000                | ¥1,000         |
+| ETH (ether)   | 18    | 1000000000000000000 | 1.0 ETH        |
 
 **Why use asset scale?**
 
@@ -409,7 +416,7 @@ Real-world value: 123.45 USD
 // Alice creates Prepare packet
 const preparePacket: ILPPreparePacket = {
   type: PacketType.PREPARE,
-  amount: 100n,  // Just the number - no currency info
+  amount: 100n, // Just the number - no currency info
   destination: 'g.bob.wallet',
   // ... other fields
 };
@@ -490,6 +497,7 @@ routes:
 **Topology:** Full mesh with 4 connectors (A, B, C, D)
 
 **Scenario:** Connector A routes a packet to Connector D. Multiple paths are possible:
+
 - Direct: A → D
 - Via B: A → B → D
 - Via C: A → C → D
@@ -506,17 +514,19 @@ routes:
     priority: 0
 
   - prefix: g.connectord
-    nextHop: connector-d  # Direct route (shortest path)
-    priority: 10          # Higher priority than indirect routes
+    nextHop: connector-d # Direct route (shortest path)
+    priority: 10 # Higher priority than indirect routes
 ```
 
 **Routing Decision:**
 
 For destination `g.connectord.wallet.alice`:
+
 - Match: `g.connectord` → next hop is `connector-d`
 - Result: **Direct route** is selected (1 hop instead of 2)
 
 **Mesh Benefits:**
+
 - Lower latency (fewer hops)
 - Redundancy (failover to alternate paths)
 - Load balancing potential (if using dynamic routing)
@@ -530,6 +540,7 @@ ILP's asset-agnostic design enables **cross-currency payments** where different 
 ### Example: USD to EUR Payment
 
 **Scenario:**
+
 - Alice (USD) sends $10.00 to Bob (EUR)
 - Exchange rate: 1 USD = 0.85 EUR
 - Expected outcome: Bob receives €8.50
@@ -581,8 +592,8 @@ sequenceDiagram
 
 **Amount Conversions:**
 
-| Hop                | Amount Value | Real Value Interpretation |
-|--------------------|--------------|---------------------------|
+| Hop                 | Amount Value | Real Value Interpretation |
+| ------------------- | ------------ | ------------------------- |
 | Alice → Connector A | 1000         | $10.00 USD (scale=2)      |
 | Connector A → B     | 850          | €8.50 EUR (scale=2)       |
 | Connector B → Bob   | 850          | €8.50 EUR (scale=2)       |
@@ -598,6 +609,7 @@ sequenceDiagram
 ### Exchange Rate Handling
 
 Connectors calculate outgoing amounts based on:
+
 - **Incoming amount** (from previous hop)
 - **Exchange rate** (USD/EUR rate, updated periodically)
 - **Connector fee** (optional spread or fixed fee)
@@ -606,19 +618,17 @@ Connectors calculate outgoing amounts based on:
 
 ```typescript
 // Connector A receives amount from Alice
-const incomingAmount = 1000n;  // $10.00 USD (scale=2)
+const incomingAmount = 1000n; // $10.00 USD (scale=2)
 
 // Exchange rate: 1 USD = 0.85 EUR
 const exchangeRate = 0.85;
 
 // Convert to EUR (scale=2)
-const outgoingAmount = BigInt(
-  Math.floor(Number(incomingAmount) * exchangeRate)
-);  // 850n = €8.50 EUR
+const outgoingAmount = BigInt(Math.floor(Number(incomingAmount) * exchangeRate)); // 850n = €8.50 EUR
 
 // Forward to Connector B with converted amount
 const preparePacket: ILPPreparePacket = {
-  amount: outgoingAmount,  // 850n
+  amount: outgoingAmount, // 850n
   // ... other fields
 };
 ```

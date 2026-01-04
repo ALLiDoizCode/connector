@@ -162,7 +162,9 @@ function buildDockerImage(): void {
 // Skip all tests if Docker or Docker Compose are not available
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
   // Build image before all tests
@@ -311,6 +313,7 @@ describeIfDockerCompose('Docker Compose Multi-Node Deployment', () => {
       await waitForHealthy();
 
       // Act: Ping connector-a from connector-b
+      // @ts-ignore - Used in E2E tests (skipped in CI)
       const pingResult = executeCommand(
         'docker-compose exec -T connector-b ping -c 3 connector-a',
         { ignoreError: true }

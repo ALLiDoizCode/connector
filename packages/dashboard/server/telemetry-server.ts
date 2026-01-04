@@ -7,10 +7,32 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Logger } from 'pino';
 import { TelemetryMessage, isTelemetryMessage } from './types.js';
+import {
+  AccountBalanceEvent,
+  SettlementTriggeredEvent,
+  SettlementCompletedEvent,
+  SettlementState,
+} from '@m2m/shared';
 
 interface WebSocketWithMetadata extends WebSocket {
   nodeId?: string;
   isClient?: boolean;
+}
+
+/**
+ * Balance State Storage (Story 6.8)
+ * Stores current account balances for dashboard visualization
+ */
+export interface BalanceState {
+  peerId: string;
+  tokenId: string;
+  debitBalance: string;
+  creditBalance: string;
+  netBalance: string;
+  creditLimit?: string;
+  settlementThreshold?: string;
+  settlementState: SettlementState;
+  lastUpdated: string;
 }
 
 export class TelemetryServer {
@@ -19,6 +41,12 @@ export class TelemetryServer {
   private clientConnections: Set<WebSocketWithMetadata> = new Set();
   private pendingConnections: Set<WebSocketWithMetadata> = new Set();
   private lastNodeStatus: Map<string, TelemetryMessage> = new Map(); // Cache latest NODE_STATUS per connector
+
+  // Settlement telemetry storage (Story 6.8)
+  private accountBalances: Map<string, BalanceState> = new Map(); // Key: nodeId:peerId:tokenId
+  private settlementEvents: (SettlementTriggeredEvent | SettlementCompletedEvent)[] = [];
+  private readonly MAX_SETTLEMENT_EVENTS = 100; // Limit to last 100 events
+
   private port: number;
   private logger: Logger;
 
@@ -125,6 +153,9 @@ export class TelemetryServer {
         this.lastNodeStatus.set(message.nodeId, message);
       }
 
+      // Handle settlement telemetry events (Story 6.8)
+      this.handleSettlementTelemetry(message);
+
       // Broadcast to all clients
       this.broadcast(message);
     }
@@ -134,7 +165,85 @@ export class TelemetryServer {
    * Check if message type is a telemetry event
    */
   private isTelemetryEvent(type: string): boolean {
-    return ['NODE_STATUS', 'PACKET_SENT', 'PACKET_RECEIVED', 'ROUTE_LOOKUP', 'LOG'].includes(type);
+    return [
+      'NODE_STATUS',
+      'PACKET_SENT',
+      'PACKET_RECEIVED',
+      'ROUTE_LOOKUP',
+      'LOG',
+      'ACCOUNT_BALANCE',
+      'SETTLEMENT_TRIGGERED',
+      'SETTLEMENT_COMPLETED',
+    ].includes(type);
+  }
+
+  /**
+   * Handle settlement telemetry events (Story 6.8)
+   * Stores balance state and settlement events in memory for dashboard visualization
+   */
+  private handleSettlementTelemetry(message: any): void {
+    try {
+      if (message.type === 'ACCOUNT_BALANCE') {
+        const event = message as AccountBalanceEvent;
+        const key = `${event.nodeId}:${event.peerId}:${event.tokenId}`;
+
+        const balanceState: BalanceState = {
+          peerId: event.peerId,
+          tokenId: event.tokenId,
+          debitBalance: event.debitBalance,
+          creditBalance: event.creditBalance,
+          netBalance: event.netBalance,
+          creditLimit: event.creditLimit,
+          settlementThreshold: event.settlementThreshold,
+          settlementState: event.settlementState,
+          lastUpdated: event.timestamp,
+        };
+
+        this.accountBalances.set(key, balanceState);
+        this.logger.debug('Account balance updated', {
+          nodeId: event.nodeId,
+          peerId: event.peerId,
+          tokenId: event.tokenId,
+          creditBalance: event.creditBalance,
+        });
+      } else if (message.type === 'SETTLEMENT_TRIGGERED') {
+        const event = message as SettlementTriggeredEvent;
+        this.settlementEvents.push(event);
+
+        // Limit array to last 100 events
+        if (this.settlementEvents.length > this.MAX_SETTLEMENT_EVENTS) {
+          this.settlementEvents.shift();
+        }
+
+        this.logger.info('Settlement triggered event stored', {
+          nodeId: event.nodeId,
+          peerId: event.peerId,
+          tokenId: event.tokenId,
+          threshold: event.threshold,
+        });
+      } else if (message.type === 'SETTLEMENT_COMPLETED') {
+        const event = message as SettlementCompletedEvent;
+        this.settlementEvents.push(event);
+
+        // Limit array to last 100 events
+        if (this.settlementEvents.length > this.MAX_SETTLEMENT_EVENTS) {
+          this.settlementEvents.shift();
+        }
+
+        this.logger.info('Settlement completed event stored', {
+          nodeId: event.nodeId,
+          peerId: event.peerId,
+          tokenId: event.tokenId,
+          success: event.success,
+          settledAmount: event.settledAmount,
+        });
+      }
+    } catch (error) {
+      this.logger.warn('Failed to process settlement telemetry', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        messageType: message.type,
+      });
+    }
   }
 
   /**
@@ -155,7 +264,9 @@ export class TelemetryServer {
     this.pendingConnections.delete(ws);
     ws.isClient = true;
     this.clientConnections.add(ws);
-    this.logger.info('Dashboard client connected', { cachedNodeStatusCount: this.lastNodeStatus.size });
+    this.logger.info('Dashboard client connected', {
+      cachedNodeStatusCount: this.lastNodeStatus.size,
+    });
 
     // Replay all cached NODE_STATUS messages to the new client
     this.lastNodeStatus.forEach((nodeStatus, nodeId) => {
@@ -214,6 +325,30 @@ export class TelemetryServer {
     this.logger.debug('Broadcasting telemetry event', {
       type: message.type,
       nodeId: message.nodeId,
+    });
+  }
+
+  /**
+   * Get all current account balances (Story 6.8)
+   * Used by REST API endpoint for initial dashboard state load
+   * @returns Array of all balance states
+   */
+  getAccountBalances(): BalanceState[] {
+    return Array.from(this.accountBalances.values());
+  }
+
+  /**
+   * Get recent settlement events (Story 6.8)
+   * Returns last 100 settlement events (both triggered and completed)
+   * Used by REST API endpoint for initial dashboard state load
+   * @returns Array of settlement events, sorted by timestamp descending (newest first)
+   */
+  getSettlementEvents(): (SettlementTriggeredEvent | SettlementCompletedEvent)[] {
+    // Return copy sorted by timestamp descending (newest first)
+    return [...this.settlementEvents].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA;
     });
   }
 }

@@ -161,7 +161,7 @@ describe('ConnectorNode', () => {
       connectorNode = new ConnectorNode(testConfigPath, mockLogger);
 
       // Assert
-      expect(BTPClientManager).toHaveBeenCalledWith(expect.anything());
+      expect(BTPClientManager).toHaveBeenCalledWith(config.nodeId, expect.anything());
     });
 
     it('should initialize PacketHandler with dependencies', () => {

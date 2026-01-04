@@ -27,6 +27,62 @@
 version: '3.8'
 
 services:
+  # TigerBeetle - Distributed accounting database for settlement layer
+  #
+  # TigerBeetle provides high-performance, ACID-compliant accounting for tracking
+  # settlement balances between ILP connector peers. It uses double-entry bookkeeping
+  # with microsecond-level latency for recording transfers and querying balances.
+  #
+  # Architecture:
+  #   - Single-node deployment for development (1 replica)
+  #   - Multi-replica configuration (3-5 replicas) recommended for production
+  #   - Quorum-based consensus requires majority of replicas healthy
+  #
+  # Data Persistence:
+  #   - Data stored in Docker volume: tigerbeetle-data
+  #   - Volume persists across container restarts
+  #   - Cluster ID is immutable after initialization
+  #
+  # Network Access:
+  #   - Internal port: 3000 (binary TCP protocol)
+  #   - NOT exposed to host (Docker network access only)
+  #   - Connectors access via hostname: tigerbeetle:3000
+  #
+  # Health Check:
+  #   - TCP socket check (TigerBeetle has no HTTP endpoint)
+  #   - Uses netcat to verify port 3000 is accepting connections
+  #
+  # Security:
+  #   - Requires --security-opt seccomp=unconfined for I/O operations
+  #   - Network isolation via Docker bridge network
+  #   - No authentication (relies on network-level access control)
+  tigerbeetle:
+    image: ghcr.io/tigerbeetle/tigerbeetle:latest
+    container_name: tigerbeetle
+    security_opt:
+      - seccomp=unconfined  # Required for TigerBeetle I/O operations
+    environment:
+      TIGERBEETLE_CLUSTER_ID: ${TIGERBEETLE_CLUSTER_ID:-0}
+      TIGERBEETLE_REPLICA_COUNT: ${TIGERBEETLE_REPLICA_COUNT:-1}
+      TIGERBEETLE_DATA_DIR: ${TIGERBEETLE_DATA_DIR:-/data}
+    volumes:
+      - tigerbeetle-data:/data
+      - ./scripts/init-tigerbeetle.sh:/init-tigerbeetle.sh:ro
+    # Note: Port 3000 is internal-only, not exposed to host for security
+    # Connectors access TigerBeetle via Docker network: tigerbeetle:3000
+    networks:
+      - ilp-network
+    restart: unless-stopped
+    # TigerBeetle uses custom binary protocol over TCP, no HTTP endpoint available
+    # Health check uses netcat to verify TCP port 3000 accepts connections
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    entrypoint: ["/init-tigerbeetle.sh"]
+
   # Connector A - Entry node
   connector-a:
     image: ilp-connector
@@ -46,6 +102,9 @@ services:
       - "9080:8080"  # Health check HTTP port
     networks:
       - ilp-network
+    depends_on:
+      tigerbeetle:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -72,7 +131,10 @@ services:
     networks:
       - ilp-network
     depends_on:
-      - connector-a
+      tigerbeetle:
+        condition: service_healthy
+      connector-a:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -100,7 +162,10 @@ services:
     networks:
       - ilp-network
     depends_on:
-      - connector-b
+      tigerbeetle:
+        condition: service_healthy
+      connector-b:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -134,3 +199,11 @@ services:
 networks:
   ilp-network:
     driver: bridge
+
+# Named volumes for persistent data
+volumes:
+  # TigerBeetle data volume for settlement accounting database
+  # Persists cluster data across container restarts
+  # WARNING: Do not delete this volume or cluster data will be lost
+  tigerbeetle-data:
+    driver: local

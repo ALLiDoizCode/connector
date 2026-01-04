@@ -34,12 +34,14 @@ so that I can create payment channels, submit claims, and query channel states.
 ### Technical Notes
 
 **Development Stack:**
+
 - **xrpl.js:** Official XRP Ledger JavaScript library
 - **Local rippled:** Provided by Epic 7 at `ws://localhost:6006` (standalone mode)
 - **XRPL Testnet:** `wss://s.altnet.rippletest.net:51233` (optional for testnet testing)
 - **XRPL Mainnet:** `wss://xrplcluster.com` or `wss://s1.ripple.com` (production)
 
 **Development Workflow:**
+
 ```
 1. Develop locally: Connect to local rippled (instant, free XRP faucet, offline)
    ↓
@@ -49,6 +51,7 @@ so that I can create payment channels, submit claims, and query channel states.
 ```
 
 **Configuration:**
+
 ```typescript
 // Environment variables
 XRPL_WSS_URL=ws://localhost:6006  // Local rippled (dev)
@@ -63,6 +66,7 @@ const client = new XRPLClient({
 ```
 
 **Local rippled Faucet:**
+
 - Local rippled in standalone mode starts with genesis account pre-funded
 - Use `xrpl.Wallet.fromSeed()` with known test seed
 - Fund connector accounts from genesis account
@@ -94,12 +98,12 @@ so that I can establish bidirectional payment channels with peers for XRP settle
 // XRP Payment Channel Creation
 const createChannelTx = {
   TransactionType: 'PaymentChannelCreate',
-  Account: myAddress,           // Source account (connector)
-  Destination: peerAddress,     // Destination account (peer)
-  Amount: '1000000000',         // 1000 XRP in drops (1 XRP = 1,000,000 drops)
-  SettleDelay: 86400,           // 24 hours settlement delay
-  PublicKey: myPublicKey,       // Public key for claim signature verification
-  CancelAfter: cancelTimestamp  // Optional: auto-close channel after timestamp
+  Account: myAddress, // Source account (connector)
+  Destination: peerAddress, // Destination account (peer)
+  Amount: '1000000000', // 1000 XRP in drops (1 XRP = 1,000,000 drops)
+  SettleDelay: 86400, // 24 hours settlement delay
+  PublicKey: myPublicKey, // Public key for claim signature verification
+  CancelAfter: cancelTimestamp, // Optional: auto-close channel after timestamp
 };
 
 // Submit transaction
@@ -111,15 +115,15 @@ const channelId = result.result.hash; // Transaction hash becomes channel ID
 
 ```typescript
 interface XRPChannelState {
-  channelId: string;            // Transaction hash
-  account: string;              // Source (us)
-  destination: string;          // Destination (peer)
-  amount: string;               // Total XRP in channel (drops)
-  balance: string;              // XRP already paid out (drops)
-  settleDelay: number;          // Settlement delay in seconds
-  publicKey: string;            // Our public key
-  cancelAfter?: number;         // Optional expiration timestamp
-  expiration?: number;          // Close request timestamp
+  channelId: string; // Transaction hash
+  account: string; // Source (us)
+  destination: string; // Destination (peer)
+  amount: string; // Total XRP in channel (drops)
+  balance: string; // XRP already paid out (drops)
+  settleDelay: number; // Settlement delay in seconds
+  publicKey: string; // Our public key
+  cancelAfter?: number; // Optional expiration timestamp
+  expiration?: number; // Close request timestamp
   status: 'open' | 'closing' | 'closed';
 }
 ```
@@ -157,23 +161,19 @@ so that I can authorize XRP transfers to peers without on-ledger transactions.
 ```typescript
 // XRP Payment Channel Claim Structure
 interface PaymentChannelClaim {
-  channelId: string;    // Channel ID (transaction hash)
-  amount: string;       // Cumulative amount in drops
-  signature: string;    // ed25519 signature
-  publicKey: string;    // Public key for verification
+  channelId: string; // Channel ID (transaction hash)
+  amount: string; // Cumulative amount in drops
+  signature: string; // ed25519 signature
+  publicKey: string; // Public key for verification
 }
 
 // Claim signing (off-chain)
-function signClaim(
-  channelId: string,
-  amount: string,
-  privateKey: string
-): string {
+function signClaim(channelId: string, amount: string, privateKey: string): string {
   // Construct claim message
   const message = Buffer.concat([
-    Buffer.from('CLM\0'),  // Payment channel claim prefix
+    Buffer.from('CLM\0'), // Payment channel claim prefix
     Buffer.from(channelId, 'hex'),
-    encodeAmount(amount)   // XRP drops as big-endian uint64
+    encodeAmount(amount), // XRP drops as big-endian uint64
   ]);
 
   // Sign with ed25519 private key
@@ -191,14 +191,10 @@ function verifyClaim(
   const message = Buffer.concat([
     Buffer.from('CLM\0'),
     Buffer.from(channelId, 'hex'),
-    encodeAmount(amount)
+    encodeAmount(amount),
   ]);
 
-  return ed25519.verify(
-    Buffer.from(signature, 'hex'),
-    message,
-    Buffer.from(publicKey, 'hex')
-  );
+  return ed25519.verify(Buffer.from(signature, 'hex'), message, Buffer.from(publicKey, 'hex'));
 }
 ```
 
@@ -236,11 +232,11 @@ so that I can finalize settlement and receive funds on-ledger.
 // Submit claim to redeem XRP (partial or final)
 const claimTx = {
   TransactionType: 'PaymentChannelClaim',
-  Account: destinationAddress,  // Peer redeeming XRP
-  Channel: channelId,           // Channel ID
-  Amount: claimAmount,          // XRP to redeem (drops)
-  Signature: claimSignature,    // Signature from source
-  PublicKey: sourcePublicKey    // Source's public key
+  Account: destinationAddress, // Peer redeeming XRP
+  Channel: channelId, // Channel ID
+  Amount: claimAmount, // XRP to redeem (drops)
+  Signature: claimSignature, // Signature from source
+  PublicKey: sourcePublicKey, // Source's public key
 };
 
 const result = await client.submitAndWait(claimTx);
@@ -250,7 +246,7 @@ const closeTx = {
   TransactionType: 'PaymentChannelClaim',
   Account: myAddress,
   Channel: channelId,
-  Flags: 0x00010000  // tfClose flag
+  Flags: 0x00010000, // tfClose flag
 };
 
 const closeResult = await client.submitAndWait(closeTx);
@@ -310,18 +306,18 @@ interface PeerConfig {
   peerId: string;
   address: string;
   settlementPreference: 'evm' | 'xrp' | 'both';
-  settlementTokens: string[];  // ['USDC', 'XRP', 'DAI', etc.]
-  evmAddress?: string;         // Ethereum address (if EVM settlement)
-  xrpAddress?: string;         // XRP Ledger address (if XRP settlement)
+  settlementTokens: string[]; // ['USDC', 'XRP', 'DAI', etc.]
+  evmAddress?: string; // Ethereum address (if EVM settlement)
+  xrpAddress?: string; // XRP Ledger address (if XRP settlement)
 }
 
 // Unified settlement executor
 class UnifiedSettlementExecutor {
   constructor(
-    private evmChannelSDK: PaymentChannelSDK,      // Epic 8
-    private xrpChannelManager: PaymentChannelManager,  // Epic 9
-    private accountManager: AccountManager,         // Epic 6
-    private settlementMonitor: SettlementMonitor    // Epic 6
+    private evmChannelSDK: PaymentChannelSDK, // Epic 8
+    private xrpChannelManager: PaymentChannelManager, // Epic 9
+    private accountManager: AccountManager, // Epic 6
+    private settlementMonitor: SettlementMonitor // Epic 6
   ) {
     settlementMonitor.on('SETTLEMENT_REQUIRED', this.handleSettlement.bind(this));
   }
@@ -350,23 +346,13 @@ class UnifiedSettlementExecutor {
     config: PeerConfig
   ) {
     // Use Epic 8 EVM payment channels
-    const channelId = await this.evmChannelSDK.findOrCreateChannel(
-      config.evmAddress,
-      tokenAddress
-    );
+    const channelId = await this.evmChannelSDK.findOrCreateChannel(config.evmAddress, tokenAddress);
     await this.evmChannelSDK.signAndSubmitBalanceProof(channelId, amount);
   }
 
-  private async settleViaXRP(
-    peerId: string,
-    amount: bigint,
-    config: PeerConfig
-  ) {
+  private async settleViaXRP(peerId: string, amount: bigint, config: PeerConfig) {
     // Use Epic 9 XRP payment channels
-    const channelId = await this.xrpChannelManager.findOrCreateChannel(
-      config.xrpAddress,
-      amount
-    );
+    const channelId = await this.xrpChannelManager.findOrCreateChannel(config.xrpAddress, amount);
     const claim = await this.xrpChannelManager.signClaim(channelId, amount);
     // Send claim to peer off-chain (peer submits to ledger)
   }
@@ -375,15 +361,15 @@ class UnifiedSettlementExecutor {
 
 ### Settlement Decision Matrix
 
-| Peer Preference | Token  | Settlement Method      |
-|----------------|--------|------------------------|
-| `evm`          | USDC   | EVM Payment Channel    |
-| `evm`          | XRP    | ❌ Error (incompatible) |
-| `xrp`          | XRP    | XRP Payment Channel    |
-| `xrp`          | USDC   | ❌ Error (incompatible) |
-| `both`         | USDC   | EVM Payment Channel    |
-| `both`         | XRP    | XRP Payment Channel    |
-| `both`         | DAI    | EVM Payment Channel    |
+| Peer Preference | Token | Settlement Method       |
+| --------------- | ----- | ----------------------- |
+| `evm`           | USDC  | EVM Payment Channel     |
+| `evm`           | XRP   | ❌ Error (incompatible) |
+| `xrp`           | XRP   | XRP Payment Channel     |
+| `xrp`           | USDC  | ❌ Error (incompatible) |
+| `both`          | USDC  | EVM Payment Channel     |
+| `both`          | XRP   | XRP Payment Channel     |
+| `both`          | DAI   | EVM Payment Channel     |
 
 ### Configuration Example
 
@@ -393,18 +379,18 @@ peers:
   - peerId: peer-alice
     settlementPreference: evm
     settlementTokens: [USDC, DAI]
-    evmAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+    evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
 
   - peerId: peer-bob
     settlementPreference: xrp
     settlementTokens: [XRP]
-    xrpAddress: "rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW"
+    xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW'
 
   - peerId: peer-charlie
     settlementPreference: both
     settlementTokens: [USDC, XRP]
-    evmAddress: "0x8ba1f109551bD432803012645Ac136ddd64DBA72"
-    xrpAddress: "rLHzPsX6oXkzU9rFkRaYT8yBqJcQwPgHWN"
+    evmAddress: '0x8ba1f109551bD432803012645Ac136ddd64DBA72'
+    xrpAddress: 'rLHzPsX6oXkzU9rFkRaYT8yBqJcQwPgHWN'
 ```
 
 ---
@@ -437,8 +423,8 @@ interface XRPChannelState {
   channelId: string;
   account: string;
   destination: string;
-  amount: string;           // Total XRP in channel (drops)
-  balance: string;          // XRP already claimed (drops)
+  amount: string; // Total XRP in channel (drops)
+  balance: string; // XRP already claimed (drops)
   settleDelay: number;
   publicKey: string;
   expiration?: number;
@@ -461,16 +447,17 @@ class XRPChannelSDK {
   // Channel lifecycle
   async openChannel(
     destination: string,
-    amount: string,          // XRP drops
-    settleDelay: number      // Seconds
-  ): Promise<string> {       // Returns channelId
+    amount: string, // XRP drops
+    settleDelay: number // Seconds
+  ): Promise<string> {
+    // Returns channelId
     const tx = {
       TransactionType: 'PaymentChannelCreate',
       Account: this.xrplClient.address,
       Destination: destination,
       Amount: amount,
       SettleDelay: settleDelay,
-      PublicKey: this.claimSigner.publicKey
+      PublicKey: this.claimSigner.publicKey,
     };
 
     const result = await this.xrplClient.submitAndWait(tx);
@@ -482,7 +469,7 @@ class XRPChannelSDK {
       TransactionType: 'PaymentChannelFund',
       Account: this.xrplClient.address,
       Channel: channelId,
-      Amount: additionalAmount
+      Amount: additionalAmount,
     };
 
     await this.xrplClient.submitAndWait(tx);
@@ -495,7 +482,7 @@ class XRPChannelSDK {
       channelId,
       amount,
       signature,
-      publicKey: this.claimSigner.publicKey
+      publicKey: this.claimSigner.publicKey,
     };
   }
 
@@ -516,7 +503,7 @@ class XRPChannelSDK {
       Channel: claim.channelId,
       Amount: claim.amount,
       Signature: claim.signature,
-      PublicKey: claim.publicKey
+      PublicKey: claim.publicKey,
     };
 
     await this.xrplClient.submitAndWait(tx);
@@ -527,7 +514,7 @@ class XRPChannelSDK {
       TransactionType: 'PaymentChannelClaim',
       Account: this.xrplClient.address,
       Channel: channelId,
-      Flags: 0x00010000  // tfClose
+      Flags: 0x00010000, // tfClose
     };
 
     await this.xrplClient.submitAndWait(tx);
@@ -537,7 +524,7 @@ class XRPChannelSDK {
   async getChannelState(channelId: string): Promise<XRPChannelState> {
     const ledgerEntry = await this.xrplClient.request({
       command: 'ledger_entry',
-      payment_channel: channelId
+      payment_channel: channelId,
     });
 
     return this.parseChannelState(ledgerEntry.result.node);
@@ -546,10 +533,10 @@ class XRPChannelSDK {
   async getMyChannels(): Promise<string[]> {
     const accountChannels = await this.xrplClient.request({
       command: 'account_channels',
-      account: this.xrplClient.address
+      account: this.xrplClient.address,
     });
 
-    return accountChannels.result.channels.map(c => c.channel_id);
+    return accountChannels.result.channels.map((c) => c.channel_id);
   }
 }
 ```
@@ -585,10 +572,10 @@ interface XRPChannelOpenedEvent {
   timestamp: number;
   nodeId: string;
   channelId: string;
-  account: string;           // Source (us)
-  destination: string;       // Destination (peer)
-  amount: string;            // Total XRP in drops
-  settleDelay: number;       // Settlement delay in seconds
+  account: string; // Source (us)
+  destination: string; // Destination (peer)
+  amount: string; // Total XRP in drops
+  settleDelay: number; // Settlement delay in seconds
   publicKey: string;
 }
 
@@ -597,8 +584,8 @@ interface XRPChannelClaimedEvent {
   timestamp: number;
   nodeId: string;
   channelId: string;
-  claimAmount: string;       // XRP claimed (drops)
-  remainingBalance: string;  // XRP remaining in channel
+  claimAmount: string; // XRP claimed (drops)
+  remainingBalance: string; // XRP remaining in channel
 }
 
 interface XRPChannelClosedEvent {
@@ -606,7 +593,7 @@ interface XRPChannelClosedEvent {
   timestamp: number;
   nodeId: string;
   channelId: string;
-  finalBalance: string;      // Final XRP distributed
+  finalBalance: string; // Final XRP distributed
   closeType: 'cooperative' | 'expiration' | 'unilateral';
 }
 ```
@@ -614,11 +601,13 @@ interface XRPChannelClosedEvent {
 ### Dashboard UI Enhancement
 
 **Network Graph:**
+
 - EVM channels: Blue badge (🔗 EVM)
 - XRP channels: Orange badge (🔗 XRP)
 - Hover shows channel-specific details
 
 **Payment Channels Panel:**
+
 ```
 ┌─ Payment Channels (Filter: All ▼) ────────┐
 │ [EVM] Peer: Alice | Token: USDC           │
@@ -688,13 +677,13 @@ so that XRP channels are efficiently managed alongside EVM channels without manu
 paymentChannels:
   xrp:
     enabled: true
-    wssUrl: wss://xrplcluster.com         # Mainnet
+    wssUrl: wss://xrplcluster.com # Mainnet
     accountSecret: ${XRPL_ACCOUNT_SECRET}
-    defaultSettleDelay: 86400              # 24 hours
-    initialChannelAmount: "10000000000"    # 10,000 XRP in drops
-    idleChannelThreshold: 86400            # Close after 24h idle
-    minBalanceThreshold: 0.3               # Fund when below 30% remaining
-    cancelAfter: 2592000                   # Auto-expire after 30 days
+    defaultSettleDelay: 86400 # 24 hours
+    initialChannelAmount: '10000000000' # 10,000 XRP in drops
+    idleChannelThreshold: 86400 # Close after 24h idle
+    minBalanceThreshold: 0.3 # Fund when below 30% remaining
+    cancelAfter: 2592000 # Auto-expire after 30 days
 ```
 
 ---
@@ -721,6 +710,7 @@ so that XRP settlement is production-ready and reliable.
 ### Test Scenarios
 
 **Scenario 1: Happy Path XRP Settlement**
+
 1. Configure peer with `settlementPreference: 'xrp'`
 2. Forward 100 ILP packets (XRP token)
 3. TigerBeetle balance reaches threshold
@@ -732,6 +722,7 @@ so that XRP settlement is production-ready and reliable.
 9. TigerBeetle balance updated
 
 **Scenario 2: Dual-Settlement Network**
+
 1. Network with 3 connectors:
    - Alice: EVM preference (USDC)
    - Bob: XRP preference (XRP)
@@ -742,6 +733,7 @@ so that XRP settlement is production-ready and reliable.
 5. Both settlement types visible in dashboard
 
 **Scenario 3: XRP Channel Dispute**
+
 1. Alice opens channel to Bob (10,000 XRP)
 2. Alice sends claim for 5,000 XRP (off-chain)
 3. Bob doesn't respond
@@ -782,6 +774,7 @@ so that I can configure XRP settlement for production use.
 ### Documentation Outline
 
 **`docs/guides/xrp-payment-channels-setup.md`:**
+
 1. XRP Ledger Account Setup
    - Create account with wallet
    - Fund account (minimum 10 XRP reserve)
@@ -804,6 +797,7 @@ so that I can configure XRP settlement for production use.
    - Multi-chain monitoring
 
 **Security Checklist:**
+
 - [ ] XRP account secret stored in environment variable (not code)
 - [ ] Claim signing keypair separate from account keypair
 - [ ] Channel settle delay configured (minimum 1 hour production)
@@ -833,6 +827,7 @@ so that I can configure XRP settlement for production use.
 ## Dependencies and Integration Points
 
 **Depends On:**
+
 - **Epic 7: Local Blockchain Development Infrastructure** - Local rippled for development (REQUIRED)
 - **Epic 8: EVM Payment Channels** - EVM settlement infrastructure for dual-settlement
 - Epic 6: TigerBeetle accounting and settlement thresholds
@@ -840,6 +835,7 @@ so that I can configure XRP settlement for production use.
 - Epic 3: Dashboard telemetry infrastructure
 
 **Integrates With:**
+
 - `AccountManager` (Epic 6) - TigerBeetle balance tracking
 - `SettlementMonitor` (Epic 6) - Settlement trigger events
 - `PaymentChannelSDK` (Epic 8) - EVM settlement for dual-settlement
@@ -848,6 +844,7 @@ so that I can configure XRP settlement for production use.
 - `TelemetryEmitter` - Channel event reporting
 
 **Enables:**
+
 - Epic 10: Multi-chain settlement coordination and production hardening
 
 ---
@@ -856,17 +853,17 @@ so that I can configure XRP settlement for production use.
 
 ### XRP Payment Channels vs. EVM Payment Channels
 
-| Feature                  | XRP Payment Channels      | EVM Payment Channels     |
-|--------------------------|---------------------------|--------------------------|
-| **Blockchain**           | XRP Ledger                | Base L2 (EVM)            |
-| **Token Support**        | XRP only (native)         | Any ERC20 token          |
-| **Signature Scheme**     | ed25519                   | ECDSA (secp256k1)        |
-| **Claim Structure**      | `CLM\0` + channelId + amount | EIP-712 typed data    |
-| **Settlement Delay**     | Configurable (seconds)    | Configurable (seconds)   |
-| **On-Chain Transaction** | PaymentChannelCreate/Claim | Smart contract calls    |
-| **Gas Costs**            | ~0.00001 XRP per tx       | ~$0.001-0.01 per tx      |
-| **Finality**             | 3-5 seconds               | 2 seconds (Base L2)      |
-| **Channel State**        | On-ledger (native)        | Smart contract storage   |
+| Feature                  | XRP Payment Channels         | EVM Payment Channels   |
+| ------------------------ | ---------------------------- | ---------------------- |
+| **Blockchain**           | XRP Ledger                   | Base L2 (EVM)          |
+| **Token Support**        | XRP only (native)            | Any ERC20 token        |
+| **Signature Scheme**     | ed25519                      | ECDSA (secp256k1)      |
+| **Claim Structure**      | `CLM\0` + channelId + amount | EIP-712 typed data     |
+| **Settlement Delay**     | Configurable (seconds)       | Configurable (seconds) |
+| **On-Chain Transaction** | PaymentChannelCreate/Claim   | Smart contract calls   |
+| **Gas Costs**            | ~0.00001 XRP per tx          | ~$0.001-0.01 per tx    |
+| **Finality**             | 3-5 seconds                  | 2 seconds (Base L2)    |
+| **Channel State**        | On-ledger (native)           | Smart contract storage |
 
 ### Why Support Both EVM and XRP?
 
@@ -879,16 +876,19 @@ so that I can configure XRP settlement for production use.
 ### Settlement Flow Comparison
 
 **EVM Settlement (Epic 8):**
+
 ```
 Packets → TigerBeetle → Threshold → EVM Channel → Balance Proof → Smart Contract → ERC20 Transfer
 ```
 
 **XRP Settlement (Epic 9):**
+
 ```
 Packets → TigerBeetle → Threshold → XRP Channel → Claim Signature → PaymentChannelClaim → XRP Transfer
 ```
 
 **Dual Settlement (Epic 9):**
+
 ```
 Packets → TigerBeetle → Threshold → UnifiedSettlementExecutor
                                             ↓
@@ -903,18 +903,21 @@ Packets → TigerBeetle → Threshold → UnifiedSettlementExecutor
 ## Testing Strategy
 
 **Unit Tests:**
+
 - XRPL client connection and error handling
 - Claim signing and verification
 - Settlement routing logic (EVM vs XRP)
 - Channel state tracking
 
 **Integration Tests:**
+
 - End-to-end XRP settlement on local rippled
 - Dual-settlement with both EVM and XRP
 - Channel lifecycle (open, fund, close)
 - Claim submission and redemption
 
 **Performance Tests:**
+
 - 1000 claims/second signing throughput
 - Claim verification latency (<5ms)
 - Channel creation latency (<5 seconds)

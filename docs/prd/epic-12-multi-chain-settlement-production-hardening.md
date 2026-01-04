@@ -36,10 +36,10 @@ so that the network automatically selects the best settlement method for each pe
 
 interface SettlementOption {
   method: 'evm' | 'xrp';
-  chain?: string;           // 'base-l2' | 'ethereum' | 'polygon'
-  estimatedCost: bigint;    // Gas cost in native token
+  chain?: string; // 'base-l2' | 'ethereum' | 'polygon'
+  estimatedCost: bigint; // Gas cost in native token
   estimatedLatency: number; // Seconds
-  successRate: number;      // 0.0 - 1.0
+  successRate: number; // 0.0 - 1.0
   available: boolean;
 }
 
@@ -58,7 +58,7 @@ class SettlementCoordinator {
     const options = await this.evaluateOptions(peerId, tokenId, amount);
 
     // Filter unavailable methods (circuit breaker open, network down, etc.)
-    const available = options.filter(opt => opt.available);
+    const available = options.filter((opt) => opt.available);
 
     if (available.length === 0) {
       throw new Error('No available settlement methods');
@@ -82,7 +82,7 @@ class SettlementCoordinator {
     const successScore = option.successRate;
     const latencyScore = 1 / option.estimatedLatency;
 
-    return (costScore * 0.5) + (successScore * 0.3) + (latencyScore * 0.2);
+    return costScore * 0.5 + successScore * 0.3 + latencyScore * 0.2;
   }
 
   private async evaluateOptions(
@@ -102,9 +102,9 @@ class SettlementCoordinator {
         method: 'evm',
         chain: 'base-l2',
         estimatedCost: evmCost,
-        estimatedLatency: 3,  // ~3 seconds on Base L2
+        estimatedLatency: 3, // ~3 seconds on Base L2
         successRate: evmSuccessRate,
-        available: this.circuitBreakerOpen('evm') === false
+        available: this.circuitBreakerOpen('evm') === false,
       });
     }
 
@@ -116,9 +116,9 @@ class SettlementCoordinator {
       options.push({
         method: 'xrp',
         estimatedCost: xrpCost,
-        estimatedLatency: 4,  // ~4 seconds on XRPL
+        estimatedLatency: 4, // ~4 seconds on XRPL
         successRate: xrpSuccessRate,
-        available: this.circuitBreakerOpen('xrp') === false
+        available: this.circuitBreakerOpen('xrp') === false,
       });
     }
 
@@ -127,7 +127,7 @@ class SettlementCoordinator {
 
   private circuitBreakerOpen(method: string): boolean {
     const recentFailureRate = this.metricsCollector.getRecentFailureRate(method);
-    return recentFailureRate > 0.10;  // Open if >10% failures in last hour
+    return recentFailureRate > 0.1; // Open if >10% failures in last hour
   }
 }
 ```
@@ -190,7 +190,7 @@ so that private keys for settlement are never exposed in plaintext and meet comp
 interface KeyManagerBackend {
   sign(message: Buffer, keyId: string): Promise<Buffer>;
   getPublicKey(keyId: string): Promise<Buffer>;
-  rotateKey(keyId: string): Promise<string>;  // Returns new keyId
+  rotateKey(keyId: string): Promise<string>; // Returns new keyId
 }
 
 class KeyManager {
@@ -242,7 +242,7 @@ class KeyManager {
       event,
       keyId,
       timestamp: Date.now(),
-      nodeId: this.config.nodeId
+      nodeId: this.config.nodeId,
     });
   }
 }
@@ -254,7 +254,7 @@ class AWSKMSBackend implements KeyManagerBackend {
   constructor(config: AWSConfig) {
     this.kmsClient = new KMSClient({
       region: config.region,
-      credentials: config.credentials
+      credentials: config.credentials,
     });
   }
 
@@ -262,7 +262,7 @@ class AWSKMSBackend implements KeyManagerBackend {
     const command = new SignCommand({
       KeyId: keyId,
       Message: message,
-      SigningAlgorithm: 'ECDSA_SHA_256'  // For EVM
+      SigningAlgorithm: 'ECDSA_SHA_256', // For EVM
     });
 
     const response = await this.kmsClient.send(command);
@@ -279,7 +279,7 @@ class AWSKMSBackend implements KeyManagerBackend {
     // Create new key with same policy
     const createCommand = new CreateKeyCommand({
       KeyUsage: 'SIGN_VERIFY',
-      KeySpec: 'ECC_SECG_P256K1'  // secp256k1 for Ethereum
+      KeySpec: 'ECC_SECG_P256K1', // secp256k1 for Ethereum
     });
 
     const response = await this.kmsClient.send(createCommand);
@@ -294,7 +294,7 @@ class AWSKMSBackend implements KeyManagerBackend {
 # Connector key management configuration
 security:
   keyManagement:
-    backend: aws-kms  # env | aws-kms | gcp-kms | azure-kv | hsm
+    backend: aws-kms # env | aws-kms | gcp-kms | azure-kv | hsm
 
     # AWS KMS configuration
     aws:
@@ -306,7 +306,7 @@ security:
     rotation:
       enabled: true
       intervalDays: 90
-      overlapDays: 7  # Both old and new key valid during transition
+      overlapDays: 7 # Both old and new key valid during transition
 ```
 
 ---
@@ -339,7 +339,7 @@ interface RateLimitConfig {
   maxRequestsPerSecond: number;
   maxRequestsPerMinute: number;
   burstSize: number;
-  blockDuration: number;  // Seconds to block after sustained violations
+  blockDuration: number; // Seconds to block after sustained violations
 }
 
 class RateLimiter {
@@ -378,7 +378,7 @@ class RateLimiter {
       this.logger.warn('Peer blocked due to sustained rate limit violations', {
         peerId,
         violations,
-        blockDuration: this.config.blockDuration
+        blockDuration: this.config.blockDuration,
       });
     }
   }
@@ -399,7 +399,7 @@ class TokenBucket {
 
   constructor(
     private capacity: number,
-    private refillRate: number  // Tokens per second
+    private refillRate: number // Tokens per second
   ) {
     this.tokens = capacity;
     this.lastRefill = Date.now();
@@ -446,7 +446,7 @@ security:
       maxPacketsPerSecond: 1000
       maxSettlementsPerMinute: 10
       burstSize: 100
-      blockDuration: 300  # 5 minutes
+      blockDuration: 300 # 5 minutes
 
     # Trusted peers (higher limits)
     trustedPeers:
@@ -494,7 +494,7 @@ class FraudDetector {
     new UnusualSettlementAmountRule(),
     new RapidChannelClosureRule(),
     new DoubleSpendDetectionRule(),
-    new BalanceManipulationRule()
+    new BalanceManipulationRule(),
   ];
 
   async analyzeEvent(event: SettlementEvent | PacketEvent): Promise<void> {
@@ -512,7 +512,7 @@ class FraudDetector {
       rule: rule.name,
       severity: rule.severity,
       peerId: detection.peerId,
-      details: detection.details
+      details: detection.details,
     });
 
     // Record in audit log
@@ -522,7 +522,7 @@ class FraudDetector {
       severity: rule.severity,
       peerId: detection.peerId,
       timestamp: Date.now(),
-      details: detection.details
+      details: detection.details,
     });
 
     // Auto-pause peer if critical severity
@@ -556,8 +556,8 @@ class SuddenTrafficSpikeRule implements FraudRule {
         details: {
           recentRate,
           historicalAverage,
-          multiplier: recentRate / historicalAverage
-        }
+          multiplier: recentRate / historicalAverage,
+        },
       };
     }
 
@@ -584,8 +584,8 @@ class DoubleSpendDetectionRule implements FraudRule {
           channelId,
           currentClaimAmount: claim.amount,
           previousClaimAmount: previousClaim.amount,
-          description: 'Attempt to submit lower claim amount (possible double-spend)'
-        }
+          description: 'Attempt to submit lower claim amount (possible double-spend)',
+        },
       };
     }
 
@@ -612,16 +612,16 @@ security:
       slack:
         enabled: true
         webhookUrl: ${SLACK_WEBHOOK_URL}
-        channel: "#security-alerts"
+        channel: '#security-alerts'
 
     # Detection rules
     rules:
       suddenTrafficSpike:
         enabled: true
-        threshold: 10  # 10x historical average
+        threshold: 10 # 10x historical average
       unusualSettlementAmount:
         enabled: true
-        threshold: 1000000  # Alert if single settlement >1M units
+        threshold: 1000000 # Alert if single settlement >1M units
       doubleSpend:
         enabled: true
         autoPause: true
@@ -651,6 +651,7 @@ so that the platform can scale to support high-volume AI agent micropayments.
 ### Performance Optimizations
 
 **1. Packet Processing Parallelization:**
+
 ```typescript
 // packages/connector/src/routing/packet-processor.ts
 
@@ -661,7 +662,7 @@ class PacketProcessor {
     // Create worker thread pool for parallel processing
     this.workerPool = new WorkerPool({
       numWorkers: os.cpus().length,
-      workerScript: './packet-worker.js'
+      workerScript: './packet-worker.js',
     });
   }
 
@@ -670,7 +671,7 @@ class PacketProcessor {
     const chunks = this.chunkPackets(packets, this.workerPool.size);
 
     const results = await Promise.all(
-      chunks.map(chunk => this.workerPool.execute('processPackets', chunk))
+      chunks.map((chunk) => this.workerPool.execute('processPackets', chunk))
     );
 
     return results.flat();
@@ -679,12 +680,13 @@ class PacketProcessor {
 ```
 
 **2. TigerBeetle Batching:**
+
 ```typescript
 // packages/connector/src/settlement/tigerbeetle-batch-writer.ts
 
 class TigerBeetleBatchWriter {
   private pendingTransfers: Transfer[] = [];
-  private flushInterval = 10;  // Flush every 10ms
+  private flushInterval = 10; // Flush every 10ms
 
   constructor(private client: TigerBeetleClient) {
     // Periodic flush
@@ -718,6 +720,7 @@ class TigerBeetleBatchWriter {
 ```
 
 **3. Zero-Copy Buffer Optimization:**
+
 ```typescript
 // packages/connector/src/ilp/oer-parser.ts
 
@@ -736,6 +739,7 @@ class OERParser {
 ```
 
 **4. Connection Pooling:**
+
 ```typescript
 // packages/connector/src/settlement/connection-pool.ts
 
@@ -766,7 +770,7 @@ class EVMRPCConnectionPool {
 describe('10K TPS Benchmark', () => {
   it('should sustain 10,000 packets/second for 1 hour', async () => {
     const targetTPS = 10000;
-    const durationSeconds = 3600;  // 1 hour
+    const durationSeconds = 3600; // 1 hour
     const totalPackets = targetTPS * durationSeconds;
 
     const startTime = Date.now();
@@ -781,7 +785,7 @@ describe('10K TPS Benchmark', () => {
       if (processedPackets % targetTPS === 0) {
         const elapsed = (Date.now() - startTime) / 1000;
         const currentTPS = processedPackets / elapsed;
-        expect(currentTPS).toBeGreaterThan(9500);  // >95% of target
+        expect(currentTPS).toBeGreaterThan(9500); // >95% of target
       }
     }
 
@@ -789,7 +793,7 @@ describe('10K TPS Benchmark', () => {
     const avgTPS = totalPackets / totalTime;
 
     expect(avgTPS).toBeGreaterThan(10000);
-    expect(connector.metrics.p99Latency).toBeLessThan(10);  // <10ms p99
+    expect(connector.metrics.p99Latency).toBeLessThan(10); // <10ms p99
   });
 });
 ```
@@ -800,7 +804,7 @@ describe('10K TPS Benchmark', () => {
 # Connector performance configuration
 performance:
   packetProcessing:
-    workerThreads: 8  # Number of CPU cores
+    workerThreads: 8 # Number of CPU cores
     batchSize: 100
 
   tigerbeetle:
@@ -857,47 +861,47 @@ class PrometheusExporter {
   private packetsProcessed = new Counter({
     name: 'ilp_packets_processed_total',
     help: 'Total ILP packets processed',
-    labelNames: ['type', 'status']  // prepare/fulfill/reject, success/error
+    labelNames: ['type', 'status'], // prepare/fulfill/reject, success/error
   });
 
   private packetLatency = new Histogram({
     name: 'ilp_packet_latency_seconds',
     help: 'ILP packet processing latency',
-    buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1]
+    buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1],
   });
 
   // Settlement metrics
   private settlementsExecuted = new Counter({
     name: 'settlements_executed_total',
     help: 'Total settlements executed',
-    labelNames: ['method', 'status']  // evm/xrp, success/failure
+    labelNames: ['method', 'status'], // evm/xrp, success/failure
   });
 
   private settlementLatency = new Histogram({
     name: 'settlement_latency_seconds',
     help: 'Settlement execution latency',
-    buckets: [1, 3, 5, 10, 30, 60]
+    buckets: [1, 3, 5, 10, 30, 60],
   });
 
   // Account balance metrics
   private accountBalances = new Gauge({
     name: 'account_balance_units',
     help: 'Current account balance per peer',
-    labelNames: ['peer_id', 'token_id']
+    labelNames: ['peer_id', 'token_id'],
   });
 
   // Channel metrics
   private activeChannels = new Gauge({
     name: 'payment_channels_active',
     help: 'Number of active payment channels',
-    labelNames: ['method', 'status']  // evm/xrp, open/closing/closed
+    labelNames: ['method', 'status'], // evm/xrp, open/closing/closed
   });
 
   // Error metrics
   private errors = new Counter({
     name: 'connector_errors_total',
     help: 'Total errors by type',
-    labelNames: ['type', 'severity']
+    labelNames: ['type', 'severity'],
   });
 
   // Record metrics
@@ -983,8 +987,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High packet error rate (>5%)"
-          description: "Connector {{$labels.instance}} has {{$value}}% packet error rate"
+          summary: 'High packet error rate (>5%)'
+          description: 'Connector {{$labels.instance}} has {{$value}}% packet error rate'
 
       - alert: SettlementFailures
         expr: rate(settlements_executed_total{status="failure"}[5m]) > 0
@@ -992,8 +996,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Settlement failures detected"
-          description: "Connector {{$labels.instance}} experiencing settlement failures"
+          summary: 'Settlement failures detected'
+          description: 'Connector {{$labels.instance}} experiencing settlement failures'
 
       - alert: TigerBeetleUnavailable
         expr: up{job="tigerbeetle"} == 0
@@ -1001,16 +1005,16 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "TigerBeetle database unavailable"
-          description: "TigerBeetle instance {{$labels.instance}} is down"
+          summary: 'TigerBeetle database unavailable'
+          description: 'TigerBeetle instance {{$labels.instance}} is down'
 
       - alert: ChannelDispute
         expr: payment_channels_active{status="disputed"} > 0
         labels:
           severity: high
         annotations:
-          summary: "Payment channel dispute detected"
-          description: "Channel dispute on {{$labels.method}} for {{$labels.instance}}"
+          summary: 'Payment channel dispute detected'
+          description: 'Channel dispute on {{$labels.method}} for {{$labels.instance}}'
 ```
 
 ---
@@ -1046,9 +1050,9 @@ services:
     container_name: connector
     restart: unless-stopped
     ports:
-      - "4000:4000"    # BTP port
-      - "8080:8080"    # HTTP API / Health check
-      - "9090:9090"    # Prometheus metrics
+      - '4000:4000' # BTP port
+      - '8080:8080' # HTTP API / Health check
+      - '9090:9090' # Prometheus metrics
     environment:
       - NODE_ID=${NODE_ID}
       - BTP_PORT=4000
@@ -1065,7 +1069,7 @@ services:
       tigerbeetle:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1076,11 +1080,11 @@ services:
     restart: unless-stopped
     command: start --addresses=0.0.0.0:3000
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - tigerbeetle-data:/var/lib/tigerbeetle
     healthcheck:
-      test: ["CMD", "/tigerbeetle", "version"]
+      test: ['CMD', '/tigerbeetle', 'version']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1090,7 +1094,7 @@ services:
     container_name: prometheus
     restart: unless-stopped
     ports:
-      - "9091:9090"
+      - '9091:9090'
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
@@ -1103,7 +1107,7 @@ services:
     container_name: grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
@@ -1135,27 +1139,27 @@ async function runOnboardingWizard() {
       type: 'input',
       name: 'nodeId',
       message: 'Enter your connector node ID:',
-      default: `connector-${Math.random().toString(36).substr(2, 9)}`
+      default: `connector-${Math.random().toString(36).substr(2, 9)}`,
     },
     {
       type: 'list',
       name: 'settlementPreference',
       message: 'Which settlement methods do you want to support?',
-      choices: ['EVM only (Base L2)', 'XRP only', 'Both EVM and XRP']
+      choices: ['EVM only (Base L2)', 'XRP only', 'Both EVM and XRP'],
     },
     {
       type: 'input',
       name: 'evmAddress',
       message: 'Enter your Ethereum address (for EVM settlement):',
       when: (answers) => answers.settlementPreference !== 'XRP only',
-      validate: (input) => /^0x[a-fA-F0-9]{40}$/.test(input) || 'Invalid Ethereum address'
+      validate: (input) => /^0x[a-fA-F0-9]{40}$/.test(input) || 'Invalid Ethereum address',
     },
     {
       type: 'input',
       name: 'xrpAddress',
       message: 'Enter your XRP Ledger address (for XRP settlement):',
       when: (answers) => answers.settlementPreference !== 'EVM only (Base L2)',
-      validate: (input) => /^r[a-zA-Z0-9]{24,34}$/.test(input) || 'Invalid XRP address'
+      validate: (input) => /^r[a-zA-Z0-9]{24,34}$/.test(input) || 'Invalid XRP address',
     },
     {
       type: 'list',
@@ -1165,15 +1169,15 @@ async function runOnboardingWizard() {
         'Environment variables (development only)',
         'AWS KMS (recommended for production)',
         'GCP KMS',
-        'Azure Key Vault'
-      ]
+        'Azure Key Vault',
+      ],
     },
     {
       type: 'confirm',
       name: 'enableMonitoring',
       message: 'Enable Prometheus/Grafana monitoring?',
-      default: true
-    }
+      default: true,
+    },
   ]);
 
   // Generate .env file
@@ -1405,6 +1409,7 @@ so that I can successfully run a production connector node.
 ### Documentation Structure
 
 **`docs/operators/production-deployment-guide.md`:**
+
 1. System Requirements
    - Hardware: CPU, RAM, disk, network
    - Software: Docker, Docker Compose, OS compatibility
@@ -1438,21 +1443,25 @@ so that I can successfully run a production connector node.
    - Settlement failure diagnosis
 
 **`docs/operators/incident-response-runbook.md`:**
+
 ```markdown
 # Incident Response Runbook
 
 ## High Packet Error Rate
 
 **Symptoms:**
+
 - Alert: `HighPacketErrorRate` triggered
 - Prometheus metric: `ilp_packets_processed_total{status="error"}` > 5%
 
 **Diagnosis:**
+
 1. Check connector logs: `docker logs connector | grep ERROR`
 2. Identify error patterns: routing failures, peer timeouts, encoding errors
 3. Check peer connectivity: `curl http://peer-address:4000/health`
 
 **Resolution:**
+
 1. If specific peer causing errors: pause peer temporarily
 2. If routing table corrupted: restart connector
 3. If OER encoding errors: verify packet format with test suite
@@ -1460,10 +1469,12 @@ so that I can successfully run a production connector node.
 ## Settlement Failures
 
 **Symptoms:**
+
 - Alert: `SettlementFailures` triggered
 - Prometheus metric: `settlements_executed_total{status="failure"}` > 0
 
 **Diagnosis:**
+
 1. Check settlement logs: `docker logs connector | grep "settlement"`
 2. Verify blockchain connectivity:
    - EVM: `curl $BASE_RPC_URL -X POST -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'`
@@ -1471,6 +1482,7 @@ so that I can successfully run a production connector node.
 3. Check channel state: query on-chain channel status
 
 **Resolution:**
+
 1. If RPC endpoint down: switch to backup RPC URL
 2. If insufficient gas/XRP: fund settlement account
 3. If channel dispute: submit latest claim during settlement delay
@@ -1479,15 +1491,18 @@ so that I can successfully run a production connector node.
 ## TigerBeetle Unavailable
 
 **Symptoms:**
+
 - Alert: `TigerBeetleUnavailable` triggered
 - Connector unable to record transfers
 
 **Diagnosis:**
+
 1. Check TigerBeetle status: `docker ps | grep tigerbeetle`
 2. Check TigerBeetle logs: `docker logs tigerbeetle`
 3. Verify disk space: `df -h`
 
 **Resolution:**
+
 1. If container stopped: `docker-compose restart tigerbeetle`
 2. If disk full: clean up old logs, expand volume
 3. If data corruption: restore from backup
@@ -1588,7 +1603,7 @@ describe('Production Acceptance Tests', () => {
 
   describe('Epic 12: Production Hardening', () => {
     it('should sustain 10,000 TPS for 24 hours', async () => {
-      const duration = 24 * 60 * 60 * 1000;  // 24 hours
+      const duration = 24 * 60 * 60 * 1000; // 24 hours
       const startTime = Date.now();
       let totalPackets = 0;
 
@@ -1685,9 +1700,11 @@ describe('Production Acceptance Tests', () => {
 ## Dependencies and Integration Points
 
 **Depends On:**
+
 - **All Previous Epics (1-9):** This epic integrates and hardens all functionality
 
 **Final Deliverable:**
+
 - Production-ready M2M economy platform
 - Multi-chain settlement (Base L2 + XRP Ledger)
 - Enterprise-grade security and reliability

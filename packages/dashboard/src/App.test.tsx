@@ -18,8 +18,9 @@ describe('App', () => {
     expect(screen.getByText(/v0\.1\.0/)).toBeInTheDocument();
   });
 
-  it('displays welcome message on home page', () => {
+  it('displays dashboard layout', () => {
     render(<App />);
-    expect(screen.getByText(/Welcome to ILP Network Visualizer/i)).toBeInTheDocument();
+    // Verify main dashboard components render
+    expect(screen.getByText('ILP Network Visualizer')).toBeInTheDocument();
   });
 });

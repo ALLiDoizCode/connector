@@ -8,7 +8,7 @@
  */
 
 import WebSocket from 'ws';
-import { ILPPreparePacket, RoutingTableEntry } from '@m2m/shared';
+import { ILPPreparePacket, RoutingTableEntry, TelemetryEvent } from '@m2m/shared';
 import { Logger } from '../utils/logger';
 import {
   TelemetryMessage,
@@ -266,6 +266,57 @@ export class TelemetryEmitter {
     };
 
     this._sendTelemetry(message);
+  }
+
+  /**
+   * Emit settlement telemetry event (Story 6.8)
+   * @param event - Settlement telemetry event (ACCOUNT_BALANCE, SETTLEMENT_TRIGGERED, SETTLEMENT_COMPLETED)
+   * @remarks
+   * Non-blocking: Errors are logged but never thrown.
+   * Supports new shared telemetry event types from @m2m/shared package.
+   * All bigint fields must be pre-converted to strings by caller.
+   * Called by AccountManager, SettlementMonitor, and SettlementAPI.
+   *
+   * @example
+   * ```typescript
+   * telemetryEmitter.emit({
+   *   type: 'ACCOUNT_BALANCE',
+   *   nodeId: 'connector-a',
+   *   peerId: 'peer-b',
+   *   tokenId: 'ILP',
+   *   debitBalance: '0',
+   *   creditBalance: '1000',
+   *   netBalance: '-1000',
+   *   creditLimit: '10000',
+   *   settlementThreshold: '5000',
+   *   settlementState: SettlementState.IDLE,
+   *   timestamp: new Date().toISOString()
+   * });
+   * ```
+   */
+  emit(event: TelemetryEvent): void {
+    if (!this._connected || !this._ws) {
+      this._logger.debug(
+        { event: 'telemetry_not_connected', eventType: event.type },
+        'Telemetry not connected, skipping settlement event emission'
+      );
+      return;
+    }
+
+    try {
+      const json = JSON.stringify(event);
+      this._ws.send(json);
+      this._logger.debug(
+        { event: 'settlement_telemetry_sent', eventType: event.type },
+        'Settlement telemetry event sent'
+      );
+    } catch (error) {
+      this._logger.warn(
+        { event: 'settlement_telemetry_send_failed', eventType: event.type, error },
+        'Failed to send settlement telemetry event'
+      );
+      // Do NOT throw - this is non-blocking (Story 6.8 requirement)
+    }
   }
 
   /**

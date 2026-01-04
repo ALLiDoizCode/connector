@@ -18,6 +18,9 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPServer } from '../btp/btp-server';
 import { BTPConnectionError, BTPAuthenticationError } from '../btp/btp-client';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
+import { AccountManager } from '../settlement/account-manager';
+import { SettlementConfig } from '../config/types';
+import { AccountLedgerCodes } from '../settlement/types';
 
 /**
  * Packet validation result
@@ -85,6 +88,22 @@ export class PacketHandler {
   private readonly telemetryEmitter: TelemetryEmitter | null;
 
   /**
+   * Account manager for settlement recording (optional)
+   * @remarks
+   * When provided, enables settlement recording for packet forwarding.
+   * Null if settlement is disabled (backward compatibility).
+   */
+  private readonly accountManager: AccountManager | null;
+
+  /**
+   * Settlement configuration (optional)
+   * @remarks
+   * Contains connector fee percentage and TigerBeetle connection settings.
+   * Null if settlement is disabled.
+   */
+  private readonly settlementConfig: SettlementConfig | null;
+
+  /**
    * Creates a new PacketHandler instance
    * @param routingTable - Routing table for next-hop lookups
    * @param btpClientManager - BTP client manager for forwarding packets to outbound peers
@@ -92,6 +111,8 @@ export class PacketHandler {
    * @param logger - Pino logger instance for structured logging
    * @param telemetryEmitter - Optional telemetry emitter for dashboard reporting
    * @param btpServer - Optional BTP server for forwarding to incoming authenticated peers
+   * @param accountManager - Optional account manager for settlement recording (Story 6.4)
+   * @param settlementConfig - Optional settlement configuration for fee calculation and TigerBeetle
    */
   constructor(
     routingTable: RoutingTable,
@@ -99,7 +120,9 @@ export class PacketHandler {
     nodeId: string,
     logger: Logger,
     telemetryEmitter: TelemetryEmitter | null = null,
-    btpServer: BTPServer | null = null
+    btpServer: BTPServer | null = null,
+    accountManager: AccountManager | null = null,
+    settlementConfig: SettlementConfig | null = null
   ) {
     this.routingTable = routingTable;
     this.btpClientManager = btpClientManager;
@@ -107,6 +130,21 @@ export class PacketHandler {
     this.nodeId = nodeId;
     this.logger = logger;
     this.telemetryEmitter = telemetryEmitter;
+    this.accountManager = accountManager;
+    this.settlementConfig = settlementConfig;
+
+    // Log settlement enabled/disabled state
+    if (this.isSettlementEnabled()) {
+      this.logger.info(
+        {
+          connectorFeePercentage: settlementConfig?.connectorFeePercentage,
+          tigerBeetleClusterId: settlementConfig?.tigerBeetleClusterId,
+        },
+        'Settlement recording enabled'
+      );
+    } else {
+      this.logger.info('Settlement recording disabled');
+    }
   }
 
   /**
@@ -115,6 +153,188 @@ export class PacketHandler {
    */
   setBTPServer(btpServer: BTPServer): void {
     this.btpServer = btpServer;
+  }
+
+  /**
+   * Check if settlement recording is enabled
+   * @returns True if settlement recording is enabled, false otherwise
+   * @remarks
+   * Settlement is enabled when BOTH conditions are met:
+   * 1. AccountManager is provided (not null)
+   * 2. SettlementConfig.enableSettlement is true
+   *
+   * This method is used throughout packet handling to determine if
+   * settlement transfers should be recorded in TigerBeetle.
+   */
+  private isSettlementEnabled(): boolean {
+    return this.accountManager !== null && this.settlementConfig?.enableSettlement === true;
+  }
+
+  /**
+   * Generate deterministic transfer ID from packet execution condition and direction
+   *
+   * TigerBeetle requires unique 128-bit transfer IDs. We derive them from the packet's
+   * execution condition (32 bytes) combined with a direction indicator to ensure:
+   * 1. Uniqueness: execution condition is cryptographically unique (SHA-256 hash)
+   * 2. Determinism: same packet+direction always generates same transfer ID
+   * 3. Idempotency: safe to retry transfer creation
+   *
+   * @param executionCondition - Packet's 32-byte execution condition
+   * @param direction - 'incoming' or 'outgoing' to differentiate the two transfers
+   * @returns 128-bit transfer ID as bigint
+   * @private
+   */
+  private generateTransferId(
+    executionCondition: Buffer,
+    direction: 'incoming' | 'outgoing'
+  ): bigint {
+    // Use first 16 bytes of execution condition for base ID
+    // XOR with direction byte to differentiate incoming vs outgoing
+    const directionByte = direction === 'incoming' ? 0x01 : 0x02;
+
+    // Read first 16 bytes as two 64-bit values
+    const high = executionCondition.readBigUInt64BE(0);
+    const low = executionCondition.readBigUInt64BE(8);
+
+    // Combine into 128-bit value and XOR direction into lowest byte
+    const transferId = (high << 64n) | low;
+    return transferId ^ BigInt(directionByte);
+  }
+
+  /**
+   * Calculate connector fee for a packet amount
+   * @param amount - Packet amount in smallest currency units (bigint)
+   * @param feePercentage - Fee percentage (e.g., 0.1 = 0.1%)
+   * @returns Fee amount in smallest currency units (bigint)
+   * @remarks
+   * Uses integer arithmetic to avoid floating-point precision issues.
+   *
+   * Fee calculation uses basis points conversion:
+   * - 0.1% = 10 basis points = 10/10000
+   * - Formula: fee = (amount × (feePercentage × 100)) / 10000
+   *
+   * Examples:
+   * - amount=1000n, feePercentage=0.1 → fee=1n (0.1% of 1000)
+   * - amount=100000n, feePercentage=0.1 → fee=100n (0.1% of 100000)
+   * - amount=999n, feePercentage=0.1 → fee=0n (rounds down)
+   *
+   * Integer division rounds DOWN (floor division), which is acceptable:
+   * connectors don't charge fees on very small packets (benefits micropayments).
+   *
+   * @throws {Error} if amount is negative or feePercentage is negative
+   */
+  private calculateConnectorFee(amount: bigint, feePercentage: number): bigint {
+    // Input validation
+    if (amount < 0n) {
+      throw new Error(`Invalid amount: ${amount} (must be >= 0)`);
+    }
+    if (feePercentage < 0) {
+      throw new Error(`Invalid fee percentage: ${feePercentage} (must be >= 0)`);
+    }
+
+    // Convert percentage to basis points (0.1% = 10 basis points)
+    const basisPoints = Math.floor(feePercentage * 100);
+
+    // Calculate fee using integer arithmetic: fee = (amount × basisPoints) / 10000
+    const fee = (amount * BigInt(basisPoints)) / 10000n;
+
+    return fee;
+  }
+
+  /**
+   * Record packet transfers atomically in TigerBeetle (dual-leg double-entry)
+   * @param packet - ILP Prepare packet being forwarded
+   * @param fromPeerId - Peer ID who sent us the packet
+   * @param toPeerId - Peer ID we're forwarding to
+   * @param forwardedAmount - Amount forwarded after fee deduction
+   * @param connectorFee - Connector fee collected
+   * @param correlationId - Correlation ID for log tracing
+   * @throws {Error} if settlement recording fails
+   * @remarks
+   * Records TWO transfers atomically in TigerBeetle:
+   * 1. Incoming transfer: Debit peer's CREDIT account (peer owes us)
+   * 2. Outgoing transfer: Credit peer's DEBIT account (we owe peer)
+   *
+   * Both transfers succeed or both fail (ACID guarantee via TigerBeetle batch API).
+   * If settlement fails, packet forwarding is rejected with T00_INTERNAL_ERROR.
+   *
+   * Transfer IDs are deterministically generated from execution condition to enable
+   * idempotent retries.
+   */
+  private async recordPacketTransfers(
+    packet: ILPPreparePacket,
+    fromPeerId: string,
+    toPeerId: string,
+    forwardedAmount: bigint,
+    connectorFee: bigint,
+    correlationId: string
+  ): Promise<void> {
+    if (!this.isSettlementEnabled()) {
+      return;
+    }
+
+    const packetId = packet.executionCondition.toString('hex');
+
+    this.logger.debug(
+      {
+        correlationId,
+        packetId,
+        fromPeerId,
+        toPeerId,
+        originalAmount: packet.amount.toString(),
+        forwardedAmount: forwardedAmount.toString(),
+        connectorFee: connectorFee.toString(),
+      },
+      'Processing settlement for packet'
+    );
+
+    try {
+      // Generate deterministic transfer IDs for incoming and outgoing transfers
+      const incomingTransferId = this.generateTransferId(packet.executionCondition, 'incoming');
+      const outgoingTransferId = this.generateTransferId(packet.executionCondition, 'outgoing');
+
+      // Record both transfers atomically via AccountManager
+      // This posts two TigerBeetle transfers in a single batch:
+      // 1. Incoming: Debit fromPeer's DEBIT account (increase "peer owes us")
+      // 2. Outgoing: Credit toPeer's CREDIT account (increase "we owe peer")
+      await this.accountManager!.recordPacketTransfers(
+        fromPeerId,
+        toPeerId,
+        'ILP', // tokenId (default for MVP, future: multi-token support)
+        packet.amount, // incoming amount
+        forwardedAmount, // outgoing amount (after fee)
+        incomingTransferId,
+        outgoingTransferId,
+        AccountLedgerCodes.DEFAULT_LEDGER,
+        1 // transfer code (future: differentiate packet types)
+      );
+
+      // Log settlement success
+      this.logger.info(
+        {
+          correlationId,
+          packetId,
+          fromPeerId,
+          toPeerId,
+          originalAmount: packet.amount.toString(),
+          forwardedAmount: forwardedAmount.toString(),
+          connectorFee: connectorFee.toString(),
+        },
+        'Settlement transfers recorded: incoming={originalAmount} from {fromPeerId}, outgoing={forwardedAmount} to {toPeerId}, fee={connectorFee}'
+      );
+    } catch (error) {
+      this.logger.error(
+        {
+          correlationId,
+          error: error instanceof Error ? error.message : String(error),
+          packetId,
+          fromPeerId,
+          toPeerId,
+        },
+        'Settlement recording failed: {error}, rejecting packet with T00_INTERNAL_ERROR'
+      );
+      throw error;
+    }
   }
 
   /**
@@ -575,11 +795,111 @@ export class PacketHandler {
       );
     }
 
-    // Create forwarding packet with decremented expiry
-    const forwardingPacket: ILPPreparePacket = {
-      ...packet,
-      expiresAt: newExpiry,
-    };
+    // SETTLEMENT RECORDING (Story 6.4) - Calculate connector fee and record transfers
+    let forwardingPacket: ILPPreparePacket;
+
+    if (this.isSettlementEnabled()) {
+      // Calculate connector fee
+      const connectorFee = this.calculateConnectorFee(
+        packet.amount,
+        this.settlementConfig?.connectorFeePercentage ?? 0.1
+      );
+      const forwardedAmount = packet.amount - connectorFee;
+
+      this.logger.debug(
+        {
+          correlationId,
+          originalAmount: packet.amount.toString(),
+          connectorFee: connectorFee.toString(),
+          forwardedAmount: forwardedAmount.toString(),
+          feePercentage: this.settlementConfig?.connectorFeePercentage,
+        },
+        'Calculated connector fee'
+      );
+
+      // CREDIT LIMIT CHECK (Story 6.5) - Check if incoming transfer would exceed credit limit
+      // Check BEFORE settlement recording (fail-safe design)
+      const fromPeerId = 'unknown'; // TODO: Pass actual incoming peer ID in future enhancement
+      const tokenId = 'ILP'; // Default token for MVP (multi-token in Epic 7)
+
+      const creditLimitViolation = await this.accountManager!.checkCreditLimit(
+        fromPeerId,
+        tokenId,
+        packet.amount
+      );
+
+      if (creditLimitViolation) {
+        // Credit limit would be exceeded - reject packet with T04_INSUFFICIENT_LIQUIDITY
+        this.logger.warn(
+          {
+            correlationId,
+            packetType: 'REJECT',
+            destination: packet.destination,
+            errorCode: ILPErrorCode.T04_INSUFFICIENT_LIQUIDITY,
+            fromPeerId: creditLimitViolation.peerId,
+            currentBalance: creditLimitViolation.currentBalance.toString(),
+            requestedAmount: creditLimitViolation.requestedAmount.toString(),
+            creditLimit: creditLimitViolation.creditLimit.toString(),
+            wouldExceedBy: creditLimitViolation.wouldExceedBy.toString(),
+            reason: 'Credit limit exceeded',
+            timestamp: Date.now(),
+          },
+          'Packet rejected: credit limit exceeded'
+        );
+
+        return this.generateReject(
+          ILPErrorCode.T04_INSUFFICIENT_LIQUIDITY,
+          `Credit limit exceeded: peer ${fromPeerId} would owe ${creditLimitViolation.wouldExceedBy} units over limit of ${creditLimitViolation.creditLimit}`,
+          this.nodeId
+        );
+      }
+
+      // Record settlement transfers atomically BEFORE forwarding packet
+      // NOTE: fromPeerId is 'unknown' for MVP - will be enhanced in future story
+      // to pass actual peer context through handlePreparePacket signature
+      try {
+        await this.recordPacketTransfers(
+          packet,
+          'unknown', // TODO: Pass actual incoming peer ID in future enhancement
+          nextHop,
+          forwardedAmount,
+          connectorFee,
+          correlationId
+        );
+      } catch (error) {
+        // Settlement recording failed - reject packet with T00_INTERNAL_ERROR
+        this.logger.error(
+          {
+            correlationId,
+            packetType: 'REJECT',
+            destination: packet.destination,
+            errorCode: ILPErrorCode.T00_INTERNAL_ERROR,
+            error: error instanceof Error ? error.message : String(error),
+            reason: 'Settlement recording failed',
+            timestamp: Date.now(),
+          },
+          'Packet rejected due to settlement failure'
+        );
+        return this.generateReject(
+          ILPErrorCode.T00_INTERNAL_ERROR,
+          'Settlement recording failed',
+          this.nodeId
+        );
+      }
+
+      // Create forwarding packet with decremented expiry AND reduced amount (after fee)
+      forwardingPacket = {
+        ...packet,
+        expiresAt: newExpiry,
+        amount: forwardedAmount,
+      };
+    } else {
+      // Settlement disabled - forward original amount
+      forwardingPacket = {
+        ...packet,
+        expiresAt: newExpiry,
+      };
+    }
 
     // Forward to next hop via BTP and return response
     const response = await this.forwardToNextHop(forwardingPacket, nextHop, correlationId);

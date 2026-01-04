@@ -98,10 +98,7 @@ function cleanupDockerCompose(composeFile: string): void {
 /**
  * Wait for all containers to be healthy
  */
-async function waitForHealthy(
-  composeFile: string,
-  timeoutMs: number = 60000
-): Promise<void> {
+async function waitForHealthy(composeFile: string, timeoutMs: number = 60000): Promise<void> {
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeoutMs) {
@@ -192,10 +189,12 @@ function cleanupTestEnvFile(): void {
   }
 }
 
-// Skip all tests if Docker or Docker Compose are not available
+// Skip all tests if Docker or Docker Compose are not available or E2E not enabled
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('Production Deployment', () => {
   // Build image before all tests
@@ -225,7 +224,9 @@ describeIfDockerCompose('Production Deployment', () => {
       createTestEnvFile();
 
       // Act: Start production docker-compose
-      executeCommand(`docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`);
+      executeCommand(
+        `docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`
+      );
 
       // Wait for container to be healthy
       await waitForHealthy(PRODUCTION_COMPOSE_FILE, 60000);
@@ -251,7 +252,9 @@ describeIfDockerCompose('Production Deployment', () => {
     it('should verify health endpoint responds correctly', async () => {
       // Arrange: Create test .env file and start deployment
       createTestEnvFile();
-      executeCommand(`docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`);
+      executeCommand(
+        `docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`
+      );
       await waitForHealthy(PRODUCTION_COMPOSE_FILE, 60000);
 
       // Wait for health check to stabilize
@@ -271,7 +274,9 @@ describeIfDockerCompose('Production Deployment', () => {
     it('should verify logs are JSON format at INFO level', async () => {
       // Arrange: Create test .env file and start deployment
       createTestEnvFile();
-      executeCommand(`docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`);
+      executeCommand(
+        `docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`
+      );
       await waitForHealthy(PRODUCTION_COMPOSE_FILE, 60000);
 
       // Wait for startup logs
@@ -295,7 +300,9 @@ describeIfDockerCompose('Production Deployment', () => {
     it('should verify container runs as non-root user', async () => {
       // Arrange: Create test .env file and start deployment
       createTestEnvFile();
-      executeCommand(`docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`);
+      executeCommand(
+        `docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`
+      );
       await waitForHealthy(PRODUCTION_COMPOSE_FILE, 60000);
 
       // Act: Check user ID inside container
@@ -313,7 +320,9 @@ describeIfDockerCompose('Production Deployment', () => {
     it('should verify restart policy is configured', async () => {
       // Arrange: Create test .env file and start deployment
       createTestEnvFile();
-      executeCommand(`docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`);
+      executeCommand(
+        `docker-compose -f ${PRODUCTION_COMPOSE_FILE} --env-file ${TEST_ENV_FILE} up -d`
+      );
       await waitForHealthy(PRODUCTION_COMPOSE_FILE, 60000);
 
       // Act: Inspect restart policy

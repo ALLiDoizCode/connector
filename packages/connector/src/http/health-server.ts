@@ -6,10 +6,26 @@
  * Compliant with Docker HEALTHCHECK and external monitoring tool requirements.
  */
 
-import express, { Express, Request, Response } from 'express';
+import express, { Express, Request, Response, Router } from 'express';
 import { Server } from 'http';
 import { Logger } from '../utils/logger';
 import { HealthStatus, HealthStatusProvider } from './types';
+
+/**
+ * Health Server Configuration
+ *
+ * Optional configuration for additional routers to mount on the health server.
+ *
+ * @property settlementRouter - Optional settlement API router (Story 6.7)
+ */
+export interface HealthServerConfig {
+  /**
+   * Optional settlement API router
+   * If provided, mounts settlement endpoints on the health server
+   * Enables settlement API to share port with health check endpoint
+   */
+  settlementRouter?: Router;
+}
 
 /**
  * Health check HTTP server using Express
@@ -17,11 +33,28 @@ import { HealthStatus, HealthStatusProvider } from './types';
  * Provides GET /health endpoint returning connector operational status.
  * Returns 200 OK when healthy, 503 Service Unavailable when unhealthy/starting.
  *
+ * **Settlement API Integration (Story 6.7):**
+ * - Accepts optional settlement router in configuration
+ * - Mounts settlement router on same Express app (shares port)
+ * - Settlement API endpoints: POST /settlement/execute, GET /settlement/status/:peerId
+ *
  * @example
  * ```typescript
  * const healthServer = new HealthServer(logger, connectorNode);
  * await healthServer.start(8080);
  * // Server now responding to GET http://localhost:8080/health
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // With settlement API
+ * const settlementRouter = createSettlementRouter(settlementAPIConfig);
+ * const healthServer = new HealthServer(logger, connectorNode, { settlementRouter });
+ * await healthServer.start(8080);
+ * // Server now responding to:
+ * // GET http://localhost:8080/health
+ * // POST http://localhost:8080/settlement/execute
+ * // GET http://localhost:8080/settlement/status/:peerId
  * ```
  *
  * @remarks
@@ -40,14 +73,25 @@ export class HealthServer {
    * Create health check server instance
    * @param logger - Pino logger instance for structured logging
    * @param healthStatusProvider - Component providing current health status (typically ConnectorNode)
+   * @param config - Optional configuration (e.g., settlement router)
    */
-  constructor(logger: Logger, healthStatusProvider: HealthStatusProvider) {
+  constructor(
+    logger: Logger,
+    healthStatusProvider: HealthStatusProvider,
+    config?: HealthServerConfig
+  ) {
     this._logger = logger.child({ component: 'HealthServer' });
     this._healthStatusProvider = healthStatusProvider;
     this._app = express();
 
     // Configure health check endpoint
     this._setupRoutes();
+
+    // Mount settlement router if provided
+    if (config?.settlementRouter) {
+      this._app.use(config.settlementRouter);
+      this._logger.info('Settlement API mounted on health server');
+    }
   }
 
   /**

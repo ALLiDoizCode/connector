@@ -172,9 +172,12 @@ function buildDashboardImage(): void {
 }
 
 // Skip all tests if Docker or Docker Compose are not available
+// Also skip by default unless E2E_TESTS environment variable is set
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('Mesh Topology Deployment', () => {
   // Build images before all tests
@@ -343,7 +346,7 @@ describeIfDockerCompose('Mesh Topology Deployment', () => {
 });
 
 // If Docker or Docker Compose are not available, provide helpful message
-if (!dockerAvailable || !composeAvailable) {
+if (!dockerAvailable || !composeAvailable || !e2eEnabled) {
   console.log('\n⚠️  Mesh Topology integration tests skipped');
 
   if (!dockerAvailable) {
@@ -356,10 +359,14 @@ if (!dockerAvailable || !composeAvailable) {
     console.log('   Install Docker Compose: https://docs.docker.com/compose/install/');
   }
 
+  if (!e2eEnabled) {
+    console.log('   E2E tests not enabled (set E2E_TESTS=true to run)');
+  }
+
   console.log('\nTo run these tests:');
   console.log('  1. Install Docker and Docker Compose');
   console.log('  2. Start Docker daemon');
   console.log(
-    '  3. Run: npm test --workspace=packages/connector -- mesh-topology-deployment.test.ts\n'
+    '  3. Run: E2E_TESTS=true npm test --workspace=packages/connector -- mesh-topology-deployment.test.ts\n'
   );
 }

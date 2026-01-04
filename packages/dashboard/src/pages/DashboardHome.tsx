@@ -10,6 +10,9 @@ import { PacketAnimation } from '../components/PacketAnimation';
 import { PacketDetailPanel } from '../components/PacketDetailPanel';
 import { NodeStatusPanel } from '../components/NodeStatusPanel';
 import { LogViewer } from '../components/LogViewer';
+import { SettlementStatusPanel } from '../components/SettlementStatusPanel';
+import { SettlementTimeline } from '../components/SettlementTimeline';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/toaster';
 import Cytoscape from 'cytoscape';
 
@@ -58,80 +61,106 @@ function DashboardHome(): JSX.Element {
         </div>
       </div>
 
-      {/* Node status legend */}
-      <div className="mb-4 flex items-center gap-6 text-sm">
-        <span className="text-gray-400">Node Status:</span>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-gray-300">Healthy</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-          <span className="text-gray-300">Starting</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <span className="text-gray-300">Unhealthy</span>
-        </div>
-      </div>
+      {/* Main Tabs: Network View vs Settlement View */}
+      <Tabs defaultValue="network" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="network">Network</TabsTrigger>
+          <TabsTrigger value="settlement">Settlement</TabsTrigger>
+        </TabsList>
 
-      {/* Split Layout: Network Graph (top) + Log Viewer (bottom) */}
-      <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 250px)' }}>
-        {/* Network graph visualization - 60% height */}
-        <div className="bg-gray-800 rounded-lg p-4" style={{ height: '60%' }}>
-          {graphData.nodes.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              <div className="text-center">
-                <p className="text-lg mb-2">No nodes detected</p>
-                <p className="text-sm">
-                  {connected
-                    ? 'Waiting for NODE_STATUS telemetry events...'
-                    : 'Telemetry server not connected'}
-                </p>
-              </div>
+        {/* Network Tab Content */}
+        <TabsContent value="network" className="mt-0">
+          {/* Node status legend */}
+          <div className="mb-4 flex items-center gap-6 text-sm">
+            <span className="text-gray-400">Node Status:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span className="text-gray-300">Healthy</span>
             </div>
-          ) : (
-            <>
-              <NetworkGraph
-                graphData={graphData}
-                onCyReady={setCyInstance}
-                onNodeClick={selectNode}
-              />
-              <PacketAnimation
-                activePackets={activePackets}
-                cyInstance={cyInstance}
-                onPacketClick={selectPacket}
-              />
-            </>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+              <span className="text-gray-300">Starting</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <span className="text-gray-300">Unhealthy</span>
+            </div>
+          </div>
 
-        {/* Log Viewer - 40% height */}
-        <div style={{ height: '40%' }}>
-          <LogViewer
-            logEntries={filteredEntries}
-            allLogEntries={logEntries}
-            autoScroll={autoScroll}
-            onAutoScrollChange={toggleAutoScroll}
-            levelFilter={levelFilter}
-            toggleLevelFilter={toggleLevelFilter}
-            nodeFilter={nodeFilter}
-            toggleNodeFilter={toggleNodeFilter}
-            searchText={searchText}
-            setSearchText={setSearchText}
-            clearFilters={clearFilters}
-          />
-        </div>
-      </div>
+          {/* Split Layout: Network Graph (top) + Log Viewer (bottom) */}
+          <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 300px)' }}>
+            {/* Network graph visualization - 60% height */}
+            <div className="bg-gray-800 rounded-lg p-4" style={{ height: '60%' }}>
+              {graphData.nodes.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-400">
+                  <div className="text-center">
+                    <p className="text-lg mb-2">No nodes detected</p>
+                    <p className="text-sm">
+                      {connected
+                        ? 'Waiting for NODE_STATUS telemetry events...'
+                        : 'Telemetry server not connected'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <NetworkGraph
+                    graphData={graphData}
+                    onCyReady={setCyInstance}
+                    onNodeClick={selectNode}
+                  />
+                  <PacketAnimation
+                    activePackets={activePackets}
+                    cyInstance={cyInstance}
+                    onPacketClick={selectPacket}
+                  />
+                </>
+              )}
+            </div>
 
-      {/* Graph interaction instructions */}
-      <div className="mt-4 text-sm text-gray-400">
-        <p>
-          <strong>Interactions:</strong> Scroll to zoom, drag background to pan, drag nodes to
-          reposition, double-click background to reset layout, click packets to inspect details,
-          click nodes to view status
-        </p>
-      </div>
+            {/* Log Viewer - 40% height */}
+            <div style={{ height: '40%' }}>
+              <LogViewer
+                logEntries={filteredEntries}
+                allLogEntries={logEntries}
+                autoScroll={autoScroll}
+                onAutoScrollChange={toggleAutoScroll}
+                levelFilter={levelFilter}
+                toggleLevelFilter={toggleLevelFilter}
+                nodeFilter={nodeFilter}
+                toggleNodeFilter={toggleNodeFilter}
+                searchText={searchText}
+                setSearchText={setSearchText}
+                clearFilters={clearFilters}
+              />
+            </div>
+          </div>
+
+          {/* Graph interaction instructions */}
+          <div className="mt-4 text-sm text-gray-400">
+            <p>
+              <strong>Interactions:</strong> Scroll to zoom, drag background to pan, drag nodes to
+              reposition, double-click background to reset layout, click packets to inspect details,
+              click nodes to view status
+            </p>
+          </div>
+        </TabsContent>
+
+        {/* Settlement Tab Content */}
+        <TabsContent value="settlement" className="mt-0">
+          <div className="flex flex-col gap-6" style={{ height: 'calc(100vh - 300px)' }}>
+            {/* Settlement Status Panel */}
+            <div>
+              <SettlementStatusPanel events={events} connected={connected} />
+            </div>
+
+            {/* Settlement Timeline */}
+            <div>
+              <SettlementTimeline events={events} connected={connected} />
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Packet Detail Panel */}
       <PacketDetailPanel

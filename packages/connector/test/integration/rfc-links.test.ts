@@ -25,7 +25,11 @@
  * Note: This test requires network connectivity to interledger.org
  */
 
-describe('RFC Links Verification', () => {
+// Skip RFC link tests unless explicitly enabled via RFC_LINKS_TEST=true
+// These tests require network connectivity and can be flaky in CI
+const describeIfRFCLinksEnabled = process.env.RFC_LINKS_TEST === 'true' ? describe : describe.skip;
+
+describeIfRFCLinksEnabled('RFC Links Verification', () => {
   // Set timeout for network requests (30 seconds per test)
   beforeAll(() => {
     jest.setTimeout(30000);

@@ -1106,6 +1106,241 @@ docker inspect connector-a | jq '.[0].State.Health'
    - **Solution**: Wait for 40-second start period to complete
    - **Solution**: Increase `start_period` in healthcheck configuration if needed
 
+### TigerBeetle Accounting Database
+
+**New in v0.1.0+**: TigerBeetle is deployed as a containerized service for settlement layer accounting (Epic 6: Settlement Foundation).
+
+#### What is TigerBeetle?
+
+TigerBeetle is a high-performance distributed accounting database that provides:
+
+- **Double-Entry Bookkeeping**: ACID-compliant accounting for settlement balances
+- **High Performance**: Millions of transactions per second with microsecond latency
+- **Distributed Consensus**: Multi-replica clusters with quorum-based replication
+- **Immutable Audit Trail**: Complete transaction history for regulatory compliance
+
+**Role in M2M System:**
+
+TigerBeetle tracks settlement balances between ILP connector peers, enabling cryptocurrency payment channel settlement. When connectors forward ILP packets, TigerBeetle records balance changes, triggering settlement when thresholds are reached.
+
+```
+ILP Connectors (Packet Forwarding)
+        ↓
+TigerBeetle (Settlement Accounting)
+        ↓
+Payment Channels (Blockchain Settlement)
+```
+
+#### Quick Start
+
+TigerBeetle starts automatically with `docker-compose up`:
+
+```bash
+# Start all services (TigerBeetle + connectors + dashboard)
+docker-compose up -d
+
+# Check TigerBeetle status
+docker-compose ps tigerbeetle
+
+# Expected output:
+# NAME         STATUS                  PORTS
+# tigerbeetle  Up 30 seconds (healthy)
+
+# View TigerBeetle logs
+docker-compose logs -f tigerbeetle
+```
+
+#### Service Configuration
+
+| Property            | Value                                    | Description                                  |
+| ------------------- | ---------------------------------------- | -------------------------------------------- |
+| **Container Name**  | `tigerbeetle`                            | Docker container identifier                  |
+| **Image**           | `ghcr.io/tigerbeetle/tigerbeetle:latest` | Official TigerBeetle image from GitHub       |
+| **Port (Internal)** | `3000`                                   | Client connection port (Docker network only) |
+| **Data Volume**     | `tigerbeetle-data`                       | Named volume for persistent cluster data     |
+| **Cluster ID**      | `0` (default)                            | Unique cluster identifier (immutable)        |
+| **Replica Count**   | `1` (development)                        | Single-node for development                  |
+
+**Important:** TigerBeetle port 3000 is **internal-only** (not exposed to host) for security. Connectors access TigerBeetle via Docker network hostname: `tigerbeetle:3000`
+
+#### Connection Details
+
+Connectors connect to TigerBeetle using the internal Docker network:
+
+```bash
+# Connection string from connector containers
+tigerbeetle:3000
+```
+
+**Client Library Integration:** Covered in Story 6.2 (TigerBeetle client library for TypeScript)
+
+**Account Management:** Covered in Story 6.3 (peer account creation and balance tracking)
+
+#### Monitoring TigerBeetle
+
+**Check Health Status:**
+
+```bash
+# Docker health check status
+docker inspect tigerbeetle --format '{{.State.Health.Status}}'
+# Expected: healthy
+
+# Container status
+docker-compose ps tigerbeetle
+
+# View logs
+docker-compose logs -f tigerbeetle
+```
+
+**Health Check Method:**
+
+TigerBeetle uses TCP socket check (no HTTP endpoint available):
+
+```bash
+# Manual TCP connectivity test from connector
+docker exec connector-a nc -zv tigerbeetle 3000
+# Expected: tigerbeetle (172.x.x.x:3000) open
+```
+
+**What to Monitor:**
+
+- **Health Status**: Should be "healthy" after ~30 seconds
+- **Startup Logs**: Cluster initialization on first run
+- **Error Logs**: Connection failures, disk I/O errors
+
+#### Data Persistence
+
+TigerBeetle data is stored in Docker named volume: `tigerbeetle-data`
+
+```bash
+# View volume
+docker volume ls | grep tigerbeetle
+# Output: local     m2m_tigerbeetle-data
+
+# Inspect volume details
+docker volume inspect tigerbeetle-data
+
+# Backup volume (recommended before major changes)
+docker run --rm \
+  -v tigerbeetle-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/tigerbeetle-backup.tar.gz /data
+```
+
+**Data File Structure:**
+
+```
+/data/
+└── 0_0.tigerbeetle  # Format: {cluster_id}_{replica_id}.tigerbeetle
+```
+
+**CRITICAL:** Cluster ID is **immutable** after initialization. Changing `TIGERBEETLE_CLUSTER_ID` environment variable requires reformatting (DATA LOSS).
+
+#### Configuration
+
+TigerBeetle is configured via environment variables in `.env.production.example`:
+
+| Variable                    | Default | Description                                  |
+| --------------------------- | ------- | -------------------------------------------- |
+| `TIGERBEETLE_CLUSTER_ID`    | `0`     | Unique cluster identifier (immutable)        |
+| `TIGERBEETLE_REPLICA_COUNT` | `1`     | Number of replicas (1 for dev, 3-5 for prod) |
+| `TIGERBEETLE_PORT`          | `3000`  | Internal port (do NOT expose to host)        |
+| `TIGERBEETLE_DATA_DIR`      | `/data` | Data directory inside container              |
+
+**Example `.env` file:**
+
+```bash
+# Development (single-node)
+TIGERBEETLE_CLUSTER_ID=0
+TIGERBEETLE_REPLICA_COUNT=1
+TIGERBEETLE_PORT=3000
+```
+
+#### Production Multi-Replica Deployment
+
+**Current Status:** Single-node deployment (1 replica) for development
+
+**Production Recommendation:** 3-5 replicas for high availability and fault tolerance
+
+**Multi-Replica Architecture:**
+
+```
+┌────────────────────────────────────┐
+│     TigerBeetle Cluster (3 nodes)  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│  │ Replica 0│  │ Replica 1│  │ Replica 2│
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘
+│       └─────────────┼──────────────┘
+│            Quorum Consensus
+└────────────────────────────────────┘
+```
+
+**Multi-Replica Setup:** See [docs/guides/tigerbeetle-deployment.md](docs/guides/tigerbeetle-deployment.md) for detailed instructions on configuring production clusters.
+
+#### Troubleshooting TigerBeetle
+
+**Container Won't Start:**
+
+```bash
+# Check logs for errors
+docker-compose logs tigerbeetle
+
+# Common causes:
+# - Cluster ID mismatch (data file vs environment variable)
+# - Insufficient disk space
+# - Permission issues on data volume
+
+# Solution: Verify cluster ID in environment
+docker inspect tigerbeetle --format '{{.Config.Env}}'
+
+# If needed, delete volume and reinitialize (DATA LOSS)
+docker-compose down -v
+docker volume rm tigerbeetle-data
+docker-compose up -d tigerbeetle
+```
+
+**Health Check Failing:**
+
+```bash
+# Check if TigerBeetle is listening on port 3000
+docker exec connector-a nc -zv tigerbeetle 3000
+
+# If connection refused:
+# - Restart TigerBeetle container
+docker-compose restart tigerbeetle
+
+# - Check for network issues
+docker network inspect ilp-network
+```
+
+**Connection Refused from Connectors:**
+
+```bash
+# Verify TigerBeetle is on same Docker network
+docker inspect tigerbeetle --format '{{.NetworkSettings.Networks}}'
+
+# Test DNS resolution from connector
+docker exec connector-a ping -c 3 tigerbeetle
+
+# Expected: 3 packets transmitted, 3 received
+```
+
+#### Documentation
+
+For comprehensive TigerBeetle deployment guide, see:
+
+**📖 [TigerBeetle Deployment Guide](docs/guides/tigerbeetle-deployment.md)**
+
+Topics covered:
+
+- Single-node vs multi-replica deployment
+- Cluster configuration and initialization
+- Backup and restore procedures
+- Operational best practices
+- Production scaling strategies
+
+**Official TigerBeetle Documentation:** https://docs.tigerbeetle.com/
+
 ### Troubleshooting
 
 #### Port Conflicts
@@ -1229,15 +1464,15 @@ The production deployment configuration (`docker-compose-production.yml`) is opt
 
 ### Production vs Development
 
-| Aspect | Development (docker-compose.yml) | Production (docker-compose-production.yml) |
-|--------|----------------------------------|-------------------------------------------|
-| **Nodes** | Multi-node (3-5-8 nodes) | Single node |
-| **Logging** | DEBUG level, pretty-printed | INFO level, JSON structured |
-| **Secrets** | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file) |
-| **Ports** | All exposed to host | Minimal (BTP only, health internal) |
-| **Restart** | No restart policy | `restart: unless-stopped` |
-| **User** | Root (default) | Non-root (node user) |
-| **Dashboard** | Always deployed | Optional (disabled by default) |
+| Aspect        | Development (docker-compose.yml)       | Production (docker-compose-production.yml) |
+| ------------- | -------------------------------------- | ------------------------------------------ |
+| **Nodes**     | Multi-node (3-5-8 nodes)               | Single node                                |
+| **Logging**   | DEBUG level, pretty-printed            | INFO level, JSON structured                |
+| **Secrets**   | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file)          |
+| **Ports**     | All exposed to host                    | Minimal (BTP only, health internal)        |
+| **Restart**   | No restart policy                      | `restart: unless-stopped`                  |
+| **User**      | Root (default)                         | Non-root (node user)                       |
+| **Dashboard** | Always deployed                        | Optional (disabled by default)             |
 
 ### Prerequisites
 
@@ -1289,6 +1524,7 @@ openssl rand -base64 32
 ```
 
 **Example output:**
+
 ```
 h3xK9mP2vQ7wL5nR8tY1uI4oA6sD3fG0jH2kL9mN5bV8cX1zW4qE7rT0yU3iO6pA
 ```
@@ -1408,11 +1644,11 @@ BTP peer secrets follow the naming pattern: `BTP_PEER_<PEER_ID_UPPERCASE>_SECRET
 
 **Examples:**
 
-| Peer ID in YAML | Environment Variable |
-|----------------|---------------------|
+| Peer ID in YAML    | Environment Variable               |
+| ------------------ | ---------------------------------- |
 | `remote-connector` | `BTP_PEER_REMOTE_CONNECTOR_SECRET` |
-| `peer-1` | `BTP_PEER_PEER_1_SECRET` |
-| `backup-node` | `BTP_PEER_BACKUP_NODE_SECRET` |
+| `peer-1`           | `BTP_PEER_PEER_1_SECRET`           |
+| `backup-node`      | `BTP_PEER_BACKUP_NODE_SECRET`      |
 
 The peer ID is converted to uppercase and hyphens/underscores are preserved.
 

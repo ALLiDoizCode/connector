@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build shared package (required for tests)
+        run: npm run build --workspace=packages/shared
+
       - name: Run tests with coverage
         run: npm test -- --coverage --ci
 
@@ -126,6 +129,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build shared package (required for type checking other packages)
+        run: npm run build --workspace=packages/shared
+
       - name: Type check all packages
         run: npx tsc --noEmit --composite false --skipLibCheck true -p packages/connector/tsconfig.json && npx tsc --noEmit --composite false --skipLibCheck true -p packages/dashboard/tsconfig.json && npx tsc --noEmit --composite false --skipLibCheck true -p packages/shared/tsconfig.json
 
@@ -147,6 +153,8 @@ jobs:
         run: npm ci
 
       - name: Verify RFC Links
+        env:
+          RFC_LINKS_TEST: 'true'
         run: npm run test:rfc-links
 
   e2e-test:

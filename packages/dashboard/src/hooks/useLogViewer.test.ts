@@ -33,17 +33,28 @@ function createLogEvent(
 describe('useLogViewer Hook', () => {
   describe('Test 4: LOG event extraction from telemetry', () => {
     it('should extract LOG events from telemetry stream', () => {
-      // Arrange
+      // Arrange - Create events with distinct timestamps to ensure proper sorting
+      const baseTime = new Date('2024-12-29T10:00:00Z').getTime();
       const events: TelemetryEvent[] = [
-        createLogEvent('info', 'connector-a', 'Test message 1'),
-        createLogEvent('error', 'connector-b', 'Test message 2'),
+        createLogEvent('info', 'connector-a', 'Test message 1', new Date(baseTime).toISOString()),
+        createLogEvent(
+          'error',
+          'connector-b',
+          'Test message 2',
+          new Date(baseTime + 1000).toISOString()
+        ),
         {
           type: 'NODE_STATUS',
           nodeId: 'connector-a',
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(baseTime + 2000).toISOString(),
           data: {},
         },
-        createLogEvent('warn', 'connector-a', 'Test message 3'),
+        createLogEvent(
+          'warn',
+          'connector-a',
+          'Test message 3',
+          new Date(baseTime + 3000).toISOString()
+        ),
       ];
 
       // Act

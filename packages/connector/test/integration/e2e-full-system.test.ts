@@ -191,6 +191,7 @@ interface LogEntry {
 
 // Commented out for now - will be used when implementing detailed log analysis
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+// @ts-ignore - Will be used in future E2E test implementation
 function parseLogsForPacket(logs: string, packetId: string): LogEntry[] {
   const entries: LogEntry[] = [];
   const lines = logs.split('\n');
@@ -247,7 +248,7 @@ async function createTestBTPClient(): Promise<BTPClient> {
   };
 
   const logger = createLogger('testClient', 'error');
-  const client = new BTPClient(testPeer, logger);
+  const client = new BTPClient(testPeer, 'test-client', logger);
   await client.connect();
   return client;
 }
@@ -255,7 +256,9 @@ async function createTestBTPClient(): Promise<BTPClient> {
 // Skip all tests if Docker or Docker Compose are not available
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('E2E Full System Integration', () => {
   let containerLogs: { [key: string]: string } = {};

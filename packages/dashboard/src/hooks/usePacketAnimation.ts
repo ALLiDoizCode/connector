@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { TelemetryEvent } from './useTelemetry';
 import { AnimatedPacket, PacketAnimationState, PACKET_COLORS } from '../types/animation';
+import { createLogger } from '../utils/logger';
 
 /**
  * Hook result interface
@@ -16,6 +17,9 @@ export interface UsePacketAnimationResult {
 const MAX_PACKET_TYPE_CACHE_SIZE = 1000;
 const ANIMATION_DURATION = 800; // milliseconds
 const CLEANUP_DELAY = 1000; // milliseconds after completion
+
+// Create logger instance for this hook
+const logger = createLogger('usePacketAnimation');
 
 /**
  * Custom hook to manage packet animation state from telemetry events
@@ -102,10 +106,7 @@ export function usePacketAnimation(events: TelemetryEvent[]): UsePacketAnimation
           // Measure latency from telemetry event to animation start
           const eventTime = new Date(event.timestamp).getTime();
           const latency = animationStartTime - eventTime;
-          // eslint-disable-next-line no-console
-          console.debug(
-            `[usePacketAnimation] Packet animation started in ${latency}ms (packetId: ${packetId})`
-          );
+          logger.debug({ latency, packetId }, 'Packet animation started');
 
           // Add to active packets
           setAnimationState((prev) => ({

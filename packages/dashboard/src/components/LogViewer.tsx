@@ -4,7 +4,7 @@
  */
 
 import { useRef, useEffect, useMemo } from 'react';
-import { TableVirtuoso } from 'react-virtuoso';
+import { TableVirtuoso, TableVirtuosoHandle } from 'react-virtuoso';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
@@ -111,10 +111,8 @@ export function LogViewer({
   setSearchText,
   clearFilters,
   allLogEntries,
-}: LogViewerProps) {
-  const virtuosoRef = useRef<{
-    scrollToIndex: (options: { index: number; align: string; behavior: string }) => void;
-  } | null>(null);
+}: LogViewerProps): JSX.Element {
+  const virtuosoRef = useRef<TableVirtuosoHandle>(null);
   const isAtBottomRef = useRef<boolean>(true);
 
   // Derive unique node IDs from all log entries
@@ -139,7 +137,7 @@ export function LogViewer({
   }, [logEntries.length, autoScroll]);
 
   // Track if user is at bottom
-  const handleAtBottomStateChange = (atBottom: boolean) => {
+  const handleAtBottomStateChange = (atBottom: boolean): void => {
     isAtBottomRef.current = atBottom;
 
     // Auto-enable scroll when user scrolls to bottom
@@ -263,8 +261,10 @@ export function LogViewer({
                   </TableRow>
                 </TableHeader>
               ),
-              TableBody: TableBody as React.ComponentType<React.PropsWithChildren>,
-              TableRow: TableRow as React.ComponentType<React.PropsWithChildren>,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              TableBody: TableBody as any,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              TableRow: TableRow as any,
             }}
             fixedHeaderContent={() => (
               <TableRow>
@@ -274,7 +274,7 @@ export function LogViewer({
                 <TableHead className="text-gray-300 bg-gray-800">Message</TableHead>
               </TableRow>
             )}
-            itemContent={(index, entry) => (
+            itemContent={(_index, entry) => (
               <>
                 {/* Timestamp */}
                 <TableCell

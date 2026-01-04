@@ -235,7 +235,12 @@ export class ConnectorNode implements HealthStatusProvider {
           }));
 
           this._logger.info(
-            { event: 'emitting_node_status', routes: routes.length, peers: peers.length, health: this._healthStatus },
+            {
+              event: 'emitting_node_status',
+              routes: routes.length,
+              peers: peers.length,
+              health: this._healthStatus,
+            },
             'Emitting NODE_STATUS telemetry'
           );
           this._telemetryEmitter.emitNodeStatus(routes, peers, this._healthStatus);
