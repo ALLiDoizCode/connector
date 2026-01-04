@@ -25,7 +25,8 @@ COPY packages/shared/package.json ./packages/shared/
 
 # Install all dependencies (including devDependencies for TypeScript compilation)
 # Use npm ci for reproducible builds
-RUN npm ci --workspaces
+# Use --ignore-scripts to skip prepare script (git hooks not needed in Docker builds)
+RUN npm ci --workspaces --ignore-scripts
 
 # Copy TypeScript configuration and source code
 COPY packages/connector/tsconfig.json ./packages/connector/
@@ -55,7 +56,8 @@ COPY packages/shared/package.json ./packages/shared/
 
 # Install production dependencies only (excludes devDependencies like TypeScript)
 # This significantly reduces image size
-RUN npm ci --workspaces --omit=dev
+# Use --ignore-scripts to skip prepare script (husky is a devDependency, not needed in production)
+RUN npm ci --workspaces --omit=dev --ignore-scripts
 
 # Copy compiled JavaScript from builder stage
 # Only copy dist directories, not source code
