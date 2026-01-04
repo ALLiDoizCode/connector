@@ -183,6 +183,8 @@ jobs:
         run: docker build -t ilp-connector .
 
       - name: Run E2E Full System Test
+        env:
+          E2E_TESTS: 'true'
         run: npm test --workspace=packages/connector -- e2e-full-system.test.ts
         timeout-minutes: 5
 

@@ -158,6 +158,288 @@ npm run format
 
 Applies Prettier formatting rules (100 char line length, single quotes) to all TypeScript/JSON/Markdown files.
 
+## Development Environment
+
+M2M uses separate Docker Compose files for development vs production environments to optimize for different use cases.
+
+### Overview
+
+The development environment includes local blockchain nodes and settlement infrastructure for offline development and testing:
+
+**Services Included:**
+
+- **Anvil (Base L2 Fork)** - Local Base Sepolia fork for smart contract development (Epic 7)
+- **rippled (XRP Ledger)** - Standalone XRP Ledger for payment channel testing (Epic 7)
+- **TigerBeetle** - Settlement accounting database
+- **Connectors (Alice & Bob)** - ILP connector nodes for testing packet routing
+- **Dashboard (optional)** - Network visualization UI
+
+**Benefits:**
+
+- Offline development (no internet required)
+- Instant transactions (no network delays)
+- Zero gas costs (local forks)
+- Complete control over blockchain state
+- Hot-reload for connector code changes
+
+### Quick Start
+
+#### Prerequisites
+
+- **Docker Desktop** - Docker Engine 20.10+ and Docker Compose 2.x
+- **Node.js** - v20.11.0 or higher (LTS recommended)
+- **npm** - v10.x or higher
+
+#### Step-by-Step Setup
+
+**Step 1: Clone Repository and Install Dependencies**
+
+```bash
+git clone https://github.com/yourusername/m2m.git
+cd m2m
+npm install
+```
+
+**Step 2: Configure Environment**
+
+```bash
+cp .env.dev.example .env.dev
+```
+
+Edit `.env.dev` to customize configuration (optional - defaults work for most cases).
+
+**Step 3: Start Development Environment**
+
+```bash
+make dev-up
+```
+
+This command starts all development services:
+
+- Anvil (Base L2 fork)
+- rippled (XRP Ledger standalone)
+- TigerBeetle (settlement database)
+- Connector Alice (port 3001)
+- Connector Bob (port 3002)
+
+**Step 4: Verify Services Running**
+
+```bash
+make dev-status
+```
+
+Expected output:
+
+```
+NAME                      STATUS
+anvil_base_local          Up 2 minutes (healthy)
+rippled_standalone        Up 2 minutes (healthy)
+tigerbeetle               Up 2 minutes (healthy)
+connector_alice_dev       Up 1 minute (healthy)
+connector_bob_dev         Up 1 minute (healthy)
+```
+
+**Step 5: View Logs**
+
+```bash
+make dev-logs
+```
+
+Use `Ctrl+C` to exit log viewer.
+
+### Development vs Production
+
+| Aspect                | Development (docker-compose-dev.yml)    | Production (docker-compose-production.yml) |
+| --------------------- | --------------------------------------- | ------------------------------------------ |
+| **Blockchain Nodes**  | Local forks (Anvil, rippled standalone) | Public RPC endpoints                       |
+| **Hot-Reload**        | Enabled (code changes auto-restart)     | Disabled                                   |
+| **Optional Services** | Dashboard, auto-ledger (via profiles)   | All services required                      |
+| **Secrets**           | Hardcoded (acceptable for dev)          | Environment variables (.env file)          |
+| **Log Level**         | DEBUG (verbose)                         | INFO (production-appropriate)              |
+
+**When to Use:**
+
+- **Development**: Local testing, smart contract development, payment channel experimentation
+- **Production**: Deploying connectors to public networks with real cryptocurrency
+
+**Configuration Guide:** For production deployment configuration and environment switching, see [Production Configuration Guide](docs/guides/local-vs-production-config.md)
+
+### Available Make Commands
+
+M2M includes a Makefile with commands for common development workflows:
+
+```bash
+make help              # Show all available commands
+make dev-up            # Start all development services
+make dev-up-dashboard  # Start with optional dashboard
+make dev-up-auto-ledger # Start with automated rippled ledger advancement
+make dev-up-all        # Start with all optional services (dashboard + auto-ledger)
+make dev-down          # Stop all services (preserves volumes)
+make dev-reset         # Reset to clean state (WARNING: deletes all data volumes)
+make dev-logs          # View logs from all services (follow mode)
+make dev-logs-alice    # View logs from connector-alice
+make dev-logs-bob      # View logs from connector-bob
+make dev-status        # Show status of all services
+make dev-test          # Run integration tests against development environment
+make dev-clean         # Deep clean: remove all containers, volumes, unused Docker resources
+```
+
+**Usage Examples:**
+
+```bash
+# Start environment
+make dev-up
+
+# Start with dashboard for network visualization
+make dev-up-dashboard
+
+# Start with auto-ledger advancement (rippled ledgers advance every 5 seconds)
+make dev-up-auto-ledger
+
+# View logs from all services
+make dev-logs
+
+# View logs from specific connector
+make dev-logs-alice
+
+# Reset environment (fresh blockchain data)
+make dev-reset
+
+# Stop environment when done
+make dev-down
+```
+
+### Service URLs
+
+**From Host Machine:**
+
+- **Anvil JSON-RPC**: http://localhost:8545
+- **rippled JSON-RPC**: http://localhost:5005
+- **rippled WebSocket**: ws://localhost:6006
+- **Connector Alice BTP**: ws://localhost:3001
+- **Connector Alice Health**: http://localhost:8081/health
+- **Connector Bob BTP**: ws://localhost:3002
+- **Connector Bob Health**: http://localhost:8082/health
+- **Dashboard UI**: http://localhost:8080 (with `--profile dashboard`)
+
+**From Within Docker Network:**
+
+- **Anvil**: http://anvil:8545
+- **rippled**: http://rippled:5005
+- **TigerBeetle**: tigerbeetle:3000
+- **Connector Alice**: alice:3001
+- **Connector Bob**: bob:3002
+
+### Troubleshooting
+
+**Issue: Services fail to start**
+
+```bash
+# Check Docker is running
+docker ps
+
+# Check port conflicts
+lsof -i :8545  # Anvil port
+lsof -i :5005  # rippled port
+lsof -i :3001  # Connector Alice BTP port
+
+# View service logs
+make dev-logs
+```
+
+**Issue: Connectors can't connect to blockchain nodes**
+
+```bash
+# Verify blockchain health checks passed
+docker ps  # Check "healthy" status
+
+# Restart dependencies
+make dev-reset
+```
+
+**Issue: Code changes not reflected**
+
+```bash
+# Verify hot-reload volumes mounted
+docker inspect connector_alice_dev | grep -A 5 Mounts
+
+# Rebuild containers if needed
+docker-compose -f docker-compose-dev.yml up -d --build
+```
+
+**Issue: Port already in use**
+
+```bash
+# Identify process using port
+lsof -i :8545
+
+# Stop conflicting service or change port in docker-compose-dev.yml
+```
+
+### Development Workflows
+
+M2M supports two main blockchain development workflows for Epic 8 (EVM smart contracts on Base L2) and Epic 9 (XRP payment channels):
+
+**Workflow 1: Smart Contract Development (Epic 8 - Base L2)**
+
+- Write contract → Test on Anvil → Deploy locally → Test with connectors → Deploy testnet
+- **See**: [Smart Contract Development Workflow](docs/guides/local-blockchain-development.md#workflow-1-smart-contract-development-epic-8) for complete tutorial
+- **Tools**: Foundry (forge/cast), Anvil, Solidity
+- **Best For**: Payment channel smart contracts, EVM-based settlement logic
+
+**Workflow 2: XRP Payment Channel Testing (Epic 9 - XRP Ledger)**
+
+- Start rippled → Create accounts → Fund accounts → Open channel → Sign claims → Test settlement
+- **See**: [XRP Payment Channel Workflow](docs/guides/local-blockchain-development.md#workflow-2-xrp-payment-channel-testing-epic-9) for complete tutorial
+- **Tools**: rippled RPC, helper scripts, curl
+- **Best For**: XRPL payment channels, off-ledger claim signing and validation
+
+### When to Use Each Makefile Command
+
+Choose the right development command for your workflow:
+
+**`make dev-up`** - Default development mode (no dashboard, manual ledger advancement)
+
+- **Best for**: Rapid iteration, minimal resource usage
+- **Use when**: Developing connectors, testing ILP routing without visualization
+- **Resource usage**: Low (~2GB RAM)
+
+**`make dev-up-dashboard`** - Development with network visualization
+
+- **Best for**: Debugging packet routing, visualizing network topology
+- **Use when**: Working on multi-connector deployments, debugging packet flow
+- **Resource usage**: Medium (~3GB RAM)
+
+**`make dev-up-auto-ledger`** - Development with automatic XRPL ledger advancement
+
+- **Best for**: XRP payment channel testing (Epic 9), continuous integration testing
+- **Use when**: Testing payment channels without manual ledger advancement
+- **Resource usage**: Low (~2GB RAM)
+
+**`make dev-up-all`** - All optional services (dashboard + auto-ledger)
+
+- **Best for**: Full-featured development environment
+- **Use when**: Working on both Epic 8 (EVM) and Epic 9 (XRP) simultaneously
+- **Resource usage**: High (~4GB RAM)
+
+**`make dev-reset`** - Clean state reset (WARNING: deletes all blockchain data)
+
+- **Best for**: Starting fresh after corrupted state or major config changes
+- **Use when**: Blockchain state corrupted, testing from genesis, changing fork block
+- **Data loss**: YES - all blockchain data, deployed contracts, payment channels deleted
+
+**`make dev-test`** - Run integration tests
+
+- **Best for**: Validating full stack before committing changes
+- **Use when**: Pre-commit validation, CI/CD pipeline integration
+
+**For detailed deployment tutorials and debugging workflows**, see [Local Blockchain Development Guide](docs/guides/local-blockchain-development.md).
+
+### Further Reading
+
+- **Local Blockchain Development Guide**: [docs/guides/local-blockchain-development.md](docs/guides/local-blockchain-development.md) - Detailed setup and usage instructions
+- **Epic 7 Documentation**: [docs/stories/7.\*.story.md](docs/stories/) - Architecture and implementation details for local blockchain infrastructure
+
 ## Quick Start
 
 Get up and running with a 3-node ILP network in under 10 minutes:

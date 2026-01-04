@@ -15,6 +15,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'node-a',
             btpServerPort: 3000,
+            environment: 'development',
             peers: [{ id: 'node-b', url: 'ws://node-b:3001', authToken: 'secret' }],
             routes: [],
           },
@@ -24,6 +25,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'node-b',
             btpServerPort: 3001,
+            environment: 'development',
             peers: [{ id: 'node-a', url: 'ws://node-a:3000', authToken: 'secret' }],
             routes: [],
           },
@@ -41,6 +43,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'node-a',
             btpServerPort: 3000,
+            environment: 'development',
             peers: [{ id: 'node-b', url: 'ws://node-b:3001', authToken: 'secret' }],
             routes: [],
           },
@@ -50,6 +53,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'node-b',
             btpServerPort: 3001,
+            environment: 'development',
             peers: [{ id: 'node-a', url: 'ws://node-a:3000', authToken: 'secret' }],
             routes: [],
           },
@@ -59,6 +63,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'node-c',
             btpServerPort: 3002,
+            environment: 'development',
             peers: [],
             routes: [],
           },
@@ -75,6 +80,7 @@ describe('TopologyValidator', () => {
       const config: ConnectorConfig = {
         nodeId: 'node-a',
         btpServerPort: 3000,
+        environment: 'development',
         peers: [{ id: 'ghost-node', url: 'ws://ghost:3000', authToken: 'secret' }],
         routes: [],
       };
@@ -89,6 +95,7 @@ describe('TopologyValidator', () => {
       const config: ConnectorConfig = {
         nodeId: 'node-a',
         btpServerPort: 3000,
+        environment: 'development',
         peers: [{ id: 'node-b', url: 'ws://node-b:3001', authToken: 'secret' }],
         routes: [],
       };
@@ -108,6 +115,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'node-a',
             btpServerPort: 3000,
+            environment: 'development',
             peers: [],
             routes: [{ prefix: 'g.dest', nextHop: 'node-b' }],
           },
@@ -128,6 +136,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'hub',
             btpServerPort: 3000,
+            environment: 'development',
             peers: [],
             routes: [
               { prefix: 'g.spoke1', nextHop: 'spoke-1' },
@@ -140,6 +149,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'spoke-1',
             btpServerPort: 3001,
+            environment: 'development',
             peers: [{ id: 'hub', url: 'ws://hub:3000', authToken: 'secret' }],
             routes: [{ prefix: 'g.spoke2', nextHop: 'hub' }],
           },
@@ -149,6 +159,7 @@ describe('TopologyValidator', () => {
           {
             nodeId: 'spoke-2',
             btpServerPort: 3002,
+            environment: 'development',
             peers: [{ id: 'hub', url: 'ws://hub:3000', authToken: 'secret' }],
             routes: [{ prefix: 'g.spoke1', nextHop: 'hub' }],
           },

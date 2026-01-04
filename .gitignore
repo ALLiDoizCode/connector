@@ -15,6 +15,8 @@ coverage/
 .env
 .env.local
 .env.*.local
+.env.dev  # Development environment variables (local overrides)
+.env.production  # Production environment variables (NEVER commit)
 
 # IDE specific files
 .vscode/

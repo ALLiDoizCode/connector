@@ -56,6 +56,7 @@ const createTestConfig = (overrides?: Partial<ConnectorConfig>): ConnectorConfig
   return {
     nodeId: 'connector-test',
     btpServerPort: 3000,
+    environment: 'development',
     peers: [testPeer],
     routes: [testRoute],
     ...overrides,

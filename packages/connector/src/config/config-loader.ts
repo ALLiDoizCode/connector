@@ -10,7 +10,16 @@
 
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
-import { ConnectorConfig, PeerConfig, RouteConfig } from './types';
+import {
+  ConnectorConfig,
+  PeerConfig,
+  RouteConfig,
+  BlockchainConfig,
+  BaseBlockchainConfig,
+  XRPLBlockchainConfig,
+  Environment,
+} from './types';
+import { validateEnvironment } from './environment-validator';
 
 /**
  * Custom Error Class for Configuration Errors
@@ -109,6 +118,12 @@ export class ConfigLoader {
     this.validateRoutes(rawConfig.routes as RouteConfig[], rawConfig.peers as PeerConfig[]);
     this.validatePorts(rawConfig);
 
+    // Load environment from environment variable (default: 'development')
+    const environment = this.loadEnvironment();
+
+    // Load blockchain configuration from environment variables
+    const blockchain = this.loadBlockchainConfig(environment);
+
     // Apply default values for optional fields
     const connectorConfig: ConnectorConfig = {
       nodeId: rawConfig.nodeId as string,
@@ -118,9 +133,183 @@ export class ConfigLoader {
       peers: rawConfig.peers as PeerConfig[],
       routes: rawConfig.routes as RouteConfig[],
       dashboardTelemetryUrl: rawConfig.dashboardTelemetryUrl as string | undefined,
+      environment,
+      blockchain,
     };
 
+    // Validate environment configuration
+    validateEnvironment(connectorConfig);
+
     return connectorConfig;
+  }
+
+  /**
+   * Load Environment from Environment Variable
+   *
+   * Reads ENVIRONMENT variable from process.env and validates it.
+   * Defaults to 'development' if not specified.
+   *
+   * @returns Environment type ('development' | 'staging' | 'production')
+   * @throws ConfigurationError if ENVIRONMENT value is invalid
+   * @private
+   */
+  private static loadEnvironment(): Environment {
+    const env = process.env.ENVIRONMENT || 'development';
+    const validEnvironments: Environment[] = ['development', 'staging', 'production'];
+
+    if (!validEnvironments.includes(env as Environment)) {
+      throw new ConfigurationError(
+        `Invalid ENVIRONMENT: must be one of ${validEnvironments.join(', ')}, got ${env}`
+      );
+    }
+
+    return env as Environment;
+  }
+
+  /**
+   * Load Blockchain Configuration from Environment Variables
+   *
+   * Loads Base L2 and XRPL configuration from environment variables with
+   * environment-specific defaults. Only loads configuration for blockchains
+   * that are explicitly enabled via environment variables.
+   *
+   * @param environment - Deployment environment (development/staging/production)
+   * @returns BlockchainConfig with Base and/or XRPL configuration (or undefined if no blockchain enabled)
+   * @private
+   */
+  private static loadBlockchainConfig(environment: Environment): BlockchainConfig | undefined {
+    const baseEnabled = process.env.BASE_ENABLED === 'true';
+    const xrplEnabled = process.env.XRPL_ENABLED === 'true';
+
+    // If neither blockchain is enabled, return undefined
+    if (!baseEnabled && !xrplEnabled) {
+      return undefined;
+    }
+
+    const blockchain: BlockchainConfig = {};
+
+    // Load Base L2 configuration if enabled
+    if (baseEnabled) {
+      blockchain.base = this.loadBaseBlockchainConfig(environment);
+    }
+
+    // Load XRPL configuration if enabled
+    if (xrplEnabled) {
+      blockchain.xrpl = this.loadXRPLBlockchainConfig(environment);
+    }
+
+    return blockchain;
+  }
+
+  /**
+   * Load Base L2 Blockchain Configuration
+   *
+   * Loads Base L2 configuration from environment variables with environment-specific defaults.
+   *
+   * Environment variables:
+   * - BASE_ENABLED (required): 'true' to enable Base blockchain
+   * - BASE_RPC_URL (optional): RPC endpoint URL (defaults by environment)
+   * - BASE_CHAIN_ID (optional): Expected chain ID (defaults by environment)
+   * - BASE_PRIVATE_KEY (optional): Private key for contract interactions
+   * - BASE_REGISTRY_ADDRESS (optional): Payment channel registry contract address
+   *
+   * Environment-specific defaults:
+   * - development: rpcUrl=http://anvil:8545, chainId=84532
+   * - staging: rpcUrl=https://sepolia.base.org, chainId=84532
+   * - production: rpcUrl=https://mainnet.base.org, chainId=8453
+   *
+   * @param environment - Deployment environment
+   * @returns BaseBlockchainConfig with environment-specific defaults applied
+   * @private
+   */
+  private static loadBaseBlockchainConfig(environment: Environment): BaseBlockchainConfig {
+    // Environment-specific defaults
+    const defaults = {
+      development: {
+        rpcUrl: 'http://anvil:8545',
+        chainId: 84532, // Base Sepolia (forked by Anvil)
+      },
+      staging: {
+        rpcUrl: 'https://sepolia.base.org',
+        chainId: 84532, // Base Sepolia testnet
+      },
+      production: {
+        rpcUrl: 'https://mainnet.base.org',
+        chainId: 8453, // Base mainnet
+      },
+    };
+
+    const envDefaults = defaults[environment];
+
+    return {
+      enabled: true,
+      rpcUrl: process.env.BASE_RPC_URL || envDefaults.rpcUrl,
+      chainId: process.env.BASE_CHAIN_ID
+        ? parseInt(process.env.BASE_CHAIN_ID, 10)
+        : envDefaults.chainId,
+      privateKey: process.env.BASE_PRIVATE_KEY,
+      registryAddress: process.env.BASE_REGISTRY_ADDRESS,
+    };
+  }
+
+  /**
+   * Load XRPL Blockchain Configuration
+   *
+   * Loads XRPL configuration from environment variables with environment-specific defaults.
+   *
+   * Environment variables:
+   * - XRPL_ENABLED (required): 'true' to enable XRPL blockchain
+   * - XRPL_RPC_URL (optional): RPC endpoint URL (defaults by environment)
+   * - XRPL_NETWORK (optional): Network type (standalone/testnet/mainnet, defaults by environment)
+   * - XRPL_PRIVATE_KEY (optional): Private key for payment channels
+   *
+   * Environment-specific defaults:
+   * - development: rpcUrl=http://rippled:5005, network=standalone
+   * - staging: rpcUrl=https://s.altnet.rippletest.net:51234, network=testnet
+   * - production: rpcUrl=https://xrplcluster.com, network=mainnet
+   *
+   * @param environment - Deployment environment
+   * @returns XRPLBlockchainConfig with environment-specific defaults applied
+   * @throws ConfigurationError if XRPL_NETWORK value is invalid
+   * @private
+   */
+  private static loadXRPLBlockchainConfig(environment: Environment): XRPLBlockchainConfig {
+    // Environment-specific defaults
+    const defaults = {
+      development: {
+        rpcUrl: 'http://rippled:5005',
+        network: 'standalone' as const,
+      },
+      staging: {
+        rpcUrl: 'https://s.altnet.rippletest.net:51234',
+        network: 'testnet' as const,
+      },
+      production: {
+        rpcUrl: 'https://xrplcluster.com',
+        network: 'mainnet' as const,
+      },
+    };
+
+    const envDefaults = defaults[environment];
+
+    // Validate XRPL_NETWORK if provided
+    let network = envDefaults.network;
+    if (process.env.XRPL_NETWORK) {
+      const validNetworks = ['standalone', 'testnet', 'mainnet'];
+      if (!validNetworks.includes(process.env.XRPL_NETWORK)) {
+        throw new ConfigurationError(
+          `Invalid XRPL_NETWORK: must be one of ${validNetworks.join(', ')}, got ${process.env.XRPL_NETWORK}`
+        );
+      }
+      network = process.env.XRPL_NETWORK as 'standalone' | 'testnet' | 'mainnet';
+    }
+
+    return {
+      enabled: true,
+      rpcUrl: process.env.XRPL_RPC_URL || envDefaults.rpcUrl,
+      network,
+      privateKey: process.env.XRPL_PRIVATE_KEY,
+    };
   }
 
   /**
