@@ -104,9 +104,7 @@ describe('LogViewer Component', () => {
 
     it('should render table headers', () => {
       // Arrange - Need at least one entry for table to render
-      const logEntries: LogEntry[] = [
-        createLogEntry('info', 'connector-a', 'Test message'),
-      ];
+      const logEntries: LogEntry[] = [createLogEntry('info', 'connector-a', 'Test message')];
 
       // Act
       render(<LogViewer {...mockProps} logEntries={logEntries} allLogEntries={logEntries} />);

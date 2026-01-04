@@ -106,10 +106,7 @@ export function usePacketAnimation(events: TelemetryEvent[]): UsePacketAnimation
           // Measure latency from telemetry event to animation start
           const eventTime = new Date(event.timestamp).getTime();
           const latency = animationStartTime - eventTime;
-          logger.debug(
-            { latency, packetId },
-            'Packet animation started'
-          );
+          logger.debug({ latency, packetId }, 'Packet animation started');
 
           // Add to active packets
           setAnimationState((prev) => ({

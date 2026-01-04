@@ -106,7 +106,10 @@ function getStateDisplay(state: BalanceState['settlementState']): {
  * - Settlement state (IDLE, PENDING, IN_PROGRESS)
  * - Last update timestamp
  */
-export function SettlementStatusPanel({ events, connected }: SettlementStatusPanelProps): JSX.Element {
+export function SettlementStatusPanel({
+  events,
+  connected,
+}: SettlementStatusPanelProps): JSX.Element {
   const [balances, setBalances] = useState<Map<string, BalanceState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

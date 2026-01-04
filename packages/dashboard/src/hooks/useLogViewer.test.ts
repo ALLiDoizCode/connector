@@ -37,14 +37,24 @@ describe('useLogViewer Hook', () => {
       const baseTime = new Date('2024-12-29T10:00:00Z').getTime();
       const events: TelemetryEvent[] = [
         createLogEvent('info', 'connector-a', 'Test message 1', new Date(baseTime).toISOString()),
-        createLogEvent('error', 'connector-b', 'Test message 2', new Date(baseTime + 1000).toISOString()),
+        createLogEvent(
+          'error',
+          'connector-b',
+          'Test message 2',
+          new Date(baseTime + 1000).toISOString()
+        ),
         {
           type: 'NODE_STATUS',
           nodeId: 'connector-a',
           timestamp: new Date(baseTime + 2000).toISOString(),
           data: {},
         },
-        createLogEvent('warn', 'connector-a', 'Test message 3', new Date(baseTime + 3000).toISOString()),
+        createLogEvent(
+          'warn',
+          'connector-a',
+          'Test message 3',
+          new Date(baseTime + 3000).toISOString()
+        ),
       ];
 
       // Act
