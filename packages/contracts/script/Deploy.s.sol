@@ -34,25 +34,23 @@ contract DeployScript is Script {
     /**
      * @notice Helper function to sign balance proof with EIP-712
      */
-    function _signBalanceProof(
-        TokenNetwork tokenNetwork,
-        TokenNetwork.BalanceProof memory proof,
-        uint256 privateKey
-    ) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(abi.encode(
-            tokenNetwork.BALANCE_PROOF_TYPEHASH(),
-            proof.channelId,
-            proof.nonce,
-            proof.transferredAmount,
-            proof.lockedAmount,
-            proof.locksRoot
-        ));
+    function _signBalanceProof(TokenNetwork tokenNetwork, TokenNetwork.BalanceProof memory proof, uint256 privateKey)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                tokenNetwork.BALANCE_PROOF_TYPEHASH(),
+                proof.channelId,
+                proof.nonce,
+                proof.transferredAmount,
+                proof.lockedAmount,
+                proof.locksRoot
+            )
+        );
 
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
@@ -124,7 +122,7 @@ contract DeployScript is Script {
 
         // Verify channel state
         TokenNetwork.ChannelState state = tokenNetwork.getChannelState(channelId);
-        console.log("Channel State:", uint(state), "(0=NonExistent, 1=Opened, 2=Closed, 3=Settled)");
+        console.log("Channel State:", uint256(state), "(0=NonExistent, 1=Opened, 2=Closed, 3=Settled)");
 
         // ====================================================================
         // STEP 6: Demonstrate deposit functionality (Story 8.3)
@@ -132,9 +130,9 @@ contract DeployScript is Script {
         console.log("\n=== Demonstrating Token Deposits ===");
 
         // Mint tokens to deployer for deposit demonstration
-        uint256 depositAmount = 1000 * 10**18;
+        uint256 depositAmount = 1000 * 10 ** 18;
         demoToken.mint(participant1, depositAmount);
-        console.log("Minted", depositAmount / 10**18, "DEMO tokens to deployer");
+        console.log("Minted", depositAmount / 10 ** 18, "DEMO tokens to deployer");
 
         // Approve TokenNetwork to spend tokens
         demoToken.approve(address(tokenNetwork), depositAmount);
@@ -142,11 +140,11 @@ contract DeployScript is Script {
 
         // Deposit tokens into channel
         tokenNetwork.setTotalDeposit(channelId, participant1, depositAmount);
-        console.log("Deposited", depositAmount / 10**18, "DEMO tokens into channel");
+        console.log("Deposited", depositAmount / 10 ** 18, "DEMO tokens into channel");
 
         // Verify deposit
         uint256 participantDeposit = tokenNetwork.getChannelDeposit(channelId, participant1);
-        console.log("Verified participant deposit:", participantDeposit / 10**18, "DEMO");
+        console.log("Verified participant deposit:", participantDeposit / 10 ** 18, "DEMO");
 
         // Stop broadcasting (deployment complete)
         vm.stopBroadcast();
@@ -173,7 +171,7 @@ contract DeployScript is Script {
         console.log("  Channel ID:", vm.toString(channelId));
         console.log("  Participant 1:", participant1);
         console.log("  Participant 2:", participant2);
-        console.log("  Participant 1 Deposit:", participantDeposit / 10**18, "DEMO");
+        console.log("  Participant 1 Deposit:", participantDeposit / 10 ** 18, "DEMO");
         console.log("  State: Opened");
         console.log("\nDeployment Validation:");
         console.log("  [OK] Registry Deployed and Verified");

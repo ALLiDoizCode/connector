@@ -41,7 +41,7 @@ contract IntegrationMultiChannelTest is Test {
     uint256 public davePrivateKey;
 
     uint256 constant SETTLEMENT_TIMEOUT = 3600; // 1 hour
-    uint256 constant DEPOSIT_AMOUNT = 1000 * 10**18;
+    uint256 constant DEPOSIT_AMOUNT = 1000 * 10 ** 18;
 
     function setUp() public {
         // Setup test accounts
@@ -75,9 +75,9 @@ contract IntegrationMultiChannelTest is Test {
         // Fund participants with all tokens
         address[4] memory participants = [alice, bob, carol, dave];
         for (uint256 i = 0; i < participants.length; i++) {
-            usdc.mint(participants[i], 10000 * 10**6); // USDC has 6 decimals
-            dai.mint(participants[i], 10000 * 10**18);
-            usdt.mint(participants[i], 10000 * 10**6); // USDT has 6 decimals
+            usdc.mint(participants[i], 10000 * 10 ** 6); // USDC has 6 decimals
+            dai.mint(participants[i], 10000 * 10 ** 18);
+            usdt.mint(participants[i], 10000 * 10 ** 6); // USDT has 6 decimals
 
             // Approve all token networks
             vm.startPrank(participants[i]);
@@ -110,46 +110,39 @@ contract IntegrationMultiChannelTest is Test {
 
         // Make deposits in all channels
         vm.prank(alice);
-        usdcNetwork.setTotalDeposit(usdcChannelId, alice, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(usdcChannelId, alice, 1000 * 10 ** 6);
 
         vm.prank(bob);
-        usdcNetwork.setTotalDeposit(usdcChannelId, bob, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(usdcChannelId, bob, 1000 * 10 ** 6);
 
         vm.prank(alice);
-        daiNetwork.setTotalDeposit(daiChannelId, alice, 1000 * 10**18);
+        daiNetwork.setTotalDeposit(daiChannelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        daiNetwork.setTotalDeposit(daiChannelId, bob, 1000 * 10**18);
+        daiNetwork.setTotalDeposit(daiChannelId, bob, 1000 * 10 ** 18);
 
         vm.prank(alice);
-        usdtNetwork.setTotalDeposit(usdtChannelId, alice, 1000 * 10**6);
+        usdtNetwork.setTotalDeposit(usdtChannelId, alice, 1000 * 10 ** 6);
 
         vm.prank(bob);
-        usdtNetwork.setTotalDeposit(usdtChannelId, bob, 1000 * 10**6);
+        usdtNetwork.setTotalDeposit(usdtChannelId, bob, 1000 * 10 ** 6);
 
         // Verify all channels maintain correct balances independently
         (address p1, address p2) = usdcNetwork.getChannelParticipants(usdcChannelId);
-        assertEq(usdcNetwork.getChannelDeposit(usdcChannelId, p1), 1000 * 10**6);
-        assertEq(usdcNetwork.getChannelDeposit(usdcChannelId, p2), 1000 * 10**6);
+        assertEq(usdcNetwork.getChannelDeposit(usdcChannelId, p1), 1000 * 10 ** 6);
+        assertEq(usdcNetwork.getChannelDeposit(usdcChannelId, p2), 1000 * 10 ** 6);
 
         (p1, p2) = daiNetwork.getChannelParticipants(daiChannelId);
-        assertEq(daiNetwork.getChannelDeposit(daiChannelId, p1), 1000 * 10**18);
-        assertEq(daiNetwork.getChannelDeposit(daiChannelId, p2), 1000 * 10**18);
+        assertEq(daiNetwork.getChannelDeposit(daiChannelId, p1), 1000 * 10 ** 18);
+        assertEq(daiNetwork.getChannelDeposit(daiChannelId, p2), 1000 * 10 ** 18);
 
         (p1, p2) = usdtNetwork.getChannelParticipants(usdtChannelId);
-        assertEq(usdtNetwork.getChannelDeposit(usdtChannelId, p1), 1000 * 10**6);
-        assertEq(usdtNetwork.getChannelDeposit(usdtChannelId, p2), 1000 * 10**6);
+        assertEq(usdtNetwork.getChannelDeposit(usdtChannelId, p1), 1000 * 10 ** 6);
+        assertEq(usdtNetwork.getChannelDeposit(usdtChannelId, p2), 1000 * 10 ** 6);
 
         // Close one channel and verify others unaffected
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            usdcNetwork,
-            usdcChannelId,
-            1,
-            100 * 10**6,
-            0,
-            bytes32(0),
-            alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(usdcNetwork, usdcChannelId, 1, 100 * 10 ** 6, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         usdcNetwork.closeChannel(usdcChannelId, proof, signature);
@@ -182,24 +175,17 @@ contract IntegrationMultiChannelTest is Test {
 
         // Make deposits in all channels
         vm.prank(alice);
-        usdcNetwork.setTotalDeposit(aliceBobChannel, alice, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(aliceBobChannel, alice, 1000 * 10 ** 6);
 
         vm.prank(alice);
-        usdcNetwork.setTotalDeposit(aliceCarolChannel, alice, 2000 * 10**6);
+        usdcNetwork.setTotalDeposit(aliceCarolChannel, alice, 2000 * 10 ** 6);
 
         vm.prank(alice);
-        usdcNetwork.setTotalDeposit(aliceDaveChannel, alice, 3000 * 10**6);
+        usdcNetwork.setTotalDeposit(aliceDaveChannel, alice, 3000 * 10 ** 6);
 
         // Close and settle one channel
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            usdcNetwork,
-            aliceBobChannel,
-            1,
-            100 * 10**6,
-            0,
-            bytes32(0),
-            alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(usdcNetwork, aliceBobChannel, 1, 100 * 10 ** 6, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         usdcNetwork.closeChannel(aliceBobChannel, proof, signature);
@@ -214,14 +200,16 @@ contract IntegrationMultiChannelTest is Test {
 
         // Verify deposits in remaining channels unchanged
         (address p1, address p2) = usdcNetwork.getChannelParticipants(aliceCarolChannel);
-        uint256 deposit = (p1 == alice) ? usdcNetwork.getChannelDeposit(aliceCarolChannel, p1)
-                                        : usdcNetwork.getChannelDeposit(aliceCarolChannel, p2);
-        assertEq(deposit, 2000 * 10**6, "Carol channel deposit should be unchanged");
+        uint256 deposit = (p1 == alice)
+            ? usdcNetwork.getChannelDeposit(aliceCarolChannel, p1)
+            : usdcNetwork.getChannelDeposit(aliceCarolChannel, p2);
+        assertEq(deposit, 2000 * 10 ** 6, "Carol channel deposit should be unchanged");
 
         (p1, p2) = usdcNetwork.getChannelParticipants(aliceDaveChannel);
-        deposit = (p1 == alice) ? usdcNetwork.getChannelDeposit(aliceDaveChannel, p1)
-                                : usdcNetwork.getChannelDeposit(aliceDaveChannel, p2);
-        assertEq(deposit, 3000 * 10**6, "Dave channel deposit should be unchanged");
+        deposit = (p1 == alice)
+            ? usdcNetwork.getChannelDeposit(aliceDaveChannel, p1)
+            : usdcNetwork.getChannelDeposit(aliceDaveChannel, p2);
+        assertEq(deposit, 3000 * 10 ** 6, "Dave channel deposit should be unchanged");
     }
 
     /**
@@ -231,12 +219,12 @@ contract IntegrationMultiChannelTest is Test {
     function testIntegration_ChannelLifecycleStress() public {
         // Open 6 channels with different participant pairs
         // Alice-Bob, Alice-Carol, Alice-Dave, Bob-Carol, Bob-Dave, Carol-Dave
-        bytes32 aliceBob = openAndDeposit(alice, bob, 100 * 10**6);
-        bytes32 aliceCarol = openAndDeposit(alice, carol, 100 * 10**6);
-        bytes32 aliceDave = openAndDeposit(alice, dave, 100 * 10**6);
-        bytes32 bobCarol = openAndDeposit(bob, carol, 100 * 10**6);
-        bytes32 bobDave = openAndDeposit(bob, dave, 100 * 10**6);
-        bytes32 carolDave = openAndDeposit(carol, dave, 100 * 10**6);
+        bytes32 aliceBob = openAndDeposit(alice, bob, 100 * 10 ** 6);
+        bytes32 aliceCarol = openAndDeposit(alice, carol, 100 * 10 ** 6);
+        bytes32 aliceDave = openAndDeposit(alice, dave, 100 * 10 ** 6);
+        bytes32 bobCarol = openAndDeposit(bob, carol, 100 * 10 ** 6);
+        bytes32 bobDave = openAndDeposit(bob, dave, 100 * 10 ** 6);
+        bytes32 carolDave = openAndDeposit(carol, dave, 100 * 10 ** 6);
 
         bytes32[] memory channelIds = new bytes32[](6);
         channelIds[0] = aliceBob;
@@ -249,14 +237,8 @@ contract IntegrationMultiChannelTest is Test {
         // Map of who closes each channel (non-participant1 closes)
         address[6] memory closers = [bob, carol, dave, carol, dave, dave];
 
-        uint256[6] memory signerKeys = [
-            alicePrivateKey,
-            alicePrivateKey,
-            alicePrivateKey,
-            bobPrivateKey,
-            bobPrivateKey,
-            carolPrivateKey
-        ];
+        uint256[6] memory signerKeys =
+            [alicePrivateKey, alicePrivateKey, alicePrivateKey, bobPrivateKey, bobPrivateKey, carolPrivateKey];
 
         // Close all channels
         for (uint256 i = 0; i < 6; i++) {
@@ -264,7 +246,7 @@ contract IntegrationMultiChannelTest is Test {
                 usdcNetwork,
                 channelIds[i],
                 1,
-                10 * 10**6, // Transfer 10 USDC
+                10 * 10 ** 6, // Transfer 10 USDC
                 0,
                 bytes32(0),
                 signerKeys[i]
@@ -359,21 +341,14 @@ contract IntegrationMultiChannelTest is Test {
         bytes32 channelId = usdcNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        usdcNetwork.setTotalDeposit(channelId, alice, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 6);
 
         vm.prank(bob);
-        usdcNetwork.setTotalDeposit(channelId, bob, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(channelId, bob, 1000 * 10 ** 6);
 
         // Alice creates a balance proof (nonce 1, she transferred 100 to Bob)
-        (TokenNetwork.BalanceProof memory aliceProof, bytes memory aliceSig) = createBalanceProof(
-            usdcNetwork,
-            channelId,
-            1,
-            100 * 10**6,
-            0,
-            bytes32(0),
-            alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory aliceProof, bytes memory aliceSig) =
+            createBalanceProof(usdcNetwork, channelId, 1, 100 * 10 ** 6, 0, bytes32(0), alicePrivateKey);
 
         // Bob closes channel with Alice's stale proof
         vm.prank(bob);
@@ -388,7 +363,7 @@ contract IntegrationMultiChannelTest is Test {
             usdcNetwork,
             channelId,
             2, // Higher nonce
-            50 * 10**6, // Bob transferred 50 to Alice
+            50 * 10 ** 6, // Bob transferred 50 to Alice
             0,
             bytes32(0),
             bobPrivateKey
@@ -411,8 +386,8 @@ contract IntegrationMultiChannelTest is Test {
         // Bob transferred 50 to Alice (his newer proof submitted by Alice)
         // Alice: 1000 - 100 + 50 = 950 USDC
         // Bob: 1000 + 100 - 50 = 1050 USDC
-        assertEq(usdc.balanceOf(alice), aliceBalanceBefore + 950 * 10**6, "Alice should receive 950");
-        assertEq(usdc.balanceOf(bob), bobBalanceBefore + 1050 * 10**6, "Bob should receive 1050");
+        assertEq(usdc.balanceOf(alice), aliceBalanceBefore + 950 * 10 ** 6, "Alice should receive 950");
+        assertEq(usdc.balanceOf(bob), bobBalanceBefore + 1050 * 10 ** 6, "Bob should receive 1050");
     }
 
     /**
@@ -425,10 +400,10 @@ contract IntegrationMultiChannelTest is Test {
         bytes32 channelId = usdcNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        usdcNetwork.setTotalDeposit(channelId, alice, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 6);
 
         vm.prank(bob);
-        usdcNetwork.setTotalDeposit(channelId, bob, 1000 * 10**6);
+        usdcNetwork.setTotalDeposit(channelId, bob, 1000 * 10 ** 6);
 
         // Determine participant order
         (address participant1, address participant2) = usdcNetwork.getChannelParticipants(channelId);
@@ -437,13 +412,7 @@ contract IntegrationMultiChannelTest is Test {
 
         // Alice withdraws 200 USDC
         (TokenNetwork.WithdrawProof memory withdrawProof, bytes memory withdrawSig) = createWithdrawProof(
-            usdcNetwork,
-            channelId,
-            alice,
-            200 * 10**6,
-            1,
-            block.timestamp + 1 days,
-            counterpartyKey
+            usdcNetwork, channelId, alice, 200 * 10 ** 6, 1, block.timestamp + 1 days, counterpartyKey
         );
 
         uint256 aliceBalanceAfterWithdraw = usdc.balanceOf(alice);
@@ -452,7 +421,7 @@ contract IntegrationMultiChannelTest is Test {
         usdcNetwork.withdraw(channelId, withdrawProof, withdrawSig);
 
         // Verify withdrawal succeeded (Alice received 200 USDC)
-        assertEq(usdc.balanceOf(alice), aliceBalanceAfterWithdraw + 200 * 10**6, "Alice should receive withdrawal");
+        assertEq(usdc.balanceOf(alice), aliceBalanceAfterWithdraw + 200 * 10 ** 6, "Alice should receive withdrawal");
 
         // Cooperative settlement with transfers
         // Alice transferred 100 to Bob, Bob transferred 50 to Alice
@@ -463,7 +432,7 @@ contract IntegrationMultiChannelTest is Test {
             usdcNetwork,
             channelId,
             1,
-            (participant1 == alice) ? 100 * 10**6 : 50 * 10**6,
+            (participant1 == alice) ? 100 * 10 ** 6 : 50 * 10 ** 6,
             0,
             bytes32(0),
             p1PrivateKey
@@ -473,7 +442,7 @@ contract IntegrationMultiChannelTest is Test {
             usdcNetwork,
             channelId,
             1,
-            (participant2 == alice) ? 100 * 10**6 : 50 * 10**6,
+            (participant2 == alice) ? 100 * 10 ** 6 : 50 * 10 ** 6,
             0,
             bytes32(0),
             p2PrivateKey
@@ -488,8 +457,8 @@ contract IntegrationMultiChannelTest is Test {
         // Alice: 1000 - 200 (withdrawn) + 50 (received) - 100 (sent) = 750
         // Bob: 1000 + 100 (received) - 50 (sent) = 1050
         // Note: Alice already received 200 from withdrawal, so gets additional 750
-        assertEq(usdc.balanceOf(alice), aliceBalanceBefore + 750 * 10**6, "Alice should receive 750 more");
-        assertEq(usdc.balanceOf(bob), bobBalanceBefore + 1050 * 10**6, "Bob should receive 1050");
+        assertEq(usdc.balanceOf(alice), aliceBalanceBefore + 750 * 10 ** 6, "Alice should receive 750 more");
+        assertEq(usdc.balanceOf(bob), bobBalanceBefore + 1050 * 10 ** 6, "Bob should receive 1050");
     }
 
     // =========================================================================
@@ -509,12 +478,12 @@ contract IntegrationMultiChannelTest is Test {
         uint256 privateKey
     ) internal view returns (TokenNetwork.BalanceProof memory proof, bytes memory signature) {
         proof = TokenNetwork.BalanceProof({
-            channelId: channelId,
-            nonce: nonce,
-            transferredAmount: transferredAmount,
-            lockedAmount: lockedAmount,
-            locksRoot: locksRoot
-        });
+                channelId: channelId,
+                nonce: nonce,
+                transferredAmount: transferredAmount,
+                lockedAmount: lockedAmount,
+                locksRoot: locksRoot
+            });
 
         bytes32 structHash = keccak256(
             abi.encode(
@@ -527,13 +496,7 @@ contract IntegrationMultiChannelTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                network.DOMAIN_SEPARATOR(),
-                structHash
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", network.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         signature = abi.encodePacked(r, s, v);
@@ -552,31 +515,13 @@ contract IntegrationMultiChannelTest is Test {
         uint256 privateKey
     ) internal view returns (TokenNetwork.WithdrawProof memory proof, bytes memory signature) {
         proof = TokenNetwork.WithdrawProof({
-            channelId: channelId,
-            participant: participant,
-            amount: amount,
-            nonce: nonce,
-            expiry: expiry
-        });
+                channelId: channelId, participant: participant, amount: amount, nonce: nonce, expiry: expiry
+            });
 
-        bytes32 structHash = keccak256(
-            abi.encode(
-                network.WITHDRAW_PROOF_TYPEHASH(),
-                channelId,
-                participant,
-                amount,
-                nonce,
-                expiry
-            )
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(network.WITHDRAW_PROOF_TYPEHASH(), channelId, participant, amount, nonce, expiry));
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                network.DOMAIN_SEPARATOR(),
-                structHash
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", network.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         signature = abi.encodePacked(r, s, v);

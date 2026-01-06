@@ -14,7 +14,7 @@ contract IntegrationTest is Test {
     address public deployer = address(1);
     address public alice = address(2);
     address public bob = address(3);
-    uint256 public constant INITIAL_SUPPLY = 1000000 * 10**18;
+    uint256 public constant INITIAL_SUPPLY = 1000000 * 10 ** 18;
 
     function setUp() public {
         vm.startPrank(deployer);
@@ -26,7 +26,7 @@ contract IntegrationTest is Test {
     function testFoundrySetup() public {
         // Verify forge-std library accessible
         assertTrue(true);
-        
+
         // Verify test environment has block context
         assertGt(block.timestamp, 0);
         assertGt(block.number, 0);
@@ -49,7 +49,7 @@ contract IntegrationTest is Test {
 
     /// @notice Verify basic ERC20 transfer functionality
     function testTransferFunctionality() public {
-        uint256 transferAmount = 1000 * 10**18;
+        uint256 transferAmount = 1000 * 10 ** 18;
 
         vm.prank(deployer);
         bool success = token.transfer(alice, transferAmount);
@@ -61,8 +61,8 @@ contract IntegrationTest is Test {
 
     /// @notice Verify ERC20 approve and transferFrom pattern
     function testApproveAndTransferFrom() public {
-        uint256 approvalAmount = 500 * 10**18;
-        uint256 transferAmount = 200 * 10**18;
+        uint256 approvalAmount = 500 * 10 ** 18;
+        uint256 transferAmount = 200 * 10 ** 18;
 
         // Deployer approves Alice to spend tokens
         vm.prank(deployer);
@@ -83,14 +83,14 @@ contract IntegrationTest is Test {
     function testTransferFailsWithInsufficientBalance() public {
         vm.prank(alice); // Alice has 0 balance
         vm.expectRevert();
-        token.transfer(bob, 1000 * 10**18);
+        token.transfer(bob, 1000 * 10 ** 18);
     }
 
     /// @notice Verify transferFrom fails without approval
     function testTransferFromFailsWithoutApproval() public {
         vm.prank(alice);
         vm.expectRevert();
-        token.transferFrom(deployer, bob, 1000 * 10**18);
+        token.transferFrom(deployer, bob, 1000 * 10 ** 18);
     }
 
     /// @notice Verify OpenZeppelin ERC20 implementation standards
@@ -103,8 +103,8 @@ contract IntegrationTest is Test {
 
     /// @notice Verify contract can handle multiple concurrent operations
     function testConcurrentOperations() public {
-        uint256 aliceAmount = 100 * 10**18;
-        uint256 bobAmount = 200 * 10**18;
+        uint256 aliceAmount = 100 * 10 ** 18;
+        uint256 bobAmount = 200 * 10 ** 18;
 
         // Deployer transfers to both Alice and Bob
         vm.startPrank(deployer);

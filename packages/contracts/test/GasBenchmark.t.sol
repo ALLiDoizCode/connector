@@ -31,7 +31,7 @@ contract GasBenchmarkTest is Test {
     uint256 public bobPrivateKey;
 
     uint256 constant SETTLEMENT_TIMEOUT = 3600; // 1 hour (minimum allowed)
-    uint256 constant DEPOSIT_AMOUNT = 1000 * 10**18;
+    uint256 constant DEPOSIT_AMOUNT = 1000 * 10 ** 18;
 
     function setUp() public {
         // Setup test accounts
@@ -47,8 +47,8 @@ contract GasBenchmarkTest is Test {
         tokenNetwork = TokenNetwork(tokenNetworkAddress);
 
         // Fund participants
-        token.mint(alice, 10000 * 10**18);
-        token.mint(bob, 10000 * 10**18);
+        token.mint(alice, 10000 * 10 ** 18);
+        token.mint(bob, 10000 * 10 ** 18);
 
         // Approve token network
         vm.prank(alice);
@@ -143,14 +143,8 @@ contract GasBenchmarkTest is Test {
         tokenNetwork.setTotalDeposit(channelId, bob, DEPOSIT_AMOUNT);
 
         // Create balance proof for close
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId,
-            1,
-            100 * 10**18,
-            0,
-            bytes32(0),
-            alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         // Measure close
         vm.prank(bob);
@@ -180,14 +174,8 @@ contract GasBenchmarkTest is Test {
         vm.prank(bob);
         tokenNetwork.setTotalDeposit(channelId, bob, DEPOSIT_AMOUNT);
 
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId,
-            1,
-            100 * 10**18,
-            0,
-            bytes32(0),
-            alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof, signature);
@@ -231,23 +219,11 @@ contract GasBenchmarkTest is Test {
         // Create matching balance proofs (both participants sign with same nonce)
         // proof1: participant1 sent 100 to participant2
         // proof2: participant2 sent 50 to participant1
-        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) = createBalanceProof(
-            channelId,
-            1,
-            100 * 10**18,
-            0,
-            bytes32(0),
-            p1PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), p1PrivateKey);
 
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createBalanceProof(
-            channelId,
-            1,
-            50 * 10**18,
-            0,
-            bytes32(0),
-            p2PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createBalanceProof(channelId, 1, 50 * 10 ** 18, 0, bytes32(0), p2PrivateKey);
 
         // Measure cooperative settlement
         uint256 gasBefore = gasleft();
@@ -279,14 +255,8 @@ contract GasBenchmarkTest is Test {
         uint256 counterpartyKey = (aliceCounterparty == bob) ? bobPrivateKey : alicePrivateKey;
 
         // Create withdrawal proof
-        (TokenNetwork.WithdrawProof memory proof, bytes memory signature) = createWithdrawProof(
-            channelId,
-            alice,
-            200 * 10**18,
-            1,
-            block.timestamp + 1 days,
-            counterpartyKey
-        );
+        (TokenNetwork.WithdrawProof memory proof, bytes memory signature) =
+            createWithdrawProof(channelId, alice, 200 * 10 ** 18, 1, block.timestamp + 1 days, counterpartyKey);
 
         // Measure withdrawal
         vm.prank(alice);
@@ -353,12 +323,12 @@ contract GasBenchmarkTest is Test {
         uint256 privateKey
     ) internal view returns (TokenNetwork.BalanceProof memory proof, bytes memory signature) {
         proof = TokenNetwork.BalanceProof({
-            channelId: channelId,
-            nonce: nonce,
-            transferredAmount: transferredAmount,
-            lockedAmount: lockedAmount,
-            locksRoot: locksRoot
-        });
+                channelId: channelId,
+                nonce: nonce,
+                transferredAmount: transferredAmount,
+                lockedAmount: lockedAmount,
+                locksRoot: locksRoot
+            });
 
         bytes32 structHash = keccak256(
             abi.encode(
@@ -371,13 +341,7 @@ contract GasBenchmarkTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                tokenNetwork.DOMAIN_SEPARATOR(),
-                structHash
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         signature = abi.encodePacked(r, s, v);
@@ -403,31 +367,14 @@ contract GasBenchmarkTest is Test {
         uint256 privateKey
     ) internal view returns (TokenNetwork.WithdrawProof memory proof, bytes memory signature) {
         proof = TokenNetwork.WithdrawProof({
-            channelId: channelId,
-            participant: participant,
-            amount: amount,
-            nonce: nonce,
-            expiry: expiry
-        });
+                channelId: channelId, participant: participant, amount: amount, nonce: nonce, expiry: expiry
+            });
 
         bytes32 structHash = keccak256(
-            abi.encode(
-                tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
-                channelId,
-                participant,
-                amount,
-                nonce,
-                expiry
-            )
+            abi.encode(tokenNetwork.WITHDRAW_PROOF_TYPEHASH(), channelId, participant, amount, nonce, expiry)
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                tokenNetwork.DOMAIN_SEPARATOR(),
-                structHash
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         signature = abi.encodePacked(r, s, v);

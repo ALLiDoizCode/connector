@@ -7,7 +7,7 @@ import "../src/MockERC20.sol";
 contract DeployTest is Test {
     MockERC20 public token;
     address public deployer = address(1);
-    uint256 public initialSupply = 1000000 * 10**18;
+    uint256 public initialSupply = 1000000 * 10 ** 18;
 
     function setUp() public {
         vm.startPrank(deployer);
@@ -25,7 +25,7 @@ contract DeployTest is Test {
 
     function testTransfer() public {
         address recipient = address(2);
-        uint256 amount = 1000 * 10**18;
+        uint256 amount = 1000 * 10 ** 18;
 
         vm.prank(deployer);
         token.transfer(recipient, amount);

@@ -99,8 +99,8 @@ contract FuzzTest is Test {
      */
     function testFuzz_SettlementWithRandomTransfers(uint256 aliceSent, uint256 bobSent) public {
         // Fixed deposits for simplicity
-        uint256 aliceDeposit = 1000 * 10**18;
-        uint256 bobDeposit = 500 * 10**18;
+        uint256 aliceDeposit = 1000 * 10 ** 18;
+        uint256 bobDeposit = 500 * 10 ** 18;
 
         // Constrain transfers to valid ranges
         aliceSent = bound(aliceSent, 0, aliceDeposit);
@@ -162,16 +162,10 @@ contract FuzzTest is Test {
 
         // Verify final balances (approximate due to gas)
         assertApproxEqAbs(
-            token.balanceOf(alice),
-            type(uint128).max - aliceDeposit + aliceExpected,
-            1,
-            "Alice final balance incorrect"
+            token.balanceOf(alice), type(uint128).max - aliceDeposit + aliceExpected, 1, "Alice final balance incorrect"
         );
         assertApproxEqAbs(
-            token.balanceOf(bob),
-            type(uint128).max - bobDeposit + bobExpected,
-            1,
-            "Bob final balance incorrect"
+            token.balanceOf(bob), type(uint128).max - bobDeposit + bobExpected, 1, "Bob final balance incorrect"
         );
     }
 
@@ -189,16 +183,16 @@ contract FuzzTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, 1 hours);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10 ** 18);
 
         // Create first balance proof with smaller transferred amount
         TokenNetwork.BalanceProof memory proof1 = TokenNetwork.BalanceProof({
             channelId: channelId,
             nonce: nonce1,
-            transferredAmount: 100 * 10**18, // Bob sent 100 to Alice
+            transferredAmount: 100 * 10 ** 18, // Bob sent 100 to Alice
             lockedAmount: 0,
             locksRoot: bytes32(0)
         });
@@ -215,7 +209,7 @@ contract FuzzTest is Test {
         TokenNetwork.BalanceProof memory proof2 = TokenNetwork.BalanceProof({
             channelId: channelId,
             nonce: nonce2,
-            transferredAmount: 50 * 10**18, // Alice sent 50 to Bob
+            transferredAmount: 50 * 10 ** 18, // Alice sent 50 to Bob
             lockedAmount: 0,
             locksRoot: bytes32(0)
         });
@@ -249,15 +243,11 @@ contract FuzzTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, 1 hours);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create withdrawal proof with fuzzed expiry
         TokenNetwork.WithdrawProof memory proof = TokenNetwork.WithdrawProof({
-            channelId: channelId,
-            participant: alice,
-            amount: 100 * 10**18,
-            nonce: 1,
-            expiry: expiryTimestamp
+            channelId: channelId, participant: alice, amount: 100 * 10 ** 18, nonce: 1, expiry: expiryTimestamp
         });
 
         bytes32 digest = _getWithdrawProofDigest(proof);
@@ -301,9 +291,7 @@ contract FuzzTest is Test {
         // Test that deposit cannot exceed maxDeposit
         uint256 maxDeposit = tokenNetwork.maxDeposit();
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(TokenNetwork.DepositExceedsMaximum.selector, maxDeposit + 1, maxDeposit)
-        );
+        vm.expectRevert(abi.encodeWithSelector(TokenNetwork.DepositExceedsMaximum.selector, maxDeposit + 1, maxDeposit));
         tokenNetwork.setTotalDeposit(channelId, alice, maxDeposit + 1);
     }
 
@@ -338,27 +326,25 @@ contract FuzzTest is Test {
             // Valid transitions
             if (previousState == TokenNetwork.ChannelState.NonExistent) {
                 assertTrue(
-                    currentState == TokenNetwork.ChannelState.NonExistent ||
-                    currentState == TokenNetwork.ChannelState.Opened,
+                    currentState == TokenNetwork.ChannelState.NonExistent
+                        || currentState == TokenNetwork.ChannelState.Opened,
                     "Invalid transition from NonExistent"
                 );
             } else if (previousState == TokenNetwork.ChannelState.Opened) {
                 assertTrue(
-                    currentState == TokenNetwork.ChannelState.Opened ||
-                    currentState == TokenNetwork.ChannelState.Closed ||
-                    currentState == TokenNetwork.ChannelState.Settled, // cooperative settlement
+                    currentState == TokenNetwork.ChannelState.Opened || currentState == TokenNetwork.ChannelState.Closed
+                        || currentState == TokenNetwork.ChannelState.Settled, // cooperative settlement
                     "Invalid transition from Opened"
                 );
             } else if (previousState == TokenNetwork.ChannelState.Closed) {
                 assertTrue(
-                    currentState == TokenNetwork.ChannelState.Closed ||
-                    currentState == TokenNetwork.ChannelState.Settled,
+                    currentState == TokenNetwork.ChannelState.Closed
+                        || currentState == TokenNetwork.ChannelState.Settled,
                     "Invalid transition from Closed"
                 );
             } else if (previousState == TokenNetwork.ChannelState.Settled) {
                 assertTrue(
-                    currentState == TokenNetwork.ChannelState.Settled,
-                    "Invalid transition from Settled (final state)"
+                    currentState == TokenNetwork.ChannelState.Settled, "Invalid transition from Settled (final state)"
                 );
             }
 
@@ -430,14 +416,8 @@ contract FuzzTest is Test {
             uint256 aliceDeposit = tokenNetwork.getChannelDeposit(channelId, alice);
             uint256 bobDeposit = tokenNetwork.getChannelDeposit(channelId, bob);
 
-            assertTrue(
-                aliceDeposit <= maxDeposit,
-                "Alice deposit exceeds maximum"
-            );
-            assertTrue(
-                bobDeposit <= maxDeposit,
-                "Bob deposit exceeds maximum"
-            );
+            assertTrue(aliceDeposit <= maxDeposit, "Alice deposit exceeds maximum");
+            assertTrue(bobDeposit <= maxDeposit, "Bob deposit exceeds maximum");
         }
     }
 
@@ -451,9 +431,8 @@ contract FuzzTest is Test {
             , // participant1
             , // participant2
             , // settlementTimeout
-            TokenNetwork.ChannelState state,
-            , // closedAt
-              // openedAt
+            TokenNetwork.ChannelState state,, // closedAt
+            // openedAt
         ) = tokenNetwork.channels(channelId);
 
         return state;
@@ -481,39 +460,35 @@ contract FuzzTest is Test {
      * @notice Compute EIP-712 digest for balance proof
      */
     function _getBalanceProofDigest(TokenNetwork.BalanceProof memory proof) internal view returns (bytes32) {
-        bytes32 structHash = keccak256(abi.encode(
-            tokenNetwork.BALANCE_PROOF_TYPEHASH(),
-            proof.channelId,
-            proof.nonce,
-            proof.transferredAmount,
-            proof.lockedAmount,
-            proof.locksRoot
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                tokenNetwork.BALANCE_PROOF_TYPEHASH(),
+                proof.channelId,
+                proof.nonce,
+                proof.transferredAmount,
+                proof.lockedAmount,
+                proof.locksRoot
+            )
+        );
 
-        return keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            structHash
-        ));
+        return keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
     }
 
     /**
      * @notice Compute EIP-712 digest for withdraw proof
      */
     function _getWithdrawProofDigest(TokenNetwork.WithdrawProof memory proof) internal view returns (bytes32) {
-        bytes32 structHash = keccak256(abi.encode(
-            tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
-            proof.channelId,
-            proof.participant,
-            proof.amount,
-            proof.nonce,
-            proof.expiry
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
+                proof.channelId,
+                proof.participant,
+                proof.amount,
+                proof.nonce,
+                proof.expiry
+            )
+        );
 
-        return keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            structHash
-        ));
+        return keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
     }
 }

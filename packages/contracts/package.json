@@ -10,6 +10,7 @@
     "coverage:summary": "forge coverage --report summary",
     "deploy:local": "forge script script/Deploy.s.sol --rpc-url local --broadcast",
     "deploy:sepolia": "forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify",
-    "deploy:mainnet": "forge script script/Deploy.s.sol --rpc-url base_mainnet --broadcast --verify"
+    "deploy:mainnet": "forge script script/Deploy.s.sol --rpc-url base_mainnet --broadcast --verify",
+    "lint": "forge fmt --check"
   }
 }

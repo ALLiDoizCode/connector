@@ -28,41 +28,25 @@ contract TokenNetworkTest is Test {
     address public charlie;
 
     uint256 constant SETTLEMENT_TIMEOUT = 1 hours;
-    uint256 constant INITIAL_BALANCE = 10000 * 10**18;
+    uint256 constant INITIAL_BALANCE = 10000 * 10 ** 18;
 
     event ChannelOpened(
-        bytes32 indexed channelId,
-        address indexed participant1,
-        address indexed participant2,
-        uint256 settlementTimeout
+        bytes32 indexed channelId, address indexed participant1, address indexed participant2, uint256 settlementTimeout
     );
 
     event ChannelDeposit(
-        bytes32 indexed channelId,
-        address indexed participant,
-        uint256 totalDeposit,
-        uint256 depositIncrease
+        bytes32 indexed channelId, address indexed participant, uint256 totalDeposit, uint256 depositIncrease
     );
 
     event ChannelClosed(
-        bytes32 indexed channelId,
-        address indexed closingParticipant,
-        uint256 nonce,
-        bytes32 balanceHash
+        bytes32 indexed channelId, address indexed closingParticipant, uint256 nonce, bytes32 balanceHash
     );
 
     event NonClosingBalanceProofUpdated(
-        bytes32 indexed channelId,
-        address indexed participant,
-        uint256 nonce,
-        bytes32 balanceHash
+        bytes32 indexed channelId, address indexed participant, uint256 nonce, bytes32 balanceHash
     );
 
-    event ChannelSettled(
-        bytes32 indexed channelId,
-        uint256 participant1Amount,
-        uint256 participant2Amount
-    );
+    event ChannelSettled(bytes32 indexed channelId, uint256 participant1Amount, uint256 participant2Amount);
 
     event MaxDepositUpdated(uint256 oldMax, uint256 newMax);
 
@@ -117,7 +101,11 @@ contract TokenNetworkTest is Test {
 
         // Assert
         assertEq(channelId, expectedChannelId, "Channel ID mismatch");
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Opened), "Channel state should be Opened");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Channel state should be Opened"
+        );
         assertEq(tokenNetwork.channelCounter(), 1, "Channel counter should be 1");
     }
 
@@ -177,7 +165,7 @@ contract TokenNetworkTest is Test {
         // Arrange
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
-        uint256 depositAmount = 1000 * 10**18;
+        uint256 depositAmount = 1000 * 10 ** 18;
 
         // Act
         vm.prank(alice);
@@ -198,9 +186,9 @@ contract TokenNetworkTest is Test {
         // Arrange
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
-        uint256 firstDeposit = 1000 * 10**18;
-        uint256 secondTotalDeposit = 1500 * 10**18;
-        uint256 expectedIncrease = 500 * 10**18;
+        uint256 firstDeposit = 1000 * 10 ** 18;
+        uint256 secondTotalDeposit = 1500 * 10 ** 18;
+        uint256 expectedIncrease = 500 * 10 ** 18;
 
         // Act - First deposit
         vm.prank(alice);
@@ -225,7 +213,7 @@ contract TokenNetworkTest is Test {
         // Arrange
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
-        uint256 firstDeposit = 1000 * 10**18;
+        uint256 firstDeposit = 1000 * 10 ** 18;
 
         vm.prank(alice);
         tokenNetwork.setTotalDeposit(channelId, alice, firstDeposit);
@@ -233,7 +221,7 @@ contract TokenNetworkTest is Test {
         // Act & Assert - Try to decrease deposit
         vm.prank(alice);
         vm.expectRevert(TokenNetwork.InvalidDeposit.selector);
-        tokenNetwork.setTotalDeposit(channelId, alice, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 500 * 10 ** 18);
     }
 
     /**
@@ -246,7 +234,7 @@ contract TokenNetworkTest is Test {
         // Act & Assert
         vm.prank(alice);
         vm.expectRevert(TokenNetwork.ChannelNotFound.selector);
-        tokenNetwork.setTotalDeposit(fakeChannelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(fakeChannelId, alice, 1000 * 10 ** 18);
     }
 
     /**
@@ -263,9 +251,11 @@ contract TokenNetworkTest is Test {
 
         // For now, just verify opened state accepts deposits
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
-        assertEq(tokenNetwork.getChannelDeposit(channelId, alice), 1000 * 10**18, "Deposit should succeed in Opened state");
+        assertEq(
+            tokenNetwork.getChannelDeposit(channelId, alice), 1000 * 10 ** 18, "Deposit should succeed in Opened state"
+        );
     }
 
     /**
@@ -288,24 +278,36 @@ contract TokenNetworkTest is Test {
         assertTrue(channelId2 != channelId3, "Channel 2 and 3 should be different");
 
         // Assert - All channels are in Opened state
-        assertEq(uint(tokenNetwork.getChannelState(channelId1)), uint(TokenNetwork.ChannelState.Opened), "Channel 1 should be Opened");
-        assertEq(uint(tokenNetwork.getChannelState(channelId2)), uint(TokenNetwork.ChannelState.Opened), "Channel 2 should be Opened");
-        assertEq(uint(tokenNetwork.getChannelState(channelId3)), uint(TokenNetwork.ChannelState.Opened), "Channel 3 should be Opened");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId1)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Channel 1 should be Opened"
+        );
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId2)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Channel 2 should be Opened"
+        );
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId3)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Channel 3 should be Opened"
+        );
 
         // Deposit in all channels
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId1, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId1, alice, 1000 * 10 ** 18);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId2, alice, 2000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId2, alice, 2000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId3, bob, 3000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId3, bob, 3000 * 10 ** 18);
 
         // Assert - Deposits tracked independently
-        assertEq(tokenNetwork.getChannelDeposit(channelId1, alice), 1000 * 10**18, "Channel 1 Alice deposit");
-        assertEq(tokenNetwork.getChannelDeposit(channelId2, alice), 2000 * 10**18, "Channel 2 Alice deposit");
-        assertEq(tokenNetwork.getChannelDeposit(channelId3, bob), 3000 * 10**18, "Channel 3 Bob deposit");
+        assertEq(tokenNetwork.getChannelDeposit(channelId1, alice), 1000 * 10 ** 18, "Channel 1 Alice deposit");
+        assertEq(tokenNetwork.getChannelDeposit(channelId2, alice), 2000 * 10 ** 18, "Channel 2 Alice deposit");
+        assertEq(tokenNetwork.getChannelDeposit(channelId3, bob), 3000 * 10 ** 18, "Channel 3 Bob deposit");
     }
 
     /**
@@ -351,14 +353,18 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = feeTokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         // Attempt to deposit 1000 tokens (90% = 900 should be received due to 10% fee)
-        uint256 depositAmount = 1000 * 10**18;
-        uint256 expectedReceived = 900 * 10**18; // 10% fee
+        uint256 depositAmount = 1000 * 10 ** 18;
+        uint256 expectedReceived = 900 * 10 ** 18; // 10% fee
 
         vm.prank(alice);
         feeTokenNetwork.setTotalDeposit(channelId, alice, depositAmount);
 
         // Assert - Deposit recorded as actual received amount (900)
-        assertEq(feeTokenNetwork.getChannelDeposit(channelId, alice), expectedReceived, "Deposit should be 900 (after 10% fee)");
+        assertEq(
+            feeTokenNetwork.getChannelDeposit(channelId, alice),
+            expectedReceived,
+            "Deposit should be 900 (after 10% fee)"
+        );
         assertEq(feeToken.balanceOf(address(feeTokenNetwork)), expectedReceived, "Contract balance should be 900");
     }
 
@@ -393,8 +399,8 @@ contract TokenNetworkTest is Test {
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
-        uint256 aliceDeposit = 1000 * 10**18;
-        uint256 bobDeposit = 2000 * 10**18;
+        uint256 aliceDeposit = 1000 * 10 ** 18;
+        uint256 bobDeposit = 2000 * 10 ** 18;
 
         // Act - Alice deposits
         vm.prank(alice);
@@ -416,12 +422,20 @@ contract TokenNetworkTest is Test {
     function testGetChannelState() public {
         // Non-existent channel
         bytes32 fakeChannelId = keccak256(abi.encodePacked("fake"));
-        assertEq(uint(tokenNetwork.getChannelState(fakeChannelId)), uint(TokenNetwork.ChannelState.NonExistent), "Non-existent channel");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(fakeChannelId)),
+            uint256(TokenNetwork.ChannelState.NonExistent),
+            "Non-existent channel"
+        );
 
         // Opened channel
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Opened), "Opened channel");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Opened channel"
+        );
     }
 
     /**
@@ -436,7 +450,7 @@ contract TokenNetworkTest is Test {
         assertEq(tokenNetwork.getChannelDeposit(channelId, alice), 0, "Initial deposit should be 0");
 
         // After deposit
-        uint256 depositAmount = 1000 * 10**18;
+        uint256 depositAmount = 1000 * 10 ** 18;
         vm.prank(alice);
         tokenNetwork.setTotalDeposit(channelId, alice, depositAmount);
 
@@ -450,12 +464,20 @@ contract TokenNetworkTest is Test {
         // Minimum valid timeout (1 hour)
         vm.prank(alice);
         bytes32 channelId1 = tokenNetwork.openChannel(bob, 1 hours);
-        assertEq(uint(tokenNetwork.getChannelState(channelId1)), uint(TokenNetwork.ChannelState.Opened), "Min timeout should work");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId1)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Min timeout should work"
+        );
 
         // Maximum valid timeout (30 days)
         vm.prank(alice);
         bytes32 channelId2 = tokenNetwork.openChannel(charlie, 30 days);
-        assertEq(uint(tokenNetwork.getChannelState(channelId2)), uint(TokenNetwork.ChannelState.Opened), "Max timeout should work");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId2)),
+            uint256(TokenNetwork.ChannelState.Opened),
+            "Max timeout should work"
+        );
     }
 
     /**
@@ -520,12 +542,12 @@ contract TokenNetworkTest is Test {
         // Act & Assert - Charlie tries to deposit for Alice
         vm.prank(charlie);
         vm.expectRevert(TokenNetwork.UnauthorizedDeposit.selector);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Act & Assert - Charlie tries to deposit for Bob
         vm.prank(charlie);
         vm.expectRevert(TokenNetwork.UnauthorizedDeposit.selector);
-        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10 ** 18);
     }
 
     /**
@@ -540,7 +562,7 @@ contract TokenNetworkTest is Test {
         // This will fail at participant validation check (not UnauthorizedDeposit)
         vm.prank(charlie);
         vm.expectRevert(TokenNetwork.InvalidParticipant.selector);
-        tokenNetwork.setTotalDeposit(channelId, charlie, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, charlie, 1000 * 10 ** 18);
     }
 
     /**
@@ -562,20 +584,18 @@ contract TokenNetworkTest is Test {
             locksRoot: locksRoot
         });
 
-        bytes32 structHash = keccak256(abi.encode(
-            tokenNetwork.BALANCE_PROOF_TYPEHASH(),
-            proof.channelId,
-            proof.nonce,
-            proof.transferredAmount,
-            proof.lockedAmount,
-            proof.locksRoot
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                tokenNetwork.BALANCE_PROOF_TYPEHASH(),
+                proof.channelId,
+                proof.nonce,
+                proof.transferredAmount,
+                proof.lockedAmount,
+                proof.locksRoot
+            )
+        );
 
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, digest);
         signature = abi.encodePacked(r, s, v);
@@ -589,8 +609,8 @@ contract TokenNetworkTest is Test {
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
-        uint256 aliceDeposit = 1000 * 10**18;
-        uint256 bobDeposit = 500 * 10**18;
+        uint256 aliceDeposit = 1000 * 10 ** 18;
+        uint256 bobDeposit = 500 * 10 ** 18;
 
         vm.prank(alice);
         token.approve(address(tokenNetwork), aliceDeposit);
@@ -606,7 +626,7 @@ contract TokenNetworkTest is Test {
         (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
             channelId,
             1, // nonce
-            100 * 10**18, // Alice transferred 100 to Bob
+            100 * 10 ** 18, // Alice transferred 100 to Bob
             0, // no locked amount
             bytes32(0), // no locks
             alicePrivateKey
@@ -615,11 +635,17 @@ contract TokenNetworkTest is Test {
         // Act: Bob closes channel with Alice's balance proof
         vm.prank(bob);
         vm.expectEmit(true, true, false, true);
-        emit ChannelClosed(channelId, bob, 1, keccak256(abi.encodePacked(uint256(100 * 10**18), uint256(0), bytes32(0))));
+        emit ChannelClosed(
+            channelId, bob, 1, keccak256(abi.encodePacked(uint256(100 * 10 ** 18), uint256(0), bytes32(0)))
+        );
         tokenNetwork.closeChannel(channelId, proof, signature);
 
         // Assert: Channel should be closed
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Closed), "Channel should be closed");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId)),
+            uint256(TokenNetwork.ChannelState.Closed),
+            "Channel should be closed"
+        );
     }
 
     /**
@@ -631,24 +657,22 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Close with nonce=5
-        
-        (TokenNetwork.BalanceProof memory proof1, bytes memory signature1) = createBalanceProof(
-            channelId, 5, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof1, bytes memory signature1) =
+            createBalanceProof(channelId, 5, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof1, signature1);
 
         // Act & Assert: Attempt to update with nonce=3 (stale)
-        
-        (TokenNetwork.BalanceProof memory proof2, bytes memory signature2) = createBalanceProof(
-            channelId, 3, 50 * 10**18, 0, bytes32(0), bobPrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof2, bytes memory signature2) =
+            createBalanceProof(channelId, 3, 50 * 10 ** 18, 0, bytes32(0), bobPrivateKey);
 
         vm.prank(alice);
         vm.expectRevert(TokenNetwork.StaleBalanceProof.selector);
@@ -664,33 +688,33 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        token.approve(address(tokenNetwork), 500 * 10**18);
+        token.approve(address(tokenNetwork), 500 * 10 ** 18);
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Bob closes with Alice's balance proof (nonce=5)
-        
-        (TokenNetwork.BalanceProof memory proof1, bytes memory signature1) = createBalanceProof(
-            channelId, 5, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof1, bytes memory signature1) =
+            createBalanceProof(channelId, 5, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof1, signature1);
 
         // Act: Alice submits newer balance proof from Bob (nonce=10)
-        
-        (TokenNetwork.BalanceProof memory proof2, bytes memory signature2) = createBalanceProof(
-            channelId, 10, 200 * 10**18, 0, bytes32(0), bobPrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof2, bytes memory signature2) =
+            createBalanceProof(channelId, 10, 200 * 10 ** 18, 0, bytes32(0), bobPrivateKey);
 
         vm.prank(alice);
         vm.expectEmit(true, true, false, true);
-        emit NonClosingBalanceProofUpdated(channelId, alice, 10, keccak256(abi.encodePacked(uint256(200 * 10**18), uint256(0), bytes32(0))));
+        emit NonClosingBalanceProofUpdated(
+            channelId, alice, 10, keccak256(abi.encodePacked(uint256(200 * 10 ** 18), uint256(0), bytes32(0)))
+        );
         tokenNetwork.updateNonClosingBalanceProof(channelId, proof2, signature2);
 
         // Assert: Challenge accepted
@@ -706,14 +730,12 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
-        
-        (TokenNetwork.BalanceProof memory proof1, bytes memory signature1) = createBalanceProof(
-            channelId, 5, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory signature1) =
+            createBalanceProof(channelId, 5, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof1, signature1);
@@ -722,10 +744,9 @@ contract TokenNetworkTest is Test {
         vm.warp(block.timestamp + SETTLEMENT_TIMEOUT + 1);
 
         // Act & Assert: Attempt to update balance proof after expiry
-        
-        (TokenNetwork.BalanceProof memory proof2, bytes memory signature2) = createBalanceProof(
-            channelId, 10, 200 * 10**18, 0, bytes32(0), bobPrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof2, bytes memory signature2) =
+            createBalanceProof(channelId, 10, 200 * 10 ** 18, 0, bytes32(0), bobPrivateKey);
 
         vm.prank(alice);
         vm.expectRevert(TokenNetwork.ChallengeExpired.selector);
@@ -740,8 +761,8 @@ contract TokenNetworkTest is Test {
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
-        uint256 aliceDeposit = 1000 * 10**18;
-        uint256 bobDeposit = 500 * 10**18;
+        uint256 aliceDeposit = 1000 * 10 ** 18;
+        uint256 bobDeposit = 500 * 10 ** 18;
 
         vm.prank(alice);
         token.approve(address(tokenNetwork), aliceDeposit);
@@ -754,10 +775,9 @@ contract TokenNetworkTest is Test {
         tokenNetwork.setTotalDeposit(channelId, bob, bobDeposit);
 
         // Close channel: Alice transferred 200 to Bob (signed by Alice)
-        
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId, 1, 200 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 200 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof, signature);
@@ -787,9 +807,13 @@ contract TokenNetworkTest is Test {
         // Assert: Verify final balances
         // Alice: 1000 - 200 sent = 800
         // Bob: 500 + 200 received = 700
-        assertEq(token.balanceOf(alice), aliceBalanceBefore + 800 * 10**18, "Alice should receive 800");
-        assertEq(token.balanceOf(bob), bobBalanceBefore + 700 * 10**18, "Bob should receive 700");
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Settled), "Channel should be settled");
+        assertEq(token.balanceOf(alice), aliceBalanceBefore + 800 * 10 ** 18, "Alice should receive 800");
+        assertEq(token.balanceOf(bob), bobBalanceBefore + 700 * 10 ** 18, "Bob should receive 700");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId)),
+            uint256(TokenNetwork.ChannelState.Settled),
+            "Channel should be settled"
+        );
     }
 
     /**
@@ -801,14 +825,12 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
-        
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId, 1, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof, signature);
@@ -827,21 +849,20 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10 ** 18);
 
         // Alice sends 300 to Bob, Bob sends 100 to Alice
         // Bob closes with Alice's proof (nonce=1)
 
-        (TokenNetwork.BalanceProof memory aliceProof, bytes memory aliceSig) = createBalanceProof(
-            channelId, 1, 300 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory aliceProof, bytes memory aliceSig) =
+            createBalanceProof(channelId, 1, 300 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         // Bob closes with Alice's proof
         vm.prank(bob);
@@ -849,9 +870,8 @@ contract TokenNetworkTest is Test {
 
         // Alice updates with Bob's proof (nonce must be > 1, use nonce=2)
 
-        (TokenNetwork.BalanceProof memory bobProof, bytes memory bobSig) = createBalanceProof(
-            channelId, 2, 100 * 10**18, 0, bytes32(0), bobPrivateKey
-        );
+        (TokenNetwork.BalanceProof memory bobProof, bytes memory bobSig) =
+            createBalanceProof(channelId, 2, 100 * 10 ** 18, 0, bytes32(0), bobPrivateKey);
 
         vm.prank(alice);
         tokenNetwork.updateNonClosingBalanceProof(channelId, bobProof, bobSig);
@@ -865,8 +885,8 @@ contract TokenNetworkTest is Test {
         tokenNetwork.settleChannel(channelId);
 
         // Assert: Alice = 1000 - 300 + 100 = 800, Bob = 1000 + 300 - 100 = 1200
-        assertEq(token.balanceOf(alice), aliceBalanceBefore + 800 * 10**18, "Alice final balance");
-        assertEq(token.balanceOf(bob), bobBalanceBefore + 1200 * 10**18, "Bob final balance");
+        assertEq(token.balanceOf(alice), aliceBalanceBefore + 800 * 10 ** 18, "Alice final balance");
+        assertEq(token.balanceOf(bob), bobBalanceBefore + 1200 * 10 ** 18, "Bob final balance");
     }
 
     /**
@@ -878,22 +898,21 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create valid signature
-        
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId, 1, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         // Act: Bob closes with valid signature
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof, signature);
 
         // Assert: Should succeed (no revert)
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Closed));
+        assertEq(uint256(tokenNetwork.getChannelState(channelId)), uint256(TokenNetwork.ChannelState.Closed));
     }
 
     /**
@@ -905,16 +924,12 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        token.approve(address(tokenNetwork), 1000 * 10**18);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         TokenNetwork.BalanceProof memory proof = TokenNetwork.BalanceProof({
-            channelId: channelId,
-            nonce: 1,
-            transferredAmount: 100 * 10**18,
-            lockedAmount: 0,
-            locksRoot: bytes32(0)
+            channelId: channelId, nonce: 1, transferredAmount: 100 * 10 ** 18, lockedAmount: 0, locksRoot: bytes32(0)
         });
 
         // Invalid signature (random bytes)
@@ -980,7 +995,7 @@ contract TokenNetworkTest is Test {
         // Act & Assert: Attempt to deposit while paused
         vm.prank(alice);
         vm.expectRevert(); // EnforcedPause error
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
     }
 
     /**
@@ -992,12 +1007,11 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create balance proof
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId, 1, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         // Pause contract
         vm.prank(tokenNetwork.owner());
@@ -1018,11 +1032,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
-        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) = createBalanceProof(
-            channelId, 1, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof1, sig1);
@@ -1032,9 +1045,8 @@ contract TokenNetworkTest is Test {
         tokenNetwork.pause();
 
         // Act & Assert: Attempt to update balance proof while paused
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createBalanceProof(
-            channelId, 2, 200 * 10**18, 0, bytes32(0), bobPrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createBalanceProof(channelId, 2, 200 * 10 ** 18, 0, bytes32(0), bobPrivateKey);
 
         vm.prank(alice);
         vm.expectRevert(); // EnforcedPause error
@@ -1050,11 +1062,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
-        (TokenNetwork.BalanceProof memory proof, bytes memory signature) = createBalanceProof(
-            channelId, 1, 100 * 10**18, 0, bytes32(0), alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof, bytes memory signature) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, proof, signature);
@@ -1104,7 +1115,7 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         // Assert: Channel should be created successfully
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Opened));
+        assertEq(uint256(tokenNetwork.getChannelState(channelId)), uint256(TokenNetwork.ChannelState.Opened));
     }
 
     /**
@@ -1120,7 +1131,7 @@ contract TokenNetworkTest is Test {
 
         // Act & Assert: View functions should still work
         TokenNetwork.ChannelState state = tokenNetwork.getChannelState(channelId);
-        assertEq(uint(state), uint(TokenNetwork.ChannelState.Opened), "Should be able to query state when paused");
+        assertEq(uint256(state), uint256(TokenNetwork.ChannelState.Opened), "Should be able to query state when paused");
 
         (address p1, address p2) = tokenNetwork.getChannelParticipants(channelId);
         assertTrue(p1 != address(0) || p2 != address(0), "Should be able to query participants when paused");
@@ -1133,7 +1144,7 @@ contract TokenNetworkTest is Test {
         // Arrange - Get owner and current maxDeposit
         address owner = tokenNetwork.owner();
         uint256 oldMax = tokenNetwork.maxDeposit();
-        uint256 newMax = 2_000_000 * 10**18;
+        uint256 newMax = 2_000_000 * 10 ** 18;
 
         // Act: Owner updates maxDeposit
         vm.prank(owner);
@@ -1150,7 +1161,7 @@ contract TokenNetworkTest is Test {
         // Act & Assert: Alice (non-owner) tries to update maxDeposit
         vm.prank(alice);
         vm.expectRevert(); // OwnableUnauthorizedAccount error
-        tokenNetwork.setMaxDeposit(2_000_000 * 10**18);
+        tokenNetwork.setMaxDeposit(2_000_000 * 10 ** 18);
     }
 
     /**
@@ -1166,9 +1177,7 @@ contract TokenNetworkTest is Test {
 
         // Act & Assert: Alice tries to deposit more than maxDeposit
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(TokenNetwork.DepositExceedsMaximum.selector, maxDeposit + 1, maxDeposit)
-        );
+        vm.expectRevert(abi.encodeWithSelector(TokenNetwork.DepositExceedsMaximum.selector, maxDeposit + 1, maxDeposit));
         tokenNetwork.setTotalDeposit(channelId, alice, maxDeposit + 1);
     }
 
@@ -1202,7 +1211,7 @@ contract TokenNetworkTest is Test {
         // Arrange
         address owner = tokenNetwork.owner();
         uint256 oldMax = tokenNetwork.maxDeposit();
-        uint256 newMax = 2_000_000 * 10**18;
+        uint256 newMax = 2_000_000 * 10 ** 18;
 
         // Act & Assert: Expect event and update
         vm.prank(owner);
@@ -1215,11 +1224,7 @@ contract TokenNetworkTest is Test {
     // Story 8.5 Tests: Cooperative Settlement (AC7)
     // =========================================================================
 
-    event CooperativeSettlement(
-        bytes32 indexed channelId,
-        uint256 participant1Amount,
-        uint256 participant2Amount
-    );
+    event CooperativeSettlement(bytes32 indexed channelId, uint256 participant1Amount, uint256 participant2Amount);
 
     /**
      * Helper: Create and sign a cooperative settlement proof
@@ -1238,20 +1243,18 @@ contract TokenNetworkTest is Test {
             locksRoot: bytes32(0)
         });
 
-        bytes32 structHash = keccak256(abi.encode(
-            tokenNetwork.BALANCE_PROOF_TYPEHASH(),
-            proof.channelId,
-            proof.nonce,
-            proof.transferredAmount,
-            proof.lockedAmount,
-            proof.locksRoot
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                tokenNetwork.BALANCE_PROOF_TYPEHASH(),
+                proof.channelId,
+                proof.nonce,
+                proof.transferredAmount,
+                proof.lockedAmount,
+                proof.locksRoot
+            )
+        );
 
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, digest);
         signature = abi.encodePacked(r, s, v);
@@ -1265,8 +1268,8 @@ contract TokenNetworkTest is Test {
         vm.prank(alice);
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
-        uint256 aliceDeposit = 1000 * 10**18;
-        uint256 bobDeposit = 500 * 10**18;
+        uint256 aliceDeposit = 1000 * 10 ** 18;
+        uint256 bobDeposit = 500 * 10 ** 18;
 
         vm.prank(alice);
         tokenNetwork.setTotalDeposit(channelId, alice, aliceDeposit);
@@ -1282,13 +1285,11 @@ contract TokenNetworkTest is Test {
         // Create matching balance proofs (nonce=5)
         // proof1: participant1 sent 200 to participant2
         // proof2: participant2 sent 100 to participant1
-        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) = createCooperativeProof(
-            channelId, 5, 200 * 10**18, p1PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) =
+            createCooperativeProof(channelId, 5, 200 * 10 ** 18, p1PrivateKey);
 
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createCooperativeProof(
-            channelId, 5, 100 * 10**18, p2PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createCooperativeProof(channelId, 5, 100 * 10 ** 18, p2PrivateKey);
 
         // Record balances before settlement
         uint256 aliceBalanceBefore = token.balanceOf(alice);
@@ -1300,8 +1301,8 @@ contract TokenNetworkTest is Test {
         // Assert: Calculate expected final balances based on participant ordering
         uint256 p1Deposit = participant1 == alice ? aliceDeposit : bobDeposit;
         uint256 p2Deposit = participant2 == alice ? aliceDeposit : bobDeposit;
-        uint256 p1Final = p1Deposit - 200 * 10**18 + 100 * 10**18; // 900 or 400
-        uint256 p2Final = p2Deposit - 100 * 10**18 + 200 * 10**18; // 600 or 1100
+        uint256 p1Final = p1Deposit - 200 * 10 ** 18 + 100 * 10 ** 18; // 900 or 400
+        uint256 p2Final = p2Deposit - 100 * 10 ** 18 + 200 * 10 ** 18; // 600 or 1100
 
         if (participant1 == alice) {
             assertEq(token.balanceOf(alice), aliceBalanceBefore + p1Final, "Alice should receive correct amount");
@@ -1310,7 +1311,11 @@ contract TokenNetworkTest is Test {
             assertEq(token.balanceOf(bob), bobBalanceBefore + p1Final, "Bob should receive correct amount");
             assertEq(token.balanceOf(alice), aliceBalanceBefore + p2Final, "Alice should receive correct amount");
         }
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Settled), "Channel should be Settled");
+        assertEq(
+            uint256(tokenNetwork.getChannelState(channelId)),
+            uint256(TokenNetwork.ChannelState.Settled),
+            "Channel should be Settled"
+        );
     }
 
     /**
@@ -1322,10 +1327,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Determine participant order
         (address participant1, address participant2) = tokenNetwork.getChannelParticipants(channelId);
@@ -1333,13 +1338,16 @@ contract TokenNetworkTest is Test {
         uint256 p2PrivateKey = participant2 == alice ? alicePrivateKey : bobPrivateKey;
 
         // Create balance proofs with mismatched nonces
-        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) = createCooperativeProof(
-            channelId, 5, 200 * 10**18, p1PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) =
+            createCooperativeProof(channelId, 5, 200 * 10 ** 18, p1PrivateKey);
 
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createCooperativeProof(
-            channelId, 7, 100 * 10**18, p2PrivateKey // Different nonce
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createCooperativeProof(
+                channelId,
+                7,
+                100 * 10 ** 18,
+                p2PrivateKey // Different nonce
+            );
 
         // Act & Assert: Should revert with NonceMismatch
         vm.expectRevert(abi.encodeWithSelector(TokenNetwork.NonceMismatch.selector, 5, 7));
@@ -1355,10 +1363,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Determine participant order
         (address participant1, address participant2) = tokenNetwork.getChannelParticipants(channelId);
@@ -1366,18 +1374,13 @@ contract TokenNetworkTest is Test {
         uint256 p2PrivateKey = participant2 == alice ? alicePrivateKey : bobPrivateKey;
 
         // Create valid proof1 but sign with wrong key
-        (TokenNetwork.BalanceProof memory proof1, ) = createCooperativeProof(
-            channelId, 5, 200 * 10**18, p1PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1,) = createCooperativeProof(channelId, 5, 200 * 10 ** 18, p1PrivateKey);
 
         // Sign with Charlie's key instead of participant1's key
-        (, bytes memory invalidSig) = createCooperativeProof(
-            channelId, 5, 200 * 10**18, charliePrivateKey
-        );
+        (, bytes memory invalidSig) = createCooperativeProof(channelId, 5, 200 * 10 ** 18, charliePrivateKey);
 
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createCooperativeProof(
-            channelId, 5, 100 * 10**18, p2PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createCooperativeProof(channelId, 5, 100 * 10 ** 18, p2PrivateKey);
 
         // Act & Assert: Should revert with InvalidBalanceProof
         vm.expectRevert(TokenNetwork.InvalidBalanceProof.selector);
@@ -1393,10 +1396,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Determine participant order
         (address participant1, address participant2) = tokenNetwork.getChannelParticipants(channelId);
@@ -1406,27 +1409,22 @@ contract TokenNetworkTest is Test {
         uint256 counterpartyKey = aliceCounterparty == bob ? bobPrivateKey : charliePrivateKey;
 
         TokenNetwork.WithdrawProof memory withdrawProof = TokenNetwork.WithdrawProof({
-            channelId: channelId,
-            participant: alice,
-            amount: 100 * 10**18,
-            nonce: 1,
-            expiry: block.timestamp + 1 days
+            channelId: channelId, participant: alice, amount: 100 * 10 ** 18, nonce: 1, expiry: block.timestamp + 1 days
         });
 
-        bytes32 withdrawStructHash = keccak256(abi.encode(
-            tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
-            withdrawProof.channelId,
-            withdrawProof.participant,
-            withdrawProof.amount,
-            withdrawProof.nonce,
-            withdrawProof.expiry
-        ));
+        bytes32 withdrawStructHash = keccak256(
+            abi.encode(
+                tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
+                withdrawProof.channelId,
+                withdrawProof.participant,
+                withdrawProof.amount,
+                withdrawProof.nonce,
+                withdrawProof.expiry
+            )
+        );
 
-        bytes32 withdrawDigest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            withdrawStructHash
-        ));
+        bytes32 withdrawDigest =
+            keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), withdrawStructHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(counterpartyKey, withdrawDigest);
         bytes memory withdrawSig = abi.encodePacked(r, s, v);
@@ -1438,13 +1436,11 @@ contract TokenNetworkTest is Test {
         uint256 p1PrivateKey = participant1 == alice ? alicePrivateKey : bobPrivateKey;
         uint256 p2PrivateKey = participant2 == alice ? alicePrivateKey : bobPrivateKey;
 
-        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) = createCooperativeProof(
-            channelId, 5, 200 * 10**18, p1PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) =
+            createCooperativeProof(channelId, 5, 200 * 10 ** 18, p1PrivateKey);
 
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createCooperativeProof(
-            channelId, 5, 50 * 10**18, p2PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createCooperativeProof(channelId, 5, 50 * 10 ** 18, p2PrivateKey);
 
         uint256 aliceBalanceBefore = token.balanceOf(alice);
         uint256 bobBalanceBefore = token.balanceOf(bob);
@@ -1455,13 +1451,13 @@ contract TokenNetworkTest is Test {
         // Assert: Final balances account for withdrawals and participant ordering
         // participant1: deposit - withdrawn - sent + received
         // participant2: deposit - withdrawn - sent + received
-        uint256 p1Deposit = participant1 == alice ? 1000 * 10**18 : 500 * 10**18;
-        uint256 p2Deposit = participant2 == alice ? 1000 * 10**18 : 500 * 10**18;
-        uint256 p1Withdrawn = participant1 == alice ? 100 * 10**18 : 0;
-        uint256 p2Withdrawn = participant2 == alice ? 100 * 10**18 : 0;
+        uint256 p1Deposit = participant1 == alice ? 1000 * 10 ** 18 : 500 * 10 ** 18;
+        uint256 p2Deposit = participant2 == alice ? 1000 * 10 ** 18 : 500 * 10 ** 18;
+        uint256 p1Withdrawn = participant1 == alice ? 100 * 10 ** 18 : 0;
+        uint256 p2Withdrawn = participant2 == alice ? 100 * 10 ** 18 : 0;
 
-        uint256 p1Final = p1Deposit - p1Withdrawn - 200 * 10**18 + 50 * 10**18;
-        uint256 p2Final = p2Deposit - p2Withdrawn - 50 * 10**18 + 200 * 10**18;
+        uint256 p1Final = p1Deposit - p1Withdrawn - 200 * 10 ** 18 + 50 * 10 ** 18;
+        uint256 p2Final = p2Deposit - p2Withdrawn - 50 * 10 ** 18 + 200 * 10 ** 18;
 
         if (participant1 == alice) {
             assertEq(token.balanceOf(alice), aliceBalanceBefore + p1Final, "Alice should receive correct amount");
@@ -1481,13 +1477,13 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Verify initial state is Opened
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Opened));
+        assertEq(uint256(tokenNetwork.getChannelState(channelId)), uint256(TokenNetwork.ChannelState.Opened));
 
         // Determine participant order
         (address participant1, address participant2) = tokenNetwork.getChannelParticipants(channelId);
@@ -1495,31 +1491,24 @@ contract TokenNetworkTest is Test {
         uint256 p2PrivateKey = participant2 == alice ? alicePrivateKey : bobPrivateKey;
 
         // Create matching balance proofs
-        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) = createCooperativeProof(
-            channelId, 5, 100 * 10**18, p1PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof1, bytes memory sig1) =
+            createCooperativeProof(channelId, 5, 100 * 10 ** 18, p1PrivateKey);
 
-        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) = createCooperativeProof(
-            channelId, 5, 50 * 10**18, p2PrivateKey
-        );
+        (TokenNetwork.BalanceProof memory proof2, bytes memory sig2) =
+            createCooperativeProof(channelId, 5, 50 * 10 ** 18, p2PrivateKey);
 
         // Act: Cooperatively settle
         tokenNetwork.cooperativeSettle(channelId, proof1, sig1, proof2, sig2);
 
         // Assert: State should go directly from Opened to Settled (skip Closed)
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Settled));
+        assertEq(uint256(tokenNetwork.getChannelState(channelId)), uint256(TokenNetwork.ChannelState.Settled));
     }
 
     // =========================================================================
     // Story 8.5 Tests: Withdrawal (AC8)
     // =========================================================================
 
-    event Withdrawal(
-        bytes32 indexed channelId,
-        address indexed participant,
-        uint256 amount,
-        uint256 nonce
-    );
+    event Withdrawal(bytes32 indexed channelId, address indexed participant, uint256 amount, uint256 nonce);
 
     /**
      * Helper: Create and sign a withdrawal proof
@@ -1533,27 +1522,21 @@ contract TokenNetworkTest is Test {
         uint256 signerPrivateKey
     ) internal view returns (TokenNetwork.WithdrawProof memory proof, bytes memory signature) {
         proof = TokenNetwork.WithdrawProof({
-            channelId: channelId,
-            participant: participant,
-            amount: amount,
-            nonce: nonce,
-            expiry: expiry
+            channelId: channelId, participant: participant, amount: amount, nonce: nonce, expiry: expiry
         });
 
-        bytes32 structHash = keccak256(abi.encode(
-            tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
-            proof.channelId,
-            proof.participant,
-            proof.amount,
-            proof.nonce,
-            proof.expiry
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                tokenNetwork.WITHDRAW_PROOF_TYPEHASH(),
+                proof.channelId,
+                proof.participant,
+                proof.amount,
+                proof.nonce,
+                proof.expiry
+            )
+        );
 
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            tokenNetwork.DOMAIN_SEPARATOR(),
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", tokenNetwork.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, digest);
         signature = abi.encodePacked(r, s, v);
@@ -1568,28 +1551,22 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create withdrawal proof (Bob signs for Alice to withdraw 200)
-        (TokenNetwork.WithdrawProof memory proof, bytes memory signature) = createWithdrawProof(
-            channelId,
-            alice,
-            200 * 10**18,
-            1,
-            block.timestamp + 1 days,
-            bobPrivateKey
-        );
+        (TokenNetwork.WithdrawProof memory proof, bytes memory signature) =
+            createWithdrawProof(channelId, alice, 200 * 10 ** 18, 1, block.timestamp + 1 days, bobPrivateKey);
 
         uint256 aliceBalanceBefore = token.balanceOf(alice);
 
         // Act: Alice withdraws
         vm.prank(alice);
         vm.expectEmit(true, true, false, true);
-        emit Withdrawal(channelId, alice, 200 * 10**18, 1);
+        emit Withdrawal(channelId, alice, 200 * 10 ** 18, 1);
         tokenNetwork.withdraw(channelId, proof, signature);
 
         // Assert: Alice should receive 200 tokens
-        assertEq(token.balanceOf(alice), aliceBalanceBefore + 200 * 10**18, "Alice should receive 200");
+        assertEq(token.balanceOf(alice), aliceBalanceBefore + 200 * 10 ** 18, "Alice should receive 200");
     }
 
     /**
@@ -1601,13 +1578,13 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create withdrawal proof with expiry in the past
         (TokenNetwork.WithdrawProof memory proof, bytes memory signature) = createWithdrawProof(
             channelId,
             alice,
-            200 * 10**18,
+            200 * 10 ** 18,
             1,
             block.timestamp - 1, // Already expired
             bobPrivateKey
@@ -1628,13 +1605,13 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create withdrawal proof for more than deposited
         (TokenNetwork.WithdrawProof memory proof, bytes memory signature) = createWithdrawProof(
             channelId,
             alice,
-            1500 * 10**18, // More than deposit
+            1500 * 10 ** 18, // More than deposit
             1,
             block.timestamp + 1 days,
             bobPrivateKey
@@ -1655,17 +1632,11 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Create first withdrawal proof
-        (TokenNetwork.WithdrawProof memory proof1, bytes memory sig1) = createWithdrawProof(
-            channelId,
-            alice,
-            200 * 10**18,
-            1,
-            block.timestamp + 1 days,
-            bobPrivateKey
-        );
+        (TokenNetwork.WithdrawProof memory proof1, bytes memory sig1) =
+            createWithdrawProof(channelId, alice, 200 * 10 ** 18, 1, block.timestamp + 1 days, bobPrivateKey);
 
         // First withdrawal succeeds
         vm.prank(alice);
@@ -1686,30 +1657,18 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // First withdrawal: 200 tokens
-        (TokenNetwork.WithdrawProof memory proof1, bytes memory sig1) = createWithdrawProof(
-            channelId,
-            alice,
-            200 * 10**18,
-            1,
-            block.timestamp + 1 days,
-            bobPrivateKey
-        );
+        (TokenNetwork.WithdrawProof memory proof1, bytes memory sig1) =
+            createWithdrawProof(channelId, alice, 200 * 10 ** 18, 1, block.timestamp + 1 days, bobPrivateKey);
 
         vm.prank(alice);
         tokenNetwork.withdraw(channelId, proof1, sig1);
 
         // Second withdrawal: 300 more tokens (total withdrawn = 500)
-        (TokenNetwork.WithdrawProof memory proof2, bytes memory sig2) = createWithdrawProof(
-            channelId,
-            alice,
-            300 * 10**18,
-            2,
-            block.timestamp + 1 days,
-            bobPrivateKey
-        );
+        (TokenNetwork.WithdrawProof memory proof2, bytes memory sig2) =
+            createWithdrawProof(channelId, alice, 300 * 10 ** 18, 2, block.timestamp + 1 days, bobPrivateKey);
 
         vm.prank(alice);
         tokenNetwork.withdraw(channelId, proof2, sig2);
@@ -1718,7 +1677,7 @@ contract TokenNetworkTest is Test {
         (TokenNetwork.WithdrawProof memory proof3, bytes memory sig3) = createWithdrawProof(
             channelId,
             alice,
-            600 * 10**18, // Exceeds remaining balance
+            600 * 10 ** 18, // Exceeds remaining balance
             3,
             block.timestamp + 1 days,
             bobPrivateKey
@@ -1740,10 +1699,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Determine participant order for withdrawal signature
         (address participant1, address participant2) = tokenNetwork.getChannelParticipants(channelId);
@@ -1751,27 +1710,15 @@ contract TokenNetworkTest is Test {
         uint256 counterpartyKey = (aliceCounterparty == bob) ? bobPrivateKey : charliePrivateKey;
 
         // Alice withdraws 200 tokens
-        (TokenNetwork.WithdrawProof memory proof, bytes memory signature) = createWithdrawProof(
-            channelId,
-            alice,
-            200 * 10**18,
-            1,
-            block.timestamp + 1 days,
-            counterpartyKey
-        );
+        (TokenNetwork.WithdrawProof memory proof, bytes memory signature) =
+            createWithdrawProof(channelId, alice, 200 * 10 ** 18, 1, block.timestamp + 1 days, counterpartyKey);
 
         vm.prank(alice);
         tokenNetwork.withdraw(channelId, proof, signature);
 
         // Close and settle channel (Alice sent 100 to Bob)
-        (TokenNetwork.BalanceProof memory closeProof, bytes memory closeSig) = createBalanceProof(
-            channelId,
-            1,
-            100 * 10**18,
-            0,
-            bytes32(0),
-            alicePrivateKey
-        );
+        (TokenNetwork.BalanceProof memory closeProof, bytes memory closeSig) =
+            createBalanceProof(channelId, 1, 100 * 10 ** 18, 0, bytes32(0), alicePrivateKey);
 
         vm.prank(bob);
         tokenNetwork.closeChannel(channelId, closeProof, closeSig);
@@ -1788,14 +1735,14 @@ contract TokenNetworkTest is Test {
         // participant1: deposit + receivedFrom2 - sentTo2 - withdrawn1
         // participant2: deposit + receivedFrom1 - sentTo1 - withdrawn2
 
-        uint256 p1Deposit = (participant1 == alice) ? 1000 * 10**18 : 500 * 10**18;
-        uint256 p2Deposit = (participant2 == alice) ? 1000 * 10**18 : 500 * 10**18;
+        uint256 p1Deposit = (participant1 == alice) ? 1000 * 10 ** 18 : 500 * 10 ** 18;
+        uint256 p2Deposit = (participant2 == alice) ? 1000 * 10 ** 18 : 500 * 10 ** 18;
 
         // Alice sent 100 to Bob (proof.transferredAmount)
         // Bob closes with Alice's proof, so:
         // - channel.participants[bob].transferredAmount = what Alice sent = 100
         // - channel.participants[alice].transferredAmount = what Bob sent = 0  (no update)
-        uint256 aliceSent = 100 * 10**18;
+        uint256 aliceSent = 100 * 10 ** 18;
         uint256 bobSent = 0;
 
         uint256 p1Sent = (participant1 == alice) ? aliceSent : bobSent;
@@ -1804,8 +1751,8 @@ contract TokenNetworkTest is Test {
         uint256 p2Received = (participant2 == alice) ? bobSent : aliceSent;
 
         // Alice withdrew 200, Bob withdrew 0
-        uint256 p1Withdrawn = (participant1 == alice) ? 200 * 10**18 : 0;
-        uint256 p2Withdrawn = (participant2 == alice) ? 200 * 10**18 : 0;
+        uint256 p1Withdrawn = (participant1 == alice) ? 200 * 10 ** 18 : 0;
+        uint256 p2Withdrawn = (participant2 == alice) ? 200 * 10 ** 18 : 0;
 
         // Settlement formula: deposit + received - sent - withdrawn
         uint256 p1Final = p1Deposit + p1Received - p2Received - p1Withdrawn; // sent = what other received
@@ -1824,11 +1771,7 @@ contract TokenNetworkTest is Test {
     // Story 8.5 Tests: Force Close Expired Channel (AC6)
     // =========================================================================
 
-    event ChannelExpired(
-        bytes32 indexed channelId,
-        uint256 openedAt,
-        uint256 closedAt
-    );
+    event ChannelExpired(bytes32 indexed channelId, uint256 openedAt, uint256 closedAt);
 
     /**
      * Test: Successful force close after MAX_CHANNEL_LIFETIME
@@ -1839,7 +1782,7 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Fast-forward beyond MAX_CHANNEL_LIFETIME (365 days)
         uint256 openedAt = block.timestamp;
@@ -1851,7 +1794,7 @@ contract TokenNetworkTest is Test {
         tokenNetwork.forceCloseExpiredChannel(channelId);
 
         // Assert: Channel should be closed
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Closed));
+        assertEq(uint256(tokenNetwork.getChannelState(channelId)), uint256(TokenNetwork.ChannelState.Closed));
     }
 
     /**
@@ -1878,10 +1821,10 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         vm.prank(bob);
-        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 500 * 10 ** 18);
 
         // Force close after expiry
         vm.warp(block.timestamp + 365 days + 1);
@@ -1897,8 +1840,8 @@ contract TokenNetworkTest is Test {
         tokenNetwork.settleChannel(channelId);
 
         // Assert: All deposits returned (no transfers since force closed with empty proofs)
-        assertEq(token.balanceOf(alice), aliceBalanceBefore + 1000 * 10**18, "Alice should receive full deposit");
-        assertEq(token.balanceOf(bob), bobBalanceBefore + 500 * 10**18, "Bob should receive full deposit");
+        assertEq(token.balanceOf(alice), aliceBalanceBefore + 1000 * 10 ** 18, "Alice should receive full deposit");
+        assertEq(token.balanceOf(bob), bobBalanceBefore + 500 * 10 ** 18, "Bob should receive full deposit");
     }
 
     /**
@@ -1917,18 +1860,14 @@ contract TokenNetworkTest is Test {
         tokenNetwork.forceCloseExpiredChannel(channelId);
 
         // Assert: Channel should be closed
-        assertEq(uint(tokenNetwork.getChannelState(channelId)), uint(TokenNetwork.ChannelState.Closed));
+        assertEq(uint256(tokenNetwork.getChannelState(channelId)), uint256(TokenNetwork.ChannelState.Closed));
     }
 
     // =========================================================================
     // Story 8.5 Tests: Emergency Token Recovery (AC9)
     // =========================================================================
 
-    event EmergencyTokenRecovery(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
-    );
+    event EmergencyTokenRecovery(address indexed token, address indexed recipient, uint256 amount);
 
     /**
      * Test: Owner can recover tokens when paused
@@ -1939,7 +1878,7 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Pause contract
         address owner = tokenNetwork.owner();
@@ -1951,11 +1890,11 @@ contract TokenNetworkTest is Test {
         // Act: Owner recovers tokens
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyTokenRecovery(address(token), charlie, 500 * 10**18);
-        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 500 * 10**18);
+        emit EmergencyTokenRecovery(address(token), charlie, 500 * 10 ** 18);
+        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 500 * 10 ** 18);
 
         // Assert: Charlie should receive tokens
-        assertEq(token.balanceOf(charlie), charlieBalanceBefore + 500 * 10**18, "Charlie should receive 500");
+        assertEq(token.balanceOf(charlie), charlieBalanceBefore + 500 * 10 ** 18, "Charlie should receive 500");
     }
 
     /**
@@ -1967,13 +1906,13 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         // Act & Assert: Try to recover without pausing (should fail)
         address owner = tokenNetwork.owner();
         vm.prank(owner);
         vm.expectRevert(); // ExpectedPause error from OpenZeppelin
-        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 500 * 10**18);
+        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 500 * 10 ** 18);
     }
 
     /**
@@ -1988,7 +1927,7 @@ contract TokenNetworkTest is Test {
         // Act & Assert: Alice (non-owner) tries to recover
         vm.prank(alice);
         vm.expectRevert(); // OwnableUnauthorizedAccount error
-        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 500 * 10**18);
+        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 500 * 10 ** 18);
     }
 
     /**
@@ -2000,7 +1939,7 @@ contract TokenNetworkTest is Test {
         bytes32 channelId = tokenNetwork.openChannel(bob, SETTLEMENT_TIMEOUT);
 
         vm.prank(alice);
-        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10**18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
 
         address owner = tokenNetwork.owner();
         vm.prank(owner);
@@ -2011,10 +1950,10 @@ contract TokenNetworkTest is Test {
 
         // Act: Recover
         vm.prank(owner);
-        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 300 * 10**18);
+        tokenNetwork.emergencyTokenRecovery(address(token), charlie, 300 * 10 ** 18);
 
         // Assert: Balances updated correctly
-        assertEq(token.balanceOf(charlie), charlieBalanceBefore + 300 * 10**18, "Charlie balance");
-        assertEq(token.balanceOf(address(tokenNetwork)), contractBalanceBefore - 300 * 10**18, "Contract balance");
+        assertEq(token.balanceOf(charlie), charlieBalanceBefore + 300 * 10 ** 18, "Charlie balance");
+        assertEq(token.balanceOf(address(tokenNetwork)), contractBalanceBefore - 300 * 10 ** 18, "Contract balance");
     }
 }

@@ -26,10 +26,10 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Channel states for lifecycle management
     enum ChannelState {
-        NonExistent,  // Channel not created
-        Opened,       // Channel active, deposits allowed
-        Closed,       // Channel closing, challenge period active (Story 8.4)
-        Settled       // Channel finalized, funds distributed (Story 8.4)
+        NonExistent, // Channel not created
+        Opened, // Channel active, deposits allowed
+        Closed, // Channel closing, challenge period active (Story 8.4)
+        Settled // Channel finalized, funds distributed (Story 8.4)
     }
 
     /**
@@ -38,11 +38,11 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * Each participant signs balance proofs showing how much they have sent to the counterparty
      */
     struct BalanceProof {
-        bytes32 channelId;          // Channel identifier
-        uint256 nonce;              // Monotonically increasing state counter
-        uint256 transferredAmount;  // Cumulative amount sent to counterparty
-        uint256 lockedAmount;       // Amount in pending conditional transfers (Story 8.5)
-        bytes32 locksRoot;          // Merkle root of hash-locked transfers (Story 8.5)
+        bytes32 channelId; // Channel identifier
+        uint256 nonce; // Monotonically increasing state counter
+        uint256 transferredAmount; // Cumulative amount sent to counterparty
+        uint256 lockedAmount; // Amount in pending conditional transfers (Story 8.5)
+        bytes32 locksRoot; // Merkle root of hash-locked transfers (Story 8.5)
     }
 
     /**
@@ -51,11 +51,11 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * Allows reducing locked capital without full settlement
      */
     struct WithdrawProof {
-        bytes32 channelId;    // Channel identifier
-        address participant;  // Who is withdrawing (NOT the signer)
-        uint256 amount;       // Amount to withdraw
-        uint256 nonce;        // Monotonically increasing withdrawal counter
-        uint256 expiry;       // Withdrawal proof expires after this timestamp
+        bytes32 channelId; // Channel identifier
+        address participant; // Who is withdrawing (NOT the signer)
+        uint256 amount; // Amount to withdraw
+        uint256 nonce; // Monotonically increasing withdrawal counter
+        uint256 expiry; // Withdrawal proof expires after this timestamp
     }
 
     /**
@@ -63,11 +63,11 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @dev Tracks deposits, withdrawals, and off-chain state commitments
      */
     struct ParticipantState {
-        uint256 deposit;           // Total deposited by participant (cumulative)
-        uint256 withdrawnAmount;   // Withdrawn during channel lifetime (Story 8.5)
-        bool isCloser;             // True if this participant initiated close (Story 8.4)
-        uint256 nonce;             // Monotonically increasing state counter (Story 8.4)
-        bytes32 balanceHash;       // Hash of transferred/locked amounts (Story 8.4)
+        uint256 deposit; // Total deposited by participant (cumulative)
+        uint256 withdrawnAmount; // Withdrawn during channel lifetime (Story 8.5)
+        bool isCloser; // True if this participant initiated close (Story 8.4)
+        uint256 nonce; // Monotonically increasing state counter (Story 8.4)
+        bytes32 balanceHash; // Hash of transferred/locked amounts (Story 8.4)
         uint256 transferredAmount; // Amount transferred to counterparty (from balance proof)
     }
 
@@ -76,12 +76,12 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @dev Stores channel state and participant data
      */
     struct Channel {
-        address participant1;                           // First participant (ordered, min address)
-        address participant2;                           // Second participant (ordered, max address)
-        uint256 settlementTimeout;                      // Challenge period duration (seconds)
-        ChannelState state;                             // Current channel status
-        uint256 closedAt;                               // Block timestamp when closed (Story 8.4)
-        uint256 openedAt;                               // Block timestamp when opened (Story 8.5)
+        address participant1; // First participant (ordered, min address)
+        address participant2; // Second participant (ordered, max address)
+        uint256 settlementTimeout; // Challenge period duration (seconds)
+        ChannelState state; // Current channel status
+        uint256 closedAt; // Block timestamp when closed (Story 8.4)
+        uint256 openedAt; // Block timestamp when opened (Story 8.5)
         mapping(address => ParticipantState) participants; // Participant data
     }
 
@@ -94,25 +94,25 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
     error InvalidDeposit();
     error DepositFailed();
     error UnauthorizedDeposit();
-    error InvalidBalanceProof();       // Signature verification failed
-    error StaleBalanceProof();         // Balance proof nonce not greater than current
-    error InvalidTransferredAmount();  // Transferred amount exceeds deposit
-    error ChallengeExpired();          // Challenge period already passed
-    error OnlyNonCloser();             // Only non-closing participant can update
-    error ChallengeNotExpired();       // Settlement attempted before challenge period ends
-    error ChannelAlreadySettled();     // Channel already in Settled state
-    error DepositExceedsMaximum(uint256 requested, uint256 maximum);  // Deposit exceeds maxDeposit limit
-    error TokenNotWhitelisted(address token);          // Token not in whitelist (Story 8.5)
-    error ContractPaused();                            // Operation attempted while paused (Story 8.5)
-    error InsufficientBalanceChange();                 // Actual received less than expected (Story 8.5)
-    error SettlementTimeoutTooShort(uint256 provided, uint256 minimum);  // Timeout below minimum (Story 8.5)
-    error ChannelNotExpired(uint256 expiryTime);       // Channel expiry not reached (Story 8.5)
-    error NonceMismatch(uint256 nonce1, uint256 nonce2);  // Cooperative settlement nonce mismatch (Story 8.5)
-    error CooperativeSettlementFailed();               // Cooperative settlement validation failed (Story 8.5)
-    error WithdrawalProofExpired();                    // Withdrawal proof expired (Story 8.5)
-    error InsufficientDepositForWithdrawal();          // Withdrawal exceeds available balance (Story 8.5)
-    error InvalidWithdrawalProof();                    // Withdrawal proof verification failed (Story 8.5)
-    error RecoveryNotAllowedWhenActive();              // Emergency recovery when not paused (Story 8.5)
+    error InvalidBalanceProof(); // Signature verification failed
+    error StaleBalanceProof(); // Balance proof nonce not greater than current
+    error InvalidTransferredAmount(); // Transferred amount exceeds deposit
+    error ChallengeExpired(); // Challenge period already passed
+    error OnlyNonCloser(); // Only non-closing participant can update
+    error ChallengeNotExpired(); // Settlement attempted before challenge period ends
+    error ChannelAlreadySettled(); // Channel already in Settled state
+    error DepositExceedsMaximum(uint256 requested, uint256 maximum); // Deposit exceeds maxDeposit limit
+    error TokenNotWhitelisted(address token); // Token not in whitelist (Story 8.5)
+    error ContractPaused(); // Operation attempted while paused (Story 8.5)
+    error InsufficientBalanceChange(); // Actual received less than expected (Story 8.5)
+    error SettlementTimeoutTooShort(uint256 provided, uint256 minimum); // Timeout below minimum (Story 8.5)
+    error ChannelNotExpired(uint256 expiryTime); // Channel expiry not reached (Story 8.5)
+    error NonceMismatch(uint256 nonce1, uint256 nonce2); // Cooperative settlement nonce mismatch (Story 8.5)
+    error CooperativeSettlementFailed(); // Cooperative settlement validation failed (Story 8.5)
+    error WithdrawalProofExpired(); // Withdrawal proof expired (Story 8.5)
+    error InsufficientDepositForWithdrawal(); // Withdrawal exceeds available balance (Story 8.5)
+    error InvalidWithdrawalProof(); // Withdrawal proof verification failed (Story 8.5)
+    error RecoveryNotAllowedWhenActive(); // Emergency recovery when not paused (Story 8.5)
 
     // Events
     /**
@@ -123,10 +123,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param settlementTimeout Challenge period duration in seconds
      */
     event ChannelOpened(
-        bytes32 indexed channelId,
-        address indexed participant1,
-        address indexed participant2,
-        uint256 settlementTimeout
+        bytes32 indexed channelId, address indexed participant1, address indexed participant2, uint256 settlementTimeout
     );
 
     /**
@@ -137,10 +134,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param depositIncrease Amount added in this transaction
      */
     event ChannelDeposit(
-        bytes32 indexed channelId,
-        address indexed participant,
-        uint256 totalDeposit,
-        uint256 depositIncrease
+        bytes32 indexed channelId, address indexed participant, uint256 totalDeposit, uint256 depositIncrease
     );
 
     /**
@@ -151,10 +145,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param balanceHash Hash of balance proof details
      */
     event ChannelClosed(
-        bytes32 indexed channelId,
-        address indexed closingParticipant,
-        uint256 nonce,
-        bytes32 balanceHash
+        bytes32 indexed channelId, address indexed closingParticipant, uint256 nonce, bytes32 balanceHash
     );
 
     /**
@@ -165,10 +156,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param balanceHash Updated balance hash
      */
     event NonClosingBalanceProofUpdated(
-        bytes32 indexed channelId,
-        address indexed participant,
-        uint256 nonce,
-        bytes32 balanceHash
+        bytes32 indexed channelId, address indexed participant, uint256 nonce, bytes32 balanceHash
     );
 
     /**
@@ -177,11 +165,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param participant1Amount Final amount transferred to participant1
      * @param participant2Amount Final amount transferred to participant2
      */
-    event ChannelSettled(
-        bytes32 indexed channelId,
-        uint256 participant1Amount,
-        uint256 participant2Amount
-    );
+    event ChannelSettled(bytes32 indexed channelId, uint256 participant1Amount, uint256 participant2Amount);
 
     /**
      * @notice Emitted when maximum deposit limit is updated
@@ -204,11 +188,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param participant1Amount Final amount transferred to participant1
      * @param participant2Amount Final amount transferred to participant2
      */
-    event CooperativeSettlement(
-        bytes32 indexed channelId,
-        uint256 participant1Amount,
-        uint256 participant2Amount
-    );
+    event CooperativeSettlement(bytes32 indexed channelId, uint256 participant1Amount, uint256 participant2Amount);
 
     /**
      * @notice Emitted when participant withdraws funds during channel lifetime
@@ -217,12 +197,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param amount Amount withdrawn
      * @param nonce Withdrawal proof nonce
      */
-    event Withdrawal(
-        bytes32 indexed channelId,
-        address indexed participant,
-        uint256 amount,
-        uint256 nonce
-    );
+    event Withdrawal(bytes32 indexed channelId, address indexed participant, uint256 amount, uint256 nonce);
 
     /**
      * @notice Emitted when owner recovers tokens in emergency
@@ -230,11 +205,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param recipient Recipient of recovered tokens
      * @param amount Amount recovered
      */
-    event EmergencyTokenRecovery(
-        address indexed token,
-        address indexed recipient,
-        uint256 amount
-    );
+    event EmergencyTokenRecovery(address indexed token, address indexed recipient, uint256 amount);
 
     /**
      * @notice Emitted when token is added to whitelist
@@ -261,9 +232,8 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
     );
 
     /// @notice EIP-712 type hash for WithdrawProof struct (Story 8.5)
-    bytes32 public constant WITHDRAW_PROOF_TYPEHASH = keccak256(
-        "WithdrawProof(bytes32 channelId,address participant,uint256 amount,uint256 nonce,uint256 expiry)"
-    );
+    bytes32 public constant WITHDRAW_PROOF_TYPEHASH =
+        keccak256("WithdrawProof(bytes32 channelId,address participant,uint256 amount,uint256 nonce,uint256 expiry)");
 
     /// @notice Mapping from channel ID to Channel struct
     mapping(bytes32 => Channel) public channels;
@@ -282,7 +252,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Maximum deposit limit per channel (default: 1M tokens with 18 decimals)
     /// @dev Configurable by owner to prevent griefing attacks
-    uint256 public maxDeposit = 1_000_000 * 10**18;
+    uint256 public maxDeposit = 1_000_000 * 10 ** 18;
 
     /**
      * @notice Creates a new TokenNetwork for a specific ERC20 token
@@ -293,13 +263,15 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         token = _token;
 
         // Compute EIP-712 domain separator
-        DOMAIN_SEPARATOR = keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256(bytes("PaymentChannel")),
-            keccak256(bytes("1")),
-            block.chainid,
-            address(this)
-        ));
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("PaymentChannel")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     /// @notice Mapping to track active channels per participant pair (prevents duplicates)
@@ -312,11 +284,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param settlementTimeout Challenge period duration in seconds
      * @return channelId The unique identifier for the created channel
      */
-    function openChannel(address participant2, uint256 settlementTimeout)
-        external
-        whenNotPaused
-        returns (bytes32)
-    {
+    function openChannel(address participant2, uint256 settlementTimeout) external whenNotPaused returns (bytes32) {
         // Validate participant2
         if (participant2 == address(0)) revert InvalidParticipant();
         if (participant2 == msg.sender) revert InvalidParticipant();
@@ -341,11 +309,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         }
 
         // Compute deterministic channel ID
-        bytes32 channelId = keccak256(abi.encodePacked(
-            participant1,
-            participant2,
-            channelCounter
-        ));
+        bytes32 channelId = keccak256(abi.encodePacked(participant1, participant2, channelCounter));
 
         // Increment global counter
         channelCounter++;
@@ -360,7 +324,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         channel.settlementTimeout = settlementTimeout;
         channel.state = ChannelState.Opened;
         channel.closedAt = 0;
-        channel.openedAt = block.timestamp;  // Story 8.5: track when channel was opened
+        channel.openedAt = block.timestamp; // Story 8.5: track when channel was opened
 
         // Initialize participant states (defaults to zero)
         // ParticipantState is already zero-initialized by default
@@ -441,11 +405,11 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param balanceProof Balance proof from non-closing participant
      * @param signature EIP-712 signature of the balance proof
      */
-    function closeChannel(
-        bytes32 channelId,
-        BalanceProof memory balanceProof,
-        bytes memory signature
-    ) external nonReentrant whenNotPaused {
+    function closeChannel(bytes32 channelId, BalanceProof memory balanceProof, bytes memory signature)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         // Validate channel exists and is opened
         _requireChannelExists(channelId);
         _requireChannelState(channelId, ChannelState.Opened);
@@ -459,9 +423,8 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
 
         // Identify closing and non-closing participants
         address closingParticipant = msg.sender;
-        address nonClosingParticipant = (closingParticipant == channel.participant1)
-            ? channel.participant2
-            : channel.participant1;
+        address nonClosingParticipant =
+            (closingParticipant == channel.participant1) ? channel.participant2 : channel.participant1;
 
         // Validate balance proof channelId matches function parameter
         if (balanceProof.channelId != channelId) {
@@ -489,11 +452,9 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         channel.participants[closingParticipant].isCloser = true;
         channel.participants[closingParticipant].nonce = balanceProof.nonce;
         channel.participants[closingParticipant].transferredAmount = balanceProof.transferredAmount;
-        channel.participants[closingParticipant].balanceHash = keccak256(abi.encodePacked(
-            balanceProof.transferredAmount,
-            balanceProof.lockedAmount,
-            balanceProof.locksRoot
-        ));
+        channel.participants[closingParticipant].balanceHash = keccak256(
+            abi.encodePacked(balanceProof.transferredAmount, balanceProof.lockedAmount, balanceProof.locksRoot)
+        );
 
         // Update channel state
         channel.state = ChannelState.Closed;
@@ -501,10 +462,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
 
         // Emit event
         emit ChannelClosed(
-            channelId,
-            closingParticipant,
-            balanceProof.nonce,
-            channel.participants[closingParticipant].balanceHash
+            channelId, closingParticipant, balanceProof.nonce, channel.participants[closingParticipant].balanceHash
         );
     }
 
@@ -515,11 +473,11 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param balanceProof Balance proof from closing participant
      * @param signature EIP-712 signature of the balance proof
      */
-    function updateNonClosingBalanceProof(
-        bytes32 channelId,
-        BalanceProof memory balanceProof,
-        bytes memory signature
-    ) external nonReentrant whenNotPaused {
+    function updateNonClosingBalanceProof(bytes32 channelId, BalanceProof memory balanceProof, bytes memory signature)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         // Validate channel exists and is closed (can only update during challenge period)
         _requireChannelExists(channelId);
         _requireChannelState(channelId, ChannelState.Closed);
@@ -532,12 +490,10 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         }
 
         // Identify closing and non-closing participants
-        address closingParticipant = channel.participants[channel.participant1].isCloser
-            ? channel.participant1
-            : channel.participant2;
-        address nonClosingParticipant = (closingParticipant == channel.participant1)
-            ? channel.participant2
-            : channel.participant1;
+        address closingParticipant =
+            channel.participants[channel.participant1].isCloser ? channel.participant1 : channel.participant2;
+        address nonClosingParticipant =
+            (closingParticipant == channel.participant1) ? channel.participant2 : channel.participant1;
 
         // Validate msg.sender is non-closing participant
         if (msg.sender != nonClosingParticipant) {
@@ -569,11 +525,9 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         // Update non-closing participant state
         channel.participants[nonClosingParticipant].nonce = balanceProof.nonce;
         channel.participants[nonClosingParticipant].transferredAmount = balanceProof.transferredAmount;
-        channel.participants[nonClosingParticipant].balanceHash = keccak256(abi.encodePacked(
-            balanceProof.transferredAmount,
-            balanceProof.lockedAmount,
-            balanceProof.locksRoot
-        ));
+        channel.participants[nonClosingParticipant].balanceHash = keccak256(
+            abi.encodePacked(balanceProof.transferredAmount, balanceProof.lockedAmount, balanceProof.locksRoot)
+        );
 
         // Emit event
         emit NonClosingBalanceProofUpdated(
@@ -760,11 +714,11 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param proof Withdrawal proof signed by counterparty
      * @param counterpartySignature EIP-712 signature from counterparty
      */
-    function withdraw(
-        bytes32 channelId,
-        WithdrawProof memory proof,
-        bytes memory counterpartySignature
-    ) external nonReentrant whenNotPaused {
+    function withdraw(bytes32 channelId, WithdrawProof memory proof, bytes memory counterpartySignature)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         // Validate channel exists and is opened
         _requireChannelExists(channelId);
         _requireChannelState(channelId, ChannelState.Opened);
@@ -792,9 +746,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
         }
 
         // Identify counterparty
-        address counterparty = (proof.participant == channel.participant1)
-            ? channel.participant2
-            : channel.participant1;
+        address counterparty = (proof.participant == channel.participant1) ? channel.participant2 : channel.participant1;
 
         // Verify counterparty signature
         if (!_verifyWithdrawProof(proof, counterpartySignature, counterparty)) {
@@ -836,11 +788,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param recipient The recipient of recovered tokens
      * @param amount The amount to recover
      */
-    function emergencyTokenRecovery(
-        address _token,
-        address recipient,
-        uint256 amount
-    ) external onlyOwner whenPaused {
+    function emergencyTokenRecovery(address _token, address recipient, uint256 amount) external onlyOwner whenPaused {
         // Validate recipient
         if (recipient == address(0)) {
             revert InvalidParticipant();
@@ -911,11 +859,7 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param participant The participant address
      * @return The participant's total deposit
      */
-    function getChannelDeposit(bytes32 channelId, address participant)
-        external
-        view
-        returns (uint256)
-    {
+    function getChannelDeposit(bytes32 channelId, address participant) external view returns (uint256) {
         return channels[channelId].participants[participant].deposit;
     }
 
@@ -948,27 +892,25 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param expectedSigner The expected signer address
      * @return True if signature is valid and from expected signer
      */
-    function _verifyBalanceProof(
-        BalanceProof memory proof,
-        bytes memory signature,
-        address expectedSigner
-    ) internal view returns (bool) {
+    function _verifyBalanceProof(BalanceProof memory proof, bytes memory signature, address expectedSigner)
+        internal
+        view
+        returns (bool)
+    {
         // Compute EIP-712 struct hash
-        bytes32 structHash = keccak256(abi.encode(
-            BALANCE_PROOF_TYPEHASH,
-            proof.channelId,
-            proof.nonce,
-            proof.transferredAmount,
-            proof.lockedAmount,
-            proof.locksRoot
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                BALANCE_PROOF_TYPEHASH,
+                proof.channelId,
+                proof.nonce,
+                proof.transferredAmount,
+                proof.lockedAmount,
+                proof.locksRoot
+            )
+        );
 
         // Compute EIP-712 digest
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            DOMAIN_SEPARATOR,
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
 
         // Recover signer from signature
         address recovered = ECDSA.recover(digest, signature);
@@ -986,27 +928,20 @@ contract TokenNetwork is Ownable, ReentrancyGuard, Pausable {
      * @param expectedSigner The expected signer address
      * @return True if signature is valid and from expected signer
      */
-    function _verifyWithdrawProof(
-        WithdrawProof memory proof,
-        bytes memory signature,
-        address expectedSigner
-    ) internal view returns (bool) {
+    function _verifyWithdrawProof(WithdrawProof memory proof, bytes memory signature, address expectedSigner)
+        internal
+        view
+        returns (bool)
+    {
         // Compute EIP-712 struct hash
-        bytes32 structHash = keccak256(abi.encode(
-            WITHDRAW_PROOF_TYPEHASH,
-            proof.channelId,
-            proof.participant,
-            proof.amount,
-            proof.nonce,
-            proof.expiry
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                WITHDRAW_PROOF_TYPEHASH, proof.channelId, proof.participant, proof.amount, proof.nonce, proof.expiry
+            )
+        );
 
         // Compute EIP-712 digest
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            DOMAIN_SEPARATOR,
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
 
         // Recover signer from signature
         address recovered = ECDSA.recover(digest, signature);

@@ -64,9 +64,7 @@ contract TokenNetworkRegistryTest is Test {
         registry.createTokenNetwork(address(token));
 
         // Act & Assert - Attempt to create TokenNetwork for same token again should revert
-        vm.expectRevert(
-            abi.encodeWithSelector(TokenNetworkRegistry.TokenNetworkAlreadyExists.selector, address(token))
-        );
+        vm.expectRevert(abi.encodeWithSelector(TokenNetworkRegistry.TokenNetworkAlreadyExists.selector, address(token)));
         registry.createTokenNetwork(address(token));
     }
 
@@ -162,7 +160,9 @@ contract TokenNetworkRegistryTest is Test {
         // Assert - Verify event was emitted (checked via transaction logs)
         // The vm.expectEmit in testCreateTokenNetwork already validates this,
         // but we verify the relationship between emitted addresses
-        assertEq(registry.getTokenNetwork(address(token)), tokenNetworkAddress, "Event should reference created TokenNetwork");
+        assertEq(
+            registry.getTokenNetwork(address(token)), tokenNetworkAddress, "Event should reference created TokenNetwork"
+        );
     }
 
     /**
@@ -254,9 +254,7 @@ contract TokenNetworkRegistryTest is Test {
         registry.setWhitelistEnabled(true);
 
         // Act & Assert - Attempt to create TokenNetwork for non-whitelisted token
-        vm.expectRevert(
-            abi.encodeWithSelector(TokenNetworkRegistry.TokenNotWhitelisted.selector, address(token))
-        );
+        vm.expectRevert(abi.encodeWithSelector(TokenNetworkRegistry.TokenNotWhitelisted.selector, address(token)));
         registry.createTokenNetwork(address(token));
     }
 

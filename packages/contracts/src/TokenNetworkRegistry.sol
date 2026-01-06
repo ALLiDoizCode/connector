@@ -30,10 +30,7 @@ contract TokenNetworkRegistry is Ownable {
      * @param token The address of the ERC20 token
      * @param tokenNetwork The address of the deployed TokenNetwork contract
      */
-    event TokenNetworkCreated(
-        address indexed token,
-        address indexed tokenNetwork
-    );
+    event TokenNetworkCreated(address indexed token, address indexed tokenNetwork);
 
     /**
      * @notice Emitted when a token is added to the whitelist
@@ -108,9 +105,12 @@ contract TokenNetworkRegistry is Ownable {
 
         // Validate token is a valid ERC20 by calling totalSupply()
         // Use try-catch for safety against malicious or non-ERC20 contracts
-        try IERC20(token).totalSupply() returns (uint256) {
-            // Valid ERC20 - proceed with deployment
-        } catch {
+        try IERC20(token).totalSupply() returns (
+            uint256
+        ) {
+        // Valid ERC20 - proceed with deployment
+        }
+        catch {
             revert InvalidTokenAddress();
         }
 
