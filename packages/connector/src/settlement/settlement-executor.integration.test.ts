@@ -107,6 +107,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 1000n,
         threshold: 500n,
+        exceedsBy: 500n,
         timestamp: new Date(),
       };
 
@@ -149,6 +150,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 500n,
         threshold: 500n,
+        exceedsBy: 0n,
         timestamp: new Date(),
       };
 
@@ -166,6 +168,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 300n,
         threshold: 500n,
+        exceedsBy: 0n,
         timestamp: new Date(),
       };
 
@@ -203,6 +206,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 500n,
         threshold: 500n,
+        exceedsBy: 0n,
         timestamp: new Date(),
       };
 
@@ -214,6 +218,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 600n,
         threshold: 500n,
+        exceedsBy: 100n,
         timestamp: new Date(),
       };
 
@@ -250,6 +255,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 1000n,
         threshold: 500n,
+        exceedsBy: 500n,
         timestamp: new Date(),
       };
 
@@ -277,6 +283,7 @@ describeIntegration('SettlementExecutor Integration Tests', () => {
         tokenId: 'ILP',
         currentBalance: 1000n,
         threshold: 500n,
+        exceedsBy: 500n,
         timestamp: new Date(),
       };
 

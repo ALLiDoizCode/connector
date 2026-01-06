@@ -58,6 +58,9 @@ export class SettlementExecutor {
     Array<{ balanceProof: BalanceProof; signature: string }>
   > = new Map();
 
+  /** Bound settlement handler for proper event listener cleanup */
+  private readonly boundHandleSettlement: (event: SettlementTriggerEvent) => Promise<void>;
+
   /**
    * Create SettlementExecutor instance
    *
@@ -82,6 +85,9 @@ export class SettlementExecutor {
 
     // Initialize Payment Channel SDK
     this.sdk = new PaymentChannelSDK(config.paymentChannelSDKConfig);
+
+    // Bind settlement handler once for proper cleanup
+    this.boundHandleSettlement = this.handleSettlement.bind(this);
   }
 
   /**
@@ -90,7 +96,7 @@ export class SettlementExecutor {
    */
   start(): void {
     // Register listener for settlement triggers from SettlementMonitor
-    this.settlementMonitor.on('SETTLEMENT_REQUIRED', this.handleSettlement.bind(this));
+    this.settlementMonitor.on('SETTLEMENT_REQUIRED', this.boundHandleSettlement);
 
     // Start SDK event polling for blockchain events
     this.sdk.startEventPolling();
@@ -104,7 +110,7 @@ export class SettlementExecutor {
    */
   stop(): void {
     // Unregister listener
-    this.settlementMonitor.off('SETTLEMENT_REQUIRED', this.handleSettlement.bind(this));
+    this.settlementMonitor.off('SETTLEMENT_REQUIRED', this.boundHandleSettlement);
 
     // Stop SDK event polling
     this.sdk.stopEventPolling();
