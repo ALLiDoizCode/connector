@@ -12,7 +12,21 @@ import {
   SettlementTriggeredEvent,
   SettlementCompletedEvent,
   SettlementState,
+  PaymentChannelOpenedEvent,
+  PaymentChannelBalanceUpdateEvent,
+  PaymentChannelSettledEvent,
 } from '@m2m/shared';
+import { ChannelStateManager, ChannelState } from './channel-state-manager.js';
+
+/**
+ * All types of messages that can be broadcast to dashboard clients
+ */
+type BroadcastMessage =
+  | TelemetryMessage
+  | PaymentChannelOpenedEvent
+  | PaymentChannelBalanceUpdateEvent
+  | PaymentChannelSettledEvent
+  | { type: 'INITIAL_CHANNEL_STATE'; data: { channels: ChannelState[] } };
 
 interface WebSocketWithMetadata extends WebSocket {
   nodeId?: string;
@@ -47,12 +61,19 @@ export class TelemetryServer {
   private settlementEvents: (SettlementTriggeredEvent | SettlementCompletedEvent)[] = [];
   private readonly MAX_SETTLEMENT_EVENTS = 100; // Limit to last 100 events
 
+  // Payment channel state management (Story 8.10)
+  private channelStateManager: ChannelStateManager;
+
   private port: number;
   private logger: Logger;
 
   constructor(port: number, logger: Logger) {
     this.port = port;
     this.logger = logger;
+    // Initialize ChannelStateManager with broadcast function
+    this.channelStateManager = new ChannelStateManager(logger, (message) =>
+      this.broadcast(message)
+    );
   }
 
   /**
@@ -117,7 +138,7 @@ export class TelemetryServer {
    * Handle incoming WebSocket message
    */
   private handleMessage(ws: WebSocketWithMetadata, data: Buffer): void {
-    let message: any;
+    let message: unknown;
 
     // Level 1: Parse JSON
     try {
@@ -129,35 +150,65 @@ export class TelemetryServer {
       return;
     }
 
-    // Level 2: Validate required fields
-    if (!isTelemetryMessage(message)) {
-      this.logger.warn('Telemetry message missing required fields', { message });
-      return;
-    }
-
-    // Handle CLIENT_CONNECT message
-    if (message.type === 'CLIENT_CONNECT') {
+    // Handle CLIENT_CONNECT message before validation (CLIENT_CONNECT doesn't have required telemetry fields)
+    if (
+      typeof message === 'object' &&
+      message !== null &&
+      'type' in message &&
+      message.type === 'CLIENT_CONNECT'
+    ) {
       this.registerClient(ws);
       return;
     }
 
+    // Level 2: Validate required fields
+    // Type guard: Ensure message is an object with a type field
+    if (typeof message !== 'object' || message === null || !('type' in message)) {
+      this.logger.warn('Telemetry message missing type field', { message });
+      return;
+    }
+
+    // Skip strict validation for channel events (Story 8.10) as they have different structure
+    const isChannelEvent = [
+      'PAYMENT_CHANNEL_OPENED',
+      'PAYMENT_CHANNEL_BALANCE_UPDATE',
+      'PAYMENT_CHANNEL_SETTLED',
+    ].includes(message.type as string);
+
+    if (!isChannelEvent && !isTelemetryMessage(message)) {
+      this.logger.warn('Telemetry message missing required fields', { message });
+      return;
+    }
+
+    // Type assertion: At this point, message has passed validation and has a type field
+    const typedMessage = message as { type: string; nodeId?: string } & Record<string, unknown>;
+
     // Handle telemetry events from connectors
-    if (this.isTelemetryEvent(message.type)) {
+    if (this.isTelemetryEvent(typedMessage.type)) {
       // Register connector if not already registered
-      if (!ws.nodeId && message.nodeId) {
-        this.registerConnector(ws, message.nodeId);
+      if (!ws.nodeId && typedMessage.nodeId) {
+        this.registerConnector(ws, typedMessage.nodeId);
       }
 
       // Cache NODE_STATUS messages for replay to new clients
-      if (message.type === 'NODE_STATUS' && message.nodeId) {
-        this.lastNodeStatus.set(message.nodeId, message);
+      if (typedMessage.type === 'NODE_STATUS' && typedMessage.nodeId) {
+        this.lastNodeStatus.set(typedMessage.nodeId, typedMessage as unknown as TelemetryMessage);
       }
 
       // Handle settlement telemetry events (Story 6.8)
-      this.handleSettlementTelemetry(message);
+      this.handleSettlementTelemetry(typedMessage);
 
-      // Broadcast to all clients
-      this.broadcast(message);
+      // Handle payment channel telemetry events (Story 8.10)
+      this.handleChannelTelemetry(typedMessage);
+
+      // Broadcast to all clients (for non-channel events, channels broadcast themselves)
+      if (
+        typedMessage.type !== 'PAYMENT_CHANNEL_OPENED' &&
+        typedMessage.type !== 'PAYMENT_CHANNEL_BALANCE_UPDATE' &&
+        typedMessage.type !== 'PAYMENT_CHANNEL_SETTLED'
+      ) {
+        this.broadcast(typedMessage as BroadcastMessage);
+      }
     }
   }
 
@@ -174,14 +225,41 @@ export class TelemetryServer {
       'ACCOUNT_BALANCE',
       'SETTLEMENT_TRIGGERED',
       'SETTLEMENT_COMPLETED',
+      'PAYMENT_CHANNEL_OPENED',
+      'PAYMENT_CHANNEL_BALANCE_UPDATE',
+      'PAYMENT_CHANNEL_SETTLED',
     ].includes(type);
+  }
+
+  /**
+   * Handle payment channel telemetry events (Story 8.10)
+   * Delegates to ChannelStateManager for channel state tracking
+   */
+  private handleChannelTelemetry(message: { type: string }): void {
+    try {
+      if (message.type === 'PAYMENT_CHANNEL_OPENED') {
+        const event = message as PaymentChannelOpenedEvent;
+        this.channelStateManager.handleChannelOpened(event);
+      } else if (message.type === 'PAYMENT_CHANNEL_BALANCE_UPDATE') {
+        const event = message as PaymentChannelBalanceUpdateEvent;
+        this.channelStateManager.handleBalanceUpdate(event);
+      } else if (message.type === 'PAYMENT_CHANNEL_SETTLED') {
+        const event = message as PaymentChannelSettledEvent;
+        this.channelStateManager.handleChannelSettled(event);
+      }
+    } catch (error) {
+      this.logger.warn('Failed to process channel telemetry', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        messageType: message.type,
+      });
+    }
   }
 
   /**
    * Handle settlement telemetry events (Story 6.8)
    * Stores balance state and settlement events in memory for dashboard visualization
    */
-  private handleSettlementTelemetry(message: any): void {
+  private handleSettlementTelemetry(message: { type: string }): void {
     try {
       if (message.type === 'ACCOUNT_BALANCE') {
         const event = message as AccountBalanceEvent;
@@ -275,6 +353,19 @@ export class TelemetryServer {
         this.logger.info('Replayed cached NODE_STATUS to client', { nodeId });
       }
     });
+
+    // Send initial channel state to new client (Story 8.10)
+    const channels = this.channelStateManager.getAllChannels();
+    if (channels.length > 0 && ws.readyState === WebSocket.OPEN) {
+      const initialStateMessage = {
+        type: 'INITIAL_CHANNEL_STATE',
+        channels: channels,
+      };
+      ws.send(JSON.stringify(initialStateMessage));
+      this.logger.info('Sent initial channel state to client', {
+        channelCount: channels.length,
+      });
+    }
   }
 
   /**
@@ -305,7 +396,7 @@ export class TelemetryServer {
   /**
    * Broadcast telemetry message to all connected clients
    */
-  broadcast(message: TelemetryMessage): void {
+  broadcast(message: BroadcastMessage): void {
     const jsonMessage = JSON.stringify(message);
 
     this.clientConnections.forEach((client) => {
@@ -324,7 +415,7 @@ export class TelemetryServer {
 
     this.logger.debug('Broadcasting telemetry event', {
       type: message.type,
-      nodeId: message.nodeId,
+      nodeId: 'nodeId' in message ? message.nodeId : undefined,
     });
   }
 
@@ -350,5 +441,15 @@ export class TelemetryServer {
       const timeB = new Date(b.timestamp).getTime();
       return timeB - timeA;
     });
+  }
+
+  /**
+   * Get all payment channels (Story 8.10)
+   * Returns all tracked payment channel states
+   * Used by REST API endpoint for initial dashboard state load
+   * @returns Array of all channel states
+   */
+  getChannels(): ChannelState[] {
+    return this.channelStateManager.getAllChannels();
   }
 }
