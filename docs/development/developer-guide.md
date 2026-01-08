@@ -6,6 +6,44 @@ This guide covers essential development workflows for the M2M (Multi-node Interl
 
 ---
 
+## Development Environment Setup
+
+### Node.js Version Management
+
+This project requires **Node.js v22.11.0** to match the CI/CD environment.
+
+**Using nvm (recommended):**
+
+```bash
+# Install and use the correct Node version
+nvm install 22.11.0
+nvm use 22.11.0
+
+# Or simply use the .nvmrc file
+nvm use
+```
+
+The project includes a `.nvmrc` file that specifies the required Node version. Many tools (nvm, IDEs) will automatically detect and use this version.
+
+**Verify your Node version:**
+
+```bash
+node --version  # Should output: v22.11.0
+npm --version   # Should be 10.x or higher
+```
+
+**Why this matters:**
+
+- **Local/CI consistency:** Ensures your local environment matches CI (ubuntu-latest with Node 22.11.0)
+- **Prevents version-specific bugs:** Avoids issues that only appear in CI
+- **Modern features:** v22.x provides latest Node.js features and performance improvements
+
+**Without nvm:**
+
+Download Node.js v22.11.0 directly from [nodejs.org](https://nodejs.org/download/release/v22.11.0/)
+
+---
+
 ## Local Quality Checks with Git Hooks
 
 This project uses Git hooks to enforce quality standards before code reaches CI/CD. Hooks run automatically and catch issues early.

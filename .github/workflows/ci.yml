@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '22.11.0'
           cache: 'npm'
 
       - name: Verify Node and npm versions
@@ -59,7 +59,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: ['20.11.0', '20.x']
+        node-version: ['22.11.0', '22.x']
       fail-fast: false  # Continue testing other versions even if one fails
 
     steps:
@@ -113,14 +113,14 @@ jobs:
           NODE_ENV: test
 
       - name: Verify coverage output
-        if: matrix.node-version == '20.11.0'
+        if: matrix.node-version == '22.11.0'
         run: |
           echo "Checking for coverage files..."
           find . -name "lcov.info" -type f || echo "No lcov.info files found"
           test -f coverage/lcov.info && echo "✓ Coverage file exists" || echo "⚠ Coverage file not found"
 
-      - name: Upload coverage to Codecov (Node 20.11.0 only)
-        if: matrix.node-version == '20.11.0'
+      - name: Upload coverage to Codecov (Node 22.11.0 only)
+        if: matrix.node-version == '22.11.0'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info
@@ -173,7 +173,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '22.11.0'
           cache: 'npm'
 
       - name: Verify environment
@@ -251,7 +251,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '22.11.0'
           cache: 'npm'
 
       - name: Run npm audit
@@ -269,7 +269,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '22.11.0'
           cache: 'npm'
 
       - name: Install dependencies with retry
@@ -314,7 +314,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '22.11.0'
           cache: 'npm'
 
       - name: Install dependencies with retry
@@ -345,7 +345,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '22.11.0'
           cache: 'npm'
 
       - name: Install dependencies with retry

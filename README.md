@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
 [![CI](https://github.com/yourusername/m2m/workflows/CI/badge.svg)](https://github.com/yourusername/m2m/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-20.11.0-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22.11.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **v0.1.0 MVP Release** - Complete ILPv4 connector with bidirectional BTP, real-time telemetry, and network visualization. See [CHANGELOG.md](CHANGELOG.md) for release notes.
@@ -110,7 +110,7 @@ m2m/
 
 ## Prerequisites
 
-- **Node.js**: v20.11.0 or higher (LTS recommended)
+- **Node.js**: v22.11.0 or higher
 - **npm**: v10.x or higher
 - **Docker**: For running multi-node topologies (optional for development)
 
