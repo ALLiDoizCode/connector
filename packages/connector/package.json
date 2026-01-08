@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@m2m/shared": "*",
+    "better-sqlite3": "^11.8.1",
     "bip39": "^3.1.0",
     "ethereum-cryptography": "^3.2.0",
     "ethers": "^6.16.0",
@@ -30,6 +31,7 @@
     "xrpl": "^4.5.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^5.0.6",
     "@types/jest": "^29.5.12",
     "@types/js-yaml": "^4.0.9",

@@ -29,6 +29,8 @@ export enum TelemetryEventType {
   SETTLEMENT_TRIGGERED = 'SETTLEMENT_TRIGGERED',
   /** Settlement completed event - emitted when settlement execution completes (Story 6.7) */
   SETTLEMENT_COMPLETED = 'SETTLEMENT_COMPLETED',
+  /** Agent balance changed event - emitted when agent wallet balance changes (Story 11.3) */
+  AGENT_BALANCE_CHANGED = 'AGENT_BALANCE_CHANGED',
 }
 
 /**
@@ -234,6 +236,51 @@ export interface SettlementCompletedEvent {
 }
 
 /**
+ * Agent Balance Changed Telemetry Event
+ *
+ * Emitted when AgentBalanceTracker (Story 11.3) detects a balance change for an agent wallet.
+ * Indicates on-chain balance has increased or decreased.
+ *
+ * **BigInt Serialization:** All balance fields are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays real-time balance updates
+ * - Story 11.4 funding logic subscribes to detect low balances
+ *
+ * @example
+ * ```typescript
+ * const event: AgentBalanceChangedEvent = {
+ *   type: 'AGENT_BALANCE_CHANGED',
+ *   agentId: 'agent-001',
+ *   chain: 'evm',
+ *   token: 'ETH',
+ *   oldBalance: '1000000000000000000',
+ *   newBalance: '2000000000000000000',
+ *   change: '1000000000000000000',
+ *   timestamp: 1704729600000
+ * };
+ * ```
+ */
+export interface AgentBalanceChangedEvent {
+  /** Event type discriminator */
+  type: 'AGENT_BALANCE_CHANGED';
+  /** Agent identifier */
+  agentId: string;
+  /** Blockchain ('evm' or 'xrp') */
+  chain: string;
+  /** Token identifier ('ETH', ERC20 address, or 'XRP') */
+  token: string;
+  /** Previous balance, bigint as string */
+  oldBalance: string;
+  /** New balance, bigint as string */
+  newBalance: string;
+  /** Balance change (newBalance - oldBalance), bigint as string */
+  change: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -252,6 +299,9 @@ export interface SettlementCompletedEvent {
  *     case 'SETTLEMENT_COMPLETED':
  *       console.log(`Settlement ${event.success ? 'succeeded' : 'failed'}: ${event.peerId}`);
  *       break;
+ *     case 'AGENT_BALANCE_CHANGED':
+ *       console.log(`Agent balance changed: ${event.agentId} ${event.token} = ${event.newBalance}`);
+ *       break;
  *     default:
  *       console.log(`Unknown event type: ${event.type}`);
  *   }
@@ -261,4 +311,5 @@ export interface SettlementCompletedEvent {
 export type TelemetryEvent =
   | AccountBalanceEvent
   | SettlementTriggeredEvent
-  | SettlementCompletedEvent;
+  | SettlementCompletedEvent
+  | AgentBalanceChangedEvent;
