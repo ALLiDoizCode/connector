@@ -53,25 +53,24 @@ describe('SettlementExecutor', () => {
 
   beforeEach(() => {
     // Create fresh mock instances
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     mockAccountManager = new AccountManager(
       {} as any,
       {} as any,
       {} as any
     ) as jest.Mocked<AccountManager>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockPaymentChannelSDK = new PaymentChannelSDK(
       {} as any,
       {} as any,
       '0x1234',
       {} as any
     ) as jest.Mocked<PaymentChannelSDK>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockSettlementMonitor = new SettlementMonitor(
       {} as any,
       {} as any,
       {} as any
     ) as jest.Mocked<SettlementMonitor>;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     mockTelemetryEmitter = {
       emit: jest.fn(),
     };
