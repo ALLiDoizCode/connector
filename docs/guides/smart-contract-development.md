@@ -67,7 +67,8 @@ packages/contracts/
 
 The `foundry.toml` file configures:
 
-- **Solidity version:** 0.8.20 (for OpenZeppelin compatibility)
+- **Solidity version:** 0.8.24 (for OpenZeppelin v5.5.0 compatibility)
+- **IR Compiler:** Enabled via `via_ir = true` for EIP-712 signature verification (prevents stack-too-deep errors)
 - **RPC endpoints:** Local Anvil, Base Sepolia testnet, Base mainnet
 - **Etherscan verification:** API keys for contract verification
 - **Remappings:** Import paths for OpenZeppelin contracts
@@ -93,14 +94,14 @@ contract TokenNetworkRegistry is Ownable {
     function getTokenNetwork(address token) external view returns (address);
 }
 
-// TokenNetwork.sol - Per-token payment channel contract
+// TokenNetwork.sol - Per-token payment channel contract (Story 8.3)
 contract TokenNetwork {
-    address public token; // ERC20 token this contract manages
+    address public immutable token; // ERC20 token this contract manages
 
-    // Channel lifecycle functions (Story 8.3+)
-    function openChannel(address participant1, address participant2) external;
-    function setTotalDeposit(uint256 channelId, uint256 amount) external;
-    function closeChannel(uint256 channelId) external;
+    // Channel lifecycle functions
+    function openChannel(address participant2, uint256 settlementTimeout) external returns (bytes32);
+    function setTotalDeposit(bytes32 channelId, address participant, uint256 totalDeposit) external;
+    // Story 8.4+: closeChannel, settleChannel
 }
 ```
 
@@ -129,6 +130,229 @@ cast call <registryAddress> "getTokenNetwork(address)" <usdcTokenAddress> \
 3. **Gas Efficiency:** Users only interact with relevant TokenNetwork, not global registry
 4. **Proven Design:** Battle-tested in Raiden Network with millions in TVL
 
+## Payment Channel Operations (Story 8.3)
+
+### Opening a Channel
+
+To open a payment channel between two participants:
+
+```bash
+# Get the TokenNetwork address for your token
+TOKEN_NETWORK=$(cast call <registryAddress> "getTokenNetwork(address)" <tokenAddress> --rpc-url http://localhost:8545)
+
+# Open channel with 1 hour settlement timeout
+cast send $TOKEN_NETWORK "openChannel(address,uint256)" <participant2Address> 3600 \
+  --rpc-url http://localhost:8545 \
+  --private-key $PRIVATE_KEY
+```
+
+**Parameters:**
+
+- `participant2`: Address of the other channel participant
+- `settlementTimeout`: Challenge period duration in seconds (minimum 3600 = 1 hour)
+
+**Returns:** Unique `channelId` (bytes32) computed as `keccak256(participant1, participant2, channelCounter)`
+
+### Depositing Tokens
+
+To deposit tokens into an open channel:
+
+```bash
+# First, approve TokenNetwork to spend your tokens
+cast send <tokenAddress> "approve(address,uint256)" $TOKEN_NETWORK 1000000000000000000000 \
+  --rpc-url http://localhost:8545 \
+  --private-key $PRIVATE_KEY
+
+# Deposit tokens (cumulative deposit pattern)
+cast send $TOKEN_NETWORK "setTotalDeposit(bytes32,address,uint256)" <channelId> <participantAddress> 1000000000000000000000 \
+  --rpc-url http://localhost:8545 \
+  --private-key $PRIVATE_KEY
+```
+
+**Important:** `setTotalDeposit` uses cumulative deposits, not incremental:
+
+- First deposit: `setTotalDeposit(channelId, alice, 1000)` → deposits 1000 tokens
+- Second deposit: `setTotalDeposit(channelId, alice, 2000)` → deposits additional 1000 tokens (cumulative = 2000)
+
+### Querying Channel State
+
+```bash
+# Get channel information
+cast call $TOKEN_NETWORK "channels(bytes32)" <channelId> --rpc-url http://localhost:8545
+
+# Get participant deposit
+cast call $TOKEN_NETWORK "participants(bytes32,address)" <channelId> <participantAddress> --rpc-url http://localhost:8545
+```
+
+### Channel Lifecycle
+
+Channels progress through states: `NonExistent` → `Opened` → `Closed` → `Settled`
+
+**Story 8.3 Scope:** Opening channels and depositing tokens
+**Story 8.4 Scope:** Closing and settling channels
+
+## Channel Closure and Settlement (Story 8.4)
+
+Story 8.4 implements the final stages of the payment channel lifecycle: closing channels with challenge periods and distributing final balances.
+
+### Closing a Channel
+
+To close a payment channel, one participant (the "closer") submits a balance proof signed by the other participant (the "non-closer"). This initiates a challenge period during which the non-closer can dispute stale state.
+
+**EIP-712 Signature Generation:**
+
+Balance proofs use EIP-712 typed structured data for signature verification:
+
+```typescript
+// Generate EIP-712 signature for balance proof
+const domain = {
+  name: 'TokenNetwork',
+  version: '1',
+  chainId: 84532, // Base Sepolia
+  verifyingContract: tokenNetworkAddress,
+};
+
+const types = {
+  BalanceProof: [
+    { name: 'channelId', type: 'bytes32' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'transferredAmount', type: 'uint256' },
+    { name: 'lockedAmount', type: 'uint256' },
+    { name: 'locksRoot', type: 'bytes32' },
+  ],
+};
+
+const balanceProof = {
+  channelId: '0x...',
+  nonce: 1,
+  transferredAmount: '250000000000000000000', // 250 tokens
+  lockedAmount: 0,
+  locksRoot: ethers.constants.HashZero,
+};
+
+// Sign with ethers.js v6
+const signature = await signer.signTypedData(domain, types, balanceProof);
+```
+
+**Close Channel via Cast:**
+
+```bash
+# Bob closes with Alice's balance proof (alice transferred 250 tokens to bob)
+# Balance proof: channelId, nonce=1, transferredAmount=250e18, lockedAmount=0, locksRoot=0
+# Signature: EIP-712 signature from alice
+
+cast send $TOKEN_NETWORK "closeChannel(bytes32,(bytes32,uint256,uint256,uint256,bytes32),bytes)" \
+  <channelId> \
+  "(<channelId>,1,250000000000000000000,0,0x0000000000000000000000000000000000000000000000000000000000000000)" \
+  <signature> \
+  --rpc-url http://localhost:8545 \
+  --private-key $BOB_PRIVATE_KEY
+```
+
+**What Happens:**
+
+1. Channel state changes from `Opened` to `Closed`
+2. Challenge period starts (duration = `settlementTimeout`, e.g., 1 hour)
+3. Bob is marked as the "closer"
+4. Alice's balance proof (nonce and transferredAmount) is recorded on-chain
+
+### Challenging During Challenge Period
+
+If the closer submitted a stale balance proof, the non-closer can submit a newer balance proof during the challenge period:
+
+```bash
+# Alice challenges with Bob's newer balance proof (bob transferred 500 tokens to alice)
+# Balance proof: channelId, nonce=2, transferredAmount=500e18, lockedAmount=0, locksRoot=0
+# Signature: EIP-712 signature from bob (the closer)
+
+cast send $TOKEN_NETWORK "updateNonClosingBalanceProof(bytes32,(bytes32,uint256,uint256,uint256,bytes32),bytes)" \
+  <channelId> \
+  "(<channelId>,2,500000000000000000000,0,0x0000000000000000000000000000000000000000000000000000000000000000)" \
+  <signature> \
+  --rpc-url http://localhost:8545 \
+  --private-key $ALICE_PRIVATE_KEY
+```
+
+**Requirements:**
+
+- Caller must be the non-closing participant
+- Challenge period must not have expired
+- New balance proof nonce must be strictly greater than stored nonce (monotonic nonces prevent replay)
+
+### Settling the Channel
+
+After the challenge period expires, anyone can call `settleChannel` to distribute final balances:
+
+```bash
+# Wait for challenge period to expire (1 hour in this example)
+# Anyone can call settle (no access control)
+
+cast send $TOKEN_NETWORK "settleChannel(bytes32)" <channelId> \
+  --rpc-url http://localhost:8545 \
+  --private-key $ANY_PRIVATE_KEY
+```
+
+**Final Balance Calculation:**
+
+```
+participant1_final = participant1_deposit - participant1_withdrawn - participant1_transferred + participant2_transferred
+participant2_final = participant2_deposit - participant2_withdrawn - participant2_transferred + participant1_transferred
+```
+
+**Example:**
+
+- Alice deposits 1000 tokens, Bob deposits 1000 tokens
+- Alice transferred 250 tokens to Bob (recorded in balance proof)
+- Bob transferred 500 tokens to Alice (recorded in challenge update)
+- **Alice receives:** 1000 - 0 - 250 + 500 = **1250 tokens**
+- **Bob receives:** 1000 - 0 - 500 + 250 = **750 tokens**
+
+### Challenge Period Security
+
+The challenge period protects participants from stale state submission:
+
+1. **Stale State Protection:** Monotonically increasing nonces prevent replaying old balance proofs
+2. **Guaranteed Dispute Window:** Non-closing participant has guaranteed time to challenge
+3. **No Griefing:** Anyone can call `settleChannel` after timeout (prevents closer from blocking settlement)
+4. **Finality:** Once settled, channel state is `Settled` and cannot be reopened
+
+**Minimum Challenge Period:** 1 hour (3600 seconds) for development. Production deployments should use 24 hours or more to account for network latency and participant availability.
+
+### Channel Lifecycle Summary
+
+```
+NonExistent (default)
+    ↓ openChannel()
+Opened (deposits allowed)
+    ↓ closeChannel()
+Closed (challenge period active)
+    ↓ updateNonClosingBalanceProof() [optional]
+    ↓ [wait settlementTimeout]
+    ↓ settleChannel()
+Settled (funds distributed, final state)
+```
+
+### Querying Closure State
+
+```bash
+# Check if channel is closed
+cast call $TOKEN_NETWORK "channels(bytes32)" <channelId> --rpc-url http://localhost:8545
+# Returns: (settlementTimeout, state, closedAt, participant1, participant2)
+# state: 0=NonExistent, 1=Opened, 2=Closed, 3=Settled
+
+# Check who is the closer
+cast call $TOKEN_NETWORK "participants(bytes32,address)" <channelId> <participantAddress> --rpc-url http://localhost:8545
+# Returns: (deposit, withdrawnAmount, isCloser, nonce, transferredAmount)
+# isCloser: true if this participant closed the channel
+
+# Calculate time until settlement
+CLOSED_AT=$(cast call $TOKEN_NETWORK "channels(bytes32)" <channelId> --rpc-url http://localhost:8545 | cut -d' ' -f3)
+SETTLEMENT_TIMEOUT=$(cast call $TOKEN_NETWORK "channels(bytes32)" <channelId> --rpc-url http://localhost:8545 | cut -d' ' -f1)
+CURRENT_TIME=$(date +%s)
+TIME_UNTIL_SETTLEMENT=$((CLOSED_AT + SETTLEMENT_TIMEOUT - CURRENT_TIME))
+echo "Time until settlement: $TIME_UNTIL_SETTLEMENT seconds"
+```
+
 ## Development Workflow
 
 ### Step 1: Write Contracts
@@ -137,7 +361,7 @@ Create smart contracts in `src/`:
 
 ```solidity
 // src/MyContract.sol
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -152,7 +376,7 @@ Create tests in `test/`:
 
 ```solidity
 // test/MyContract.t.sol
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "../src/MyContract.sol";
@@ -325,7 +549,257 @@ cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localho
 
 ### Issue: "Compilation failed"
 
-**Solution:** Check Solidity version in contracts matches `foundry.toml` (0.8.20).
+**Solution:** Check Solidity version in contracts matches `foundry.toml` (0.8.24).
+
+### Issue: "Stack too deep" compilation error
+
+**Solution:** Enable IR compiler in `foundry.toml`:
+
+```toml
+via_ir = true
+optimizer = true
+```
+
+This is required for Story 8.4's EIP-712 signature verification which has many local variables.
+
+## Security Hardening (Story 8.5)
+
+Story 8.5 adds comprehensive security features to make payment channels production-ready:
+
+### 1. Pausable Circuit Breaker
+
+Emergency pause mechanism allows owner to halt all operations:
+
+```solidity
+contract TokenNetwork is Pausable, Ownable {
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    // All state-changing functions use whenNotPaused modifier
+    function openChannel(...) external whenNotPaused { ... }
+}
+```
+
+**Use case:** Critical bug discovered, exploit actively being used, emergency maintenance.
+
+### 2. Token Whitelist
+
+Optional restriction to approved ERC20 tokens only (disabled by default):
+
+```solidity
+contract TokenNetworkRegistry is Ownable {
+    mapping(address => bool) public whitelistedTokens;
+    bool public whitelistEnabled;
+
+    function enableWhitelist() external onlyOwner { ... }
+    function addTokenToWhitelist(address token) external onlyOwner { ... }
+
+    function createTokenNetwork(address token) external {
+        if (whitelistEnabled && !whitelistedTokens[token]) {
+            revert TokenNotWhitelisted();
+        }
+        // ...
+    }
+}
+```
+
+**Use case:** Restrict to known-safe tokens (USDC, DAI), prevent malicious tokens.
+
+### 3. Fee-on-Transfer Token Support
+
+Accurately track deposited amounts for tokens with transfer fees:
+
+```solidity
+function setTotalDeposit(...) external {
+    uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+    uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+    uint256 actualReceived = balanceAfter - balanceBefore;
+
+    // Use actualReceived for accounting, not amount parameter
+    participants[channelId][participant].deposit = actualReceived;
+}
+```
+
+**Why:** Some ERC20 tokens (e.g., SafeMoon) charge 1-10% fees on transfer. Without this pattern, balance accounting becomes inconsistent.
+
+### 4. Deposit Limits
+
+Prevent griefing attacks via excessive deposits:
+
+```solidity
+contract TokenNetwork {
+    uint256 public immutable maxChannelDeposit;
+
+    constructor(address _token, uint256 _maxChannelDeposit, ...) {
+        maxChannelDeposit = _maxChannelDeposit; // e.g., 1M tokens
+    }
+
+    function setTotalDeposit(...) external {
+        if (participants[channelId][participant].deposit + actualReceived > maxChannelDeposit) {
+            revert DepositLimitExceeded();
+        }
+        // ...
+    }
+}
+```
+
+**Griefing attack example:** Alice deposits 1B USDC, Bob cannot close without Alice's cooperation, funds locked indefinitely.
+
+### 5. Minimum Settlement Timeout
+
+Enforce minimum 1-hour challenge period:
+
+```solidity
+uint256 public constant MIN_SETTLEMENT_TIMEOUT = 1 hours;
+
+function openChannel(..., uint256 settlementTimeout) external {
+    if (settlementTimeout < MIN_SETTLEMENT_TIMEOUT) {
+        revert SettlementTimeoutTooShort();
+    }
+    // ...
+}
+```
+
+**Why:** Prevents instant-close griefing, ensures meaningful challenge period.
+
+### 6. Channel Expiry Mechanism
+
+Force-close channels after maximum lifetime (default: 1 year):
+
+```solidity
+contract TokenNetwork {
+    uint256 public immutable maxChannelLifetime;
+
+    struct Channel {
+        uint256 openedAt;
+        // ...
+    }
+
+    function forceCloseExpiredChannel(bytes32 channelId) external {
+        if (block.timestamp < channels[channelId].openedAt + maxChannelLifetime) {
+            revert ChannelNotExpired();
+        }
+        // Force close without balance proof
+        channels[channelId].state = ChannelState.Closed;
+    }
+}
+```
+
+**Use case:** Abandoned channels, participant offline indefinitely, prevent indefinite locks.
+
+### 7. Cooperative Settlement
+
+Fast settlement with mutual consent, bypassing challenge period:
+
+```solidity
+function cooperativeSettle(
+    bytes32 channelId,
+    BalanceProof memory proof1,
+    bytes memory sig1,
+    BalanceProof memory proof2,
+    bytes memory sig2
+) external {
+    // Verify BOTH signatures
+    // Verify nonces match (agreed final state)
+    // Calculate final balances
+    // Transfer tokens immediately (no challenge period)
+    channel.state = ChannelState.Settled;
+}
+```
+
+**Comparison:**
+
+| Feature             | Unilateral Close | Cooperative Settlement |
+| ------------------- | ---------------- | ---------------------- |
+| Signatures Required | 1                | 2 (both participants)  |
+| Challenge Period    | 1+ hours         | None (instant)         |
+| Gas Cost            | Higher (2 txs)   | Lower (1 tx)           |
+| Use Case            | Disputed closure | Mutual agreement       |
+
+### 8. Withdrawal Function
+
+Remove funds while channel is still open (with counterparty consent):
+
+```solidity
+struct WithdrawalProof {
+    bytes32 channelId;
+    address participant;
+    uint256 withdrawnAmount; // Cumulative
+    uint256 nonce;
+}
+
+function withdraw(
+    bytes32 channelId,
+    uint256 withdrawnAmount,
+    uint256 nonce,
+    bytes memory counterpartySignature
+) external {
+    // Verify counterparty signature
+    // Calculate actual withdrawal (cumulative accounting)
+    // Transfer tokens
+    // Update state
+}
+```
+
+**Use case:** Reduce channel capacity, remove excess liquidity, rebalance funds.
+
+### 9. Emergency Token Recovery
+
+Last resort recovery if channel stuck in invalid state (owner only, contract must be paused):
+
+```solidity
+function emergencyWithdraw(bytes32 channelId, address recipient) external onlyOwner {
+    if (!paused()) revert ContractNotPaused();
+
+    uint256 lockedAmount = IERC20(token).balanceOf(address(this));
+    IERC20(token).safeTransfer(recipient, lockedAmount);
+
+    emit EmergencyWithdrawal(channelId, recipient, lockedAmount);
+}
+```
+
+**When to use:** Critical bug, contract migration, regulatory requirement. Should never be needed in normal operation.
+
+### 10. Fuzz Testing
+
+Validate edge cases with randomized inputs:
+
+```bash
+# Run fuzz tests with 10,000 iterations
+forge test --match-contract Fuzz --fuzz-runs 10000
+```
+
+**Fuzz test examples:**
+
+```solidity
+// Fuzz test: Deposit random amounts
+function testFuzz_DepositRandomAmounts(uint256 amount) public {
+    vm.assume(amount > 0 && amount <= maxChannelDeposit);
+    // Test deposit with random amount
+}
+
+// Fuzz test: Close with random nonces
+function testFuzz_CloseWithRandomNonces(uint256 nonce) public {
+    vm.assume(nonce > 0 && nonce < type(uint128).max);
+    // Test nonce validation
+}
+
+// Invariant test: Balance conservation
+function invariant_TotalBalanceConserved() public view {
+    // Verify: totalDeposits == totalWithdrawals + contractBalance
+}
+```
+
+**Test files:**
+
+- `test/TokenNetwork.t.sol` - Unit tests (all acceptance criteria)
+- `test/TokenNetwork.fuzz.t.sol` - Fuzz tests (10,000+ iterations)
 
 ## Best Practices
 
@@ -337,10 +811,10 @@ cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localho
 
 ## Next Steps
 
-- **Epic 8.2:** Implement TokenNetworkRegistry contract
-- **Epic 8.3:** Implement TokenNetwork core contract
-- **Epic 8.4:** Add channel closure and settlement logic
-- **Epic 8.5:** Security hardening
+- **Epic 8.2:** ✅ Implement TokenNetworkRegistry contract (DONE)
+- **Epic 8.3:** ✅ Implement TokenNetwork core contract (DONE)
+- **Epic 8.4:** ✅ Add channel closure and settlement logic (DONE)
+- **Epic 8.5:** ✅ Security hardening (DONE)
 - **Epic 8.6:** Comprehensive testing and security audit
 - **Epic 8.7:** Off-chain payment channel SDK
 - **Epic 8.8:** Settlement engine integration

@@ -48,11 +48,7 @@ contract TokenNetworkRegistryTest is Test {
         );
 
         // Assert: Reverse mapping works
-        assertEq(
-            registry.token_network_to_token(tokenNetworkAddress),
-            address(token),
-            "Reverse mapping should work"
-        );
+        assertEq(registry.token_network_to_token(tokenNetworkAddress), address(token), "Reverse mapping should work");
 
         // Assert: TokenNetwork has correct token address
         TokenNetwork tn = TokenNetwork(tokenNetworkAddress);
@@ -65,9 +61,7 @@ contract TokenNetworkRegistryTest is Test {
         registry.createTokenNetwork(address(token));
 
         // Attempt to create again - should revert
-        vm.expectRevert(
-            abi.encodeWithSelector(TokenNetworkRegistry.TokenNetworkAlreadyExists.selector, address(token))
-        );
+        vm.expectRevert(abi.encodeWithSelector(TokenNetworkRegistry.TokenNetworkAlreadyExists.selector, address(token)));
         registry.createTokenNetwork(address(token));
     }
 
@@ -102,18 +96,10 @@ contract TokenNetworkRegistryTest is Test {
         assertTrue(tn1 != tn2, "TokenNetworks should have different addresses");
 
         // Assert: Correct mappings for token1
-        assertEq(
-            registry.getTokenNetwork(address(token)),
-            tn1,
-            "Token1 should map to TokenNetwork1"
-        );
+        assertEq(registry.getTokenNetwork(address(token)), tn1, "Token1 should map to TokenNetwork1");
 
         // Assert: Correct mappings for token2
-        assertEq(
-            registry.getTokenNetwork(address(token2)),
-            tn2,
-            "Token2 should map to TokenNetwork2"
-        );
+        assertEq(registry.getTokenNetwork(address(token2)), tn2, "Token2 should map to TokenNetwork2");
 
         // Assert: TokenNetworks have correct token addresses
         assertEq(TokenNetwork(tn1).token(), address(token), "TokenNetwork1 should have token1");
@@ -144,4 +130,73 @@ contract TokenNetworkRegistryTest is Test {
             "TokenNetwork address should map back to token"
         );
     }
+
+    /// @notice Test: Whitelist blocks non-whitelisted tokens
+    function testWhitelistBlocksNonWhitelistedTokens() public {
+        // Enable whitelist
+        registry.enableWhitelist();
+
+        // Attempt to create TokenNetwork for non-whitelisted token - should revert
+        vm.expectRevert(TokenNetworkRegistry.TokenNotWhitelisted.selector);
+        registry.createTokenNetwork(address(token));
+    }
+
+    /// @notice Test: Whitelist allows whitelisted tokens
+    function testWhitelistAllowsWhitelistedTokens() public {
+        // Enable whitelist
+        registry.enableWhitelist();
+
+        // Add token to whitelist
+        registry.addTokenToWhitelist(address(token));
+
+        // Create TokenNetwork - should succeed
+        address tokenNetworkAddress = registry.createTokenNetwork(address(token));
+        assertTrue(tokenNetworkAddress != address(0), "TokenNetwork should be created for whitelisted token");
+    }
+
+    /// @notice Test: Disable whitelist allows all tokens
+    function testDisableWhitelistAllowsAllTokens() public {
+        // Enable whitelist
+        registry.enableWhitelist();
+
+        // Create TokenNetwork should fail for non-whitelisted token
+        vm.expectRevert(TokenNetworkRegistry.TokenNotWhitelisted.selector);
+        registry.createTokenNetwork(address(token));
+
+        // Disable whitelist
+        registry.disableWhitelist();
+
+        // Create TokenNetwork should now succeed
+        address tokenNetworkAddress = registry.createTokenNetwork(address(token));
+        assertTrue(tokenNetworkAddress != address(0), "TokenNetwork should be created after disabling whitelist");
+    }
+
+    /// @notice Test: Whitelist management functions emit events
+    function testWhitelistManagementEmitsEvents() public {
+        // Enable whitelist - expect event
+        vm.expectEmit(false, false, false, false);
+        emit WhitelistEnabled();
+        registry.enableWhitelist();
+
+        // Add token to whitelist - expect event
+        vm.expectEmit(true, false, false, false);
+        emit TokenWhitelisted(address(token));
+        registry.addTokenToWhitelist(address(token));
+
+        // Remove token from whitelist - expect event
+        vm.expectEmit(true, false, false, false);
+        emit TokenRemovedFromWhitelist(address(token));
+        registry.removeTokenFromWhitelist(address(token));
+
+        // Disable whitelist - expect event
+        vm.expectEmit(false, false, false, false);
+        emit WhitelistDisabled();
+        registry.disableWhitelist();
+    }
+
+    // Event declarations for testing
+    event WhitelistEnabled();
+    event WhitelistDisabled();
+    event TokenWhitelisted(address indexed token);
+    event TokenRemovedFromWhitelist(address indexed token);
 }

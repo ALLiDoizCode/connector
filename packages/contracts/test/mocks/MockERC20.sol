@@ -20,11 +20,11 @@ contract MockERC20 {
         name = _name;
         symbol = _symbol;
         decimals = _decimals;
-        totalSupply = 1000000 * 10**_decimals;
+        totalSupply = 1000000 * 10 ** _decimals;
         balanceOf[msg.sender] = totalSupply;
     }
 
-    function transfer(address to, uint256 value) public returns (bool) {
+    function transfer(address to, uint256 value) public virtual returns (bool) {
         require(balanceOf[msg.sender] >= value, "Insufficient balance");
         balanceOf[msg.sender] -= value;
         balanceOf[to] += value;
@@ -38,7 +38,7 @@ contract MockERC20 {
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
+    function transferFrom(address from, address to, uint256 value) public virtual returns (bool) {
         require(balanceOf[from] >= value, "Insufficient balance");
         require(allowance[from][msg.sender] >= value, "Insufficient allowance");
         balanceOf[from] -= value;
