@@ -81,7 +81,8 @@ describe('UnifiedSettlementExecutor', () => {
       fatal: jest.fn(),
       trace: jest.fn(),
       level: 'info',
-    } as jest.Mocked<Logger>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
 
     const config: UnifiedSettlementExecutorConfig = {
       peers: new Map([

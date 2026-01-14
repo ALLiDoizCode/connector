@@ -54,7 +54,8 @@ describe('XRPChannelSDK', () => {
       warn: jest.fn(),
       debug: jest.fn(),
       child: jest.fn().mockReturnThis(),
-    } as jest.Mocked<Logger>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
 
     sdk = new XRPChannelSDK(mockXRPLClient, mockChannelManager, mockClaimSigner, mockLogger);
   });

@@ -35,14 +35,16 @@ describe('XRPChannelLifecycleManager', () => {
         publicKey: 'ED' + 'C'.repeat(64),
         status: 'open',
       }),
-    } as jest.Mocked<XRPChannelSDK>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
 
     mockLogger = {
       info: jest.fn(),
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
-    } as jest.Mocked<Logger>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
 
     config = {
       enabled: true,

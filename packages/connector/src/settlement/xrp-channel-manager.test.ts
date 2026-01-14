@@ -78,7 +78,8 @@ describe('PaymentChannelManager', () => {
         Balance: '0',
         SettleDelay: settleDelay,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       const channelId = await manager.createChannel(destination, amount, settleDelay);
 
@@ -127,7 +128,8 @@ describe('PaymentChannelManager', () => {
         Balance: '0',
         SettleDelay: 1800,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       await manager.createChannel(destination, '1000000000', 1800); // 30 minutes
 
@@ -160,7 +162,8 @@ describe('PaymentChannelManager', () => {
         Balance: '0',
         SettleDelay: settleDelay,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       await manager.createChannel(destination, amount, settleDelay);
 
@@ -180,7 +183,8 @@ describe('PaymentChannelManager', () => {
         Balance: '0',
         SettleDelay: 86400,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       mockXRPLClient.submitAndWait.mockResolvedValueOnce({
         hash: '0xDEF456',
@@ -210,7 +214,8 @@ describe('PaymentChannelManager', () => {
         SettleDelay: 86400,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
         Expiration: Math.floor(Date.now() / 1000) - 90000, // Expired
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       await expect(manager.fundChannel(channelId, '500000000')).rejects.toThrow(
         'Cannot fund channel in status:'
@@ -233,7 +238,8 @@ describe('PaymentChannelManager', () => {
         Balance: '0',
         SettleDelay: 86400,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       mockXRPLClient.submitAndWait.mockResolvedValueOnce({
         hash: '0xDEF456',
@@ -260,7 +266,8 @@ describe('PaymentChannelManager', () => {
         Balance: '250000000',
         SettleDelay: 86400,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       const state = await manager.getChannelState(channelId);
 
@@ -284,7 +291,8 @@ describe('PaymentChannelManager', () => {
         Amount: '1000000000',
         SettleDelay: 86400,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       const state = await manager.getChannelState(channelId);
 
@@ -314,7 +322,8 @@ describe('PaymentChannelManager', () => {
         SettleDelay: 3600,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
         Expiration: futureExpiration,
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       const state = await manager.getChannelState(channelId);
 
@@ -334,7 +343,8 @@ describe('PaymentChannelManager', () => {
         SettleDelay: 3600,
         PublicKey: 'ED1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890AB',
         Expiration: pastExpiration,
-      } as Record<string, unknown>);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       const state = await manager.getChannelState(channelId);
 
