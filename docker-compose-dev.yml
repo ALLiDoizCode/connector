@@ -318,9 +318,6 @@ services:
       # Settlement configuration
       TIGERBEETLE_URL: tigerbeetle:3000
 
-      # Telemetry configuration
-      DASHBOARD_TELEMETRY_URL: http://dashboard:8080/telemetry
-
       # Development configuration
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
@@ -373,9 +370,6 @@ services:
       # Settlement configuration
       TIGERBEETLE_URL: tigerbeetle:3000
 
-      # Telemetry configuration
-      DASHBOARD_TELEMETRY_URL: http://dashboard:8080/telemetry
-
       # Development configuration
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
@@ -405,35 +399,15 @@ services:
       start_period: 20s  # Allow time for dependencies + initialization
     restart: unless-stopped
 
-  # ===== Dashboard =====
-
-  # Dashboard - Network visualization UI and telemetry server
-  dashboard:
-    build:
-      context: .
-      dockerfile: packages/dashboard/Dockerfile
-    container_name: ilp-dashboard
-    environment:
-      TELEMETRY_WS_PORT: 9000
-      LOG_LEVEL: info
-    ports:
-      - "8080:8080"  # Dashboard HTTP port
-      - "9000:9000"  # Telemetry WebSocket port
-    networks:
-      - m2m_dev_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    profiles:
-      - dashboard  # Optional service - start with: docker-compose -f docker-compose-dev.yml --profile dashboard up -d
+  # ===== Dashboard (REMOVED) =====
+  #
+  # Dashboard visualization has been removed from this project.
+  # See DASHBOARD-DEFERRED.md for rationale and future plans.
+  # Telemetry events are still emitted by connectors but not visualized.
 
 networks:
   # Development network for inter-service communication
-  # All development services (Anvil, rippled, TigerBeetle, connectors, dashboard) use this network
+  # All development services (Anvil, rippled, TigerBeetle, connectors) use this network
   m2m_dev_network:
     driver: bridge
 

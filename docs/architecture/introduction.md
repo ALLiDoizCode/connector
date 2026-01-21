@@ -1,9 +1,9 @@
 # Introduction
 
-This document outlines the overall project architecture for the ILP Connector with BTP and Network Visualization, including backend systems, shared services, and non-UI specific concerns. Its primary goal is to serve as the guiding architectural blueprint for AI-driven development, ensuring consistency and adherence to chosen patterns and technologies.
+This document outlines the overall project architecture for the ILP Connector with BTP and Agent Wallet for Machine-to-Machine Payments, including backend systems, shared services, and settlement infrastructure. Its primary goal is to serve as the guiding architectural blueprint for AI-driven development, ensuring consistency and adherence to chosen patterns and technologies.
 
-**Relationship to Frontend Architecture:**
-If the project includes a significant user interface, a separate Frontend Architecture Document will detail the frontend-specific design and MUST be used in conjunction with this document. Core technology stack choices documented herein (see "Tech Stack") are definitive for the entire project, including any frontend components.
+**Dashboard Visualization:**
+Dashboard visualization has been deferred to focus on core payment functionality. See DASHBOARD-DEFERRED.md in the root directory for details. The system uses structured logging for observability instead.
 
 ## Change Log
 
@@ -19,15 +19,15 @@ Based on PRD review, this is a greenfield project with no existing codebase. Giv
 
 **Rationale:**
 
-- Unique requirements don't align with standard starters (Create React App, NestJS, etc.)
-- Monorepo structure (`packages/connector`, `packages/dashboard`, `packages/shared`) needs custom configuration
-- Educational value enhanced by building from first principles per PRD goals
-- PRD explicitly mentions building custom ILP packet implementation for RFC understanding
+- Unique requirements don't align with standard starters (API frameworks, full-stack templates)
+- Monorepo structure (`packages/connector`, `packages/shared`) needs custom configuration
+- Machine-to-machine payment system requires specialized architecture
+- Custom ILP packet implementation required for RFC compliance and educational value
 
 **Alternatives Considered:**
 
-- Turborepo/Nx monorepo starters - Rejected (unnecessary complexity for 3-package monorepo)
-- Vite React starter - Will use for dashboard package only
-- NestJS - Overkill for lightweight connector
+- Turborepo/Nx monorepo starters - Rejected (unnecessary complexity for small monorepo)
+- Express.js frameworks (Nest.js, Fastify) - Rejected (overkill for lightweight connector)
+- GraphQL API layer - Rejected (no complex API requirements)
 
 **Implementation:** Manual initialization with npm workspaces, TypeScript strict mode, and custom project structure.

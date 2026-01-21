@@ -2,69 +2,78 @@
 
 ## Technical Summary
 
-The system employs a **microservices architecture deployed via Docker containers** with an observability-first design philosophy. Multiple independent ILP connector nodes communicate using BTP (RFC-0023) over WebSocket, while a centralized React dashboard aggregates telemetry and provides real-time network visualization. The architecture prioritizes developer experience through comprehensive structured logging, zero-configuration network deployment, and visual packet flow inspection. Built entirely in TypeScript on Node.js, the system leverages in-memory state for simplicity while supporting configurable network topologies from linear chains to full mesh networks. This design directly supports the PRD's core goals: making Interledger packet routing observable, reducing debugging time through enhanced visibility, and enabling rapid experimentation with different network scenarios.
+The system employs a **microservices architecture deployed via Docker containers** with an observability-first design philosophy. Multiple independent ILP connector nodes communicate using BTP (RFC-0023) over WebSocket, emitting structured telemetry events for monitoring and debugging. The architecture prioritizes developer experience through comprehensive structured logging, zero-configuration network deployment, and agent wallet integration for machine-to-machine payments. Built entirely in TypeScript on Node.js, the system leverages in-memory state for connector routing while supporting persistent agent wallet balances via TigerBeetle. The system supports dual-settlement capabilities (EVM and XRP payment channels) and configurable network topologies from linear chains to full mesh networks.
+
+**Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root
 
 ## High Level Overview
 
 **Architectural Style:** **Containerized Microservices with Event-Driven Telemetry**
 
-1. **Repository Structure:** Monorepo (npm workspaces) containing `packages/connector`, `packages/dashboard`, and `packages/shared`
+1. **Repository Structure:** Monorepo (npm workspaces) containing `packages/connector`, `packages/agent-wallet`, and `packages/shared`
    - Rationale: Simplifies dependency management, enables TypeScript type sharing across packages, streamlines single-developer workflow
 
 2. **Service Architecture:**
    - N identical connector containers (each running ILPv4 + BTP implementation)
-   - Single dashboard container (React UI + telemetry WebSocket server)
-   - No shared database - each connector maintains in-memory routing tables and peer state
+   - Agent wallet service (machine-to-machine payment capabilities)
+   - Settlement engines (EVM and XRP payment channels)
+   - TigerBeetle accounting layer (persistent balance tracking)
+   - No shared routing state - each connector maintains in-memory routing tables
 
 3. **Primary Data Flow:**
 
    ```
-   User sends test packet → Connector A receives via BTP
+   Agent wallet initiates payment → Connector A receives via BTP
    → Connector A routes packet (consults routing table)
    → Connector A forwards to Connector B via BTP WebSocket
-   → Both emit telemetry to dashboard via WebSocket
-   → Dashboard visualizes packet animation in real-time
-   → User clicks packet to inspect ILP packet structure
+   → Both emit telemetry events (structured logging)
+   → Telemetry logged to stdout for monitoring
+   → Settlement triggers when balance threshold reached
+   → Payment channel claim signed and transmitted off-chain
    ```
 
 4. **Key Architectural Decisions:**
-   - **In-memory state only:** No persistence layer for MVP - routing tables configured at startup, packet history ephemeral
-   - **Push-based telemetry:** Connectors push events to dashboard (not pull-based polling)
-   - **Docker-first deployment:** No non-containerized deployment supported for MVP
-   - **WebSocket-centric communication:** BTP uses WebSocket (RFC-0023), telemetry uses WebSocket, real-time UI updates use WebSocket
-   - **Educational over production:** Security, high availability, and performance optimization secondary to observability and ease of use
+   - **Hybrid persistence:** In-memory routing tables, persistent agent wallet balances via TigerBeetle
+   - **Push-based telemetry:** Connectors emit events to structured logging (not pull-based polling)
+   - **Docker-first deployment:** Container orchestration via Docker Compose
+   - **WebSocket-centric communication:** BTP uses WebSocket (RFC-0023), telemetry emitted to stdout
+   - **Dual-settlement support:** EVM payment channels (Epic 8) and XRP payment channels (Epic 9)
+   - **Dashboard deferred:** Visualization tooling deferred to focus on core payment functionality
 
 ## High Level Project Diagram
 
 ```mermaid
 graph TB
-    User[Developer/User] -->|Access Dashboard| Dashboard[Dashboard Container<br/>React UI + Telemetry Server]
-    User -->|docker-compose up| Docker[Docker Compose Orchestration]
+    User[Developer/User] -->|docker-compose up| Docker[Docker Compose Orchestration]
 
     Docker -->|Deploys| ConnectorA[Connector Node A<br/>ILPv4 + BTP]
     Docker -->|Deploys| ConnectorB[Connector Node B<br/>ILPv4 + BTP]
     Docker -->|Deploys| ConnectorC[Connector Node C<br/>ILPv4 + BTP]
-    Docker -->|Deploys| Dashboard
+    Docker -->|Deploys| AgentWallet[Agent Wallet Service<br/>M2M Payment Client]
+    Docker -->|Deploys| TigerBeetle[TigerBeetle<br/>Accounting Layer]
 
     ConnectorA <-->|BTP WebSocket| ConnectorB
     ConnectorB <-->|BTP WebSocket| ConnectorC
 
-    ConnectorA -.->|Telemetry<br/>WebSocket| Dashboard
-    ConnectorB -.->|Telemetry<br/>WebSocket| Dashboard
-    ConnectorC -.->|Telemetry<br/>WebSocket| Dashboard
+    ConnectorA -.->|Telemetry Events| Logs[Structured Logs - stdout]
+    ConnectorB -.->|Telemetry Events| Logs
+    ConnectorC -.->|Telemetry Events| Logs
 
-    User -->|Send Test Packets| TestSender[Packet Sender CLI Tool]
-    TestSender -->|ILP Packet| ConnectorA
+    AgentWallet -->|ILP Packets| ConnectorA
+    AgentWallet -->|Balance Updates| TigerBeetle
 
-    Dashboard -->|Visualizes| NetworkGraph[Network Topology Graph]
-    Dashboard -->|Displays| PacketFlow[Animated Packet Flow]
-    Dashboard -->|Shows| Logs[Filterable Structured Logs]
+    ConnectorA -->|Settlement Events| Settlement[Settlement Executor<br/>EVM + XRP Channels]
+    Settlement -->|Balance Updates| TigerBeetle
+    Settlement -->|Blockchain Txns| Blockchain[EVM/XRP Ledgers]
 
-    style Dashboard fill:#2563eb,color:#fff
+    User -->|Monitor Logs| Logs
+
     style ConnectorA fill:#059669,color:#fff
     style ConnectorB fill:#059669,color:#fff
     style ConnectorC fill:#059669,color:#fff
-    style User fill:#6366f1,color:#fff
+    style AgentWallet fill:#6366f1,color:#fff
+    style TigerBeetle fill:#f59e0b,color:#fff
+    style Settlement fill:#8b5cf6,color:#fff
 ```
 
 ## Architectural and Design Patterns
@@ -75,9 +84,9 @@ graph TB
    - _Rationale:_ Aligns with PRD requirement for deploying N nodes flexibly; enables network topology experimentation; supports independent scaling and isolation
 
 2. **Event-Driven Telemetry**
-   - Connectors emit events (PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP) to dashboard asynchronously
-   - Dashboard aggregates and broadcasts to UI clients
-   - _Rationale:_ Decouples observability from packet processing; supports real-time visualization without blocking routing; enables future extensibility (multiple dashboard clients, logging backends)
+   - Connectors emit events (PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP) to structured logging asynchronously
+   - Events logged to stdout for consumption by external monitoring tools
+   - _Rationale:_ Decouples observability from packet processing; enables future extensibility (monitoring dashboards, log aggregation systems)
 
 3. **Repository Pattern (for Routing Table Management)**
    - Abstract routing table operations behind interface
@@ -87,7 +96,7 @@ graph TB
 4. **Observer Pattern (for BTP Connection State)**
    - BTP clients emit connection lifecycle events (connected, disconnected, error)
    - Packet handler observes state to make routing decisions
-   - _Rationale:_ Connector components can react to peer availability changes; supports health reporting to dashboard; aligns with event-driven architecture
+   - _Rationale:_ Connector components can react to peer availability changes; supports health reporting; aligns with event-driven architecture
 
 5. **Strategy Pattern (for Network Topology Configuration)**
    - Topology configuration (linear, mesh, custom) loaded at startup
@@ -102,10 +111,8 @@ graph TB
 7. **Structured Logging as First-Class Concern**
    - All operations emit structured JSON logs with consistent schema
    - Logging integrated at framework level (not ad-hoc console.logs)
-   - _Rationale:_ Directly supports FR10 comprehensive logging requirement; enables filterable log viewer; critical for debugging educational use case
+   - _Rationale:_ Critical for debugging and monitoring; enables external log aggregation; supports observability without built-in UI
 
-8. **RESTful Convention for Dashboard API (Minimal)**
+8. **RESTful Convention for Health Check (Minimal)**
    - Health check endpoint: `GET /health`
-   - Static file serving for React build
-   - WebSocket endpoint for telemetry: `ws://dashboard:9000/telemetry`
-   - _Rationale:_ Simple, standard conventions; minimal API surface for MVP; aligns with Docker health check requirements
+   - _Rationale:_ Simple, standard conventions; minimal API surface; aligns with Docker health check requirements

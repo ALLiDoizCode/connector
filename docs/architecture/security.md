@@ -19,7 +19,9 @@
 - **Required Patterns:**
   - BTP handshake MUST validate shared secret before accepting connection
   - Invalid authentication MUST close WebSocket connection immediately
-  - Dashboard has no authentication for MVP (localhost-only deployment)
+  - Health check endpoints have no authentication (localhost-only deployment)
+
+**Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root
 
 ## Secrets Management
 
@@ -44,7 +46,7 @@ const btpSecret =
 ## API Security
 
 - **Rate Limiting:** Not implemented for MVP (localhost deployment, trusted environment)
-- **CORS Policy:** Dashboard allows all origins (no CORS restrictions for localhost)
+- **CORS Policy:** Health check endpoints allow all origins (no CORS restrictions for localhost)
 - **Security Headers:** Not required for MVP (no internet-facing deployment)
 - **HTTPS Enforcement:** Not required for MVP (local Docker network uses ws://)
 

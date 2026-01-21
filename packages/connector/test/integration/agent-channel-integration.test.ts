@@ -87,12 +87,16 @@ async function checkDockerInfrastructure(): Promise<boolean> {
 
 // These tests require docker-compose-dev.yml infrastructure (Anvil + rippled)
 // Start with: docker-compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
-// Skip in CI unless INTEGRATION_TESTS=true
-const integrationTestsEnabled = process.env.INTEGRATION_TESTS === 'true';
-const isCI = process.env.CI === 'true';
-const describeIfInfra = integrationTestsEnabled || !isCI ? describe : describe.skip;
+// Tests skip automatically if infrastructure is not running (in CI or locally)
+// To run: Set INTEGRATION_TESTS=true and ensure docker-compose-dev is running
 
-describeIfInfra('Agent Channel Integration Test', () => {
+// Check if we should run these tests
+// Skip unless INTEGRATION_TESTS=true (in CI or locally)
+// Developers must explicitly enable integration tests AND have docker-compose-dev running
+const integrationTestsEnabled = process.env.INTEGRATION_TESTS === 'true';
+const describeIfEnabled = integrationTestsEnabled ? describe : describe.skip;
+
+describeIfEnabled('Agent Channel Integration Test', () => {
   let provider: ethers.Provider;
   let signer: ethers.Signer;
   let treasuryWallet: TreasuryWallet;

@@ -55,7 +55,6 @@ services:
       NODE_ID: connector-hub
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
       # BTP Server Authentication - Environment variables for incoming spoke connections
       BTP_PEER_SPOKE_1_SECRET: secret-spoke1-to-hub
       BTP_PEER_SPOKE_2_SECRET: secret-spoke2-to-hub
@@ -87,7 +86,6 @@ services:
       NODE_ID: spoke-1
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
       # Test client authentication for send-packet tool
       BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
     volumes:
@@ -117,7 +115,6 @@ services:
       NODE_ID: spoke-2
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/hub-spoke-spoke2.yaml:/app/config.yaml:ro
     ports:
@@ -145,7 +142,6 @@ services:
       NODE_ID: spoke-3
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/hub-spoke-spoke3.yaml:/app/config.yaml:ro
     ports:
@@ -163,27 +159,8 @@ services:
       retries: 3
       start_period: 40s
 
-  # Dashboard - Network visualization UI and telemetry server
-  dashboard:
-    build:
-      context: .
-      dockerfile: packages/dashboard/Dockerfile
-    container_name: ilp-dashboard
-    environment:
-      TELEMETRY_WS_PORT: 9000
-      LOG_LEVEL: info
-    ports:
-      - "8080:8080"  # Dashboard HTTP port
-      - "9000:9000"  # Telemetry WebSocket port
-    networks:
-      - ilp-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+  # Dashboard (REMOVED - see DASHBOARD-DEFERRED.md)
+  # Visualization deferred to future standalone project.
 
 networks:
   ilp-network:

@@ -5,12 +5,13 @@
 - **Approach:** Test-Driven Development (TDD) encouraged but not required
 - **Coverage Goals:**
   - `packages/shared`: >90% (critical protocol logic)
-  - `packages/connector`: >80% (core routing and BTP)
-  - `packages/dashboard`: >70% (UI components - lower bar acceptable)
+  - `packages/connector`: >80% (core routing, BTP, settlement)
 - **Test Pyramid:**
   - 70% Unit Tests (fast, isolated, comprehensive)
   - 20% Integration Tests (multi-component, Docker-based)
   - 10% E2E Tests (full system validation)
+
+**Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root
 
 ## Test Types and Organization
 
@@ -134,7 +135,7 @@ describeIfInfra('Payment Channel Integration', () => {
 ### End-to-End Tests
 
 - **Framework:** Jest with Docker Compose integration
-- **Scope:** Full system deployment with dashboard
+- **Scope:** Full system deployment with connector network, agent wallet, settlement
 - **Environment:** Automated Docker Compose startup in test
 - **Test Data:** Pre-configured 3-node linear topology
 
@@ -144,22 +145,27 @@ describeIfInfra('Payment Channel Integration', () => {
 describe('Full System E2E', () => {
   beforeAll(async () => {
     await execAsync('docker-compose up -d');
-    await waitForHealthy(['connector-a', 'connector-b', 'connector-c', 'dashboard']);
+    await waitForHealthy(['connector-a', 'connector-b', 'connector-c', 'tigerbeetle']);
   });
 
-  it('should forward packet through network and visualize in dashboard', async () => {
-    // Send packet using CLI tool
-    await sendTestPacket('connector-a', 'g.connectorC.dest', 1000);
+  it('should forward packet through network and trigger settlement', async () => {
+    // Send packet using agent wallet
+    await agentWallet.sendPayment('g.connectorC.dest', 1000);
 
-    // Wait for telemetry
-    const telemetryEvents = await collectTelemetryEvents(timeout: 5000);
+    // Wait for telemetry events to be logged
+    const logs = await collectStructuredLogs(timeout: 5000);
 
     // Verify packet flow
-    expect(telemetryEvents).toContainEqual(
+    expect(logs).toContainEqual(
       expect.objectContaining({ type: 'PACKET_SENT', nodeId: 'connector-a' })
     );
-    expect(telemetryEvents).toContainEqual(
+    expect(logs).toContainEqual(
       expect.objectContaining({ type: 'PACKET_RECEIVED', nodeId: 'connector-c' })
+    );
+
+    // Verify settlement triggered
+    expect(logs).toContainEqual(
+      expect.objectContaining({ type: 'SETTLEMENT_COMPLETED' })
     );
   });
 
