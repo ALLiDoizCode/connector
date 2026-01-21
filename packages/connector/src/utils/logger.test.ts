@@ -6,7 +6,7 @@
  */
 
 import pino from 'pino';
-import { createLogger, generateCorrelationId, Logger } from './logger';
+import { createLogger, generateCorrelationId, Logger, sanitizeWalletForLogs } from './logger';
 
 describe('Logger Configuration', () => {
   describe('createLogger', () => {
@@ -227,6 +227,120 @@ describe('Logger Configuration', () => {
       expect(levels).toContain(30); // info
       expect(levels).toContain(40); // warn
       expect(levels).toContain(50); // error
+    });
+  });
+
+  describe('Wallet Data Sanitization', () => {
+    it('should redact privateKey from wallet objects', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        evmAddress: '0x1234567890123456789012345678901234567890',
+        privateKey: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      };
+
+      // Act
+      const sanitized = sanitizeWalletForLogs(wallet);
+
+      // Assert
+      expect(sanitized.agentId).toBe('agent-001');
+      expect(sanitized.evmAddress).toBe('0x1234567890123456789012345678901234567890');
+      expect(sanitized.privateKey).toBe('[REDACTED]');
+    });
+
+    it('should redact mnemonic from wallet objects', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+      };
+
+      // Act
+      const sanitized = sanitizeWalletForLogs(wallet);
+
+      // Assert
+      expect(sanitized.agentId).toBe('agent-001');
+      expect(sanitized.mnemonic).toBe('[REDACTED]');
+    });
+
+    it('should redact seed from wallet objects', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        seed: Buffer.from('secret-seed'),
+      };
+
+      // Act
+      const sanitized = sanitizeWalletForLogs(wallet);
+
+      // Assert
+      expect(sanitized.agentId).toBe('agent-001');
+      expect(sanitized.seed).toBe('[REDACTED]');
+    });
+
+    it('should redact encryptionKey from wallet objects', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        encryptionKey: Buffer.from('encryption-key'),
+      };
+
+      // Act
+      const sanitized = sanitizeWalletForLogs(wallet);
+
+      // Assert
+      expect(sanitized.agentId).toBe('agent-001');
+      expect(sanitized.encryptionKey).toBe('[REDACTED]');
+    });
+
+    it('should redact secret from wallet objects', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        secret: 'some-secret-value',
+      };
+
+      // Act
+      const sanitized = sanitizeWalletForLogs(wallet);
+
+      // Assert
+      expect(sanitized.agentId).toBe('agent-001');
+      expect(sanitized.secret).toBe('[REDACTED]');
+    });
+
+    it('should redact privateKey from nested signer objects', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        signer: {
+          address: '0x1234567890123456789012345678901234567890',
+          privateKey: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        },
+      };
+
+      // Act
+      const sanitized = sanitizeWalletForLogs(wallet);
+
+      // Assert
+      expect(sanitized.agentId).toBe('agent-001');
+      expect(sanitized.signer.address).toBe('0x1234567890123456789012345678901234567890');
+      expect(sanitized.signer.privateKey).toBe('[REDACTED]');
+    });
+
+    it('should not mutate original wallet object', () => {
+      // Arrange
+      const wallet = {
+        agentId: 'agent-001',
+        privateKey: '0xabcdef1234567890',
+      };
+
+      const originalPrivateKey = wallet.privateKey;
+
+      // Act
+      sanitizeWalletForLogs(wallet);
+
+      // Assert - original wallet should still have privateKey
+      expect(wallet.privateKey).toBe(originalPrivateKey);
     });
   });
 });
