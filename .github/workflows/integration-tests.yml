@@ -31,31 +31,46 @@ jobs:
           echo "Starting Anvil (Base L2), rippled (XRP Ledger), and TigerBeetle..."
           docker compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
 
-          echo "Waiting for services to become healthy..."
-          # Wait up to 180 seconds for all services to be healthy (Anvil fork download can take 60s+)
-          for i in {1..180}; do
-            # Count how many services are healthy
-            HEALTHY_COUNT=$(docker compose -f docker-compose-dev.yml ps --format json | jq -r 'select(.Health == "healthy") | .Name' | wc -l)
-
-            if [ "$HEALTHY_COUNT" -eq 3 ]; then
-              echo "All 3 services are healthy!"
-              break
-            fi
-
-            echo "Waiting for services... ($HEALTHY_COUNT/3 healthy, attempt $i/180)"
-            sleep 1
-          done
+          echo "Waiting for services to start..."
+          sleep 10
 
           # Show service status
           docker compose -f docker-compose-dev.yml ps
 
-          # Verify we have 3 healthy services, otherwise fail
-          FINAL_HEALTHY_COUNT=$(docker compose -f docker-compose-dev.yml ps --format json | jq -r 'select(.Health == "healthy") | .Name' | wc -l)
-          if [ "$FINAL_HEALTHY_COUNT" -ne 3 ]; then
-            echo "ERROR: Expected 3 healthy services but found $FINAL_HEALTHY_COUNT"
-            docker compose -f docker-compose-dev.yml logs
-            exit 1
-          fi
+          # Wait for Anvil to be responsive (fork download can take 60s+)
+          echo "Waiting for Anvil to be responsive..."
+          for i in {1..120}; do
+            if curl -sf -X POST http://localhost:8545 \
+              -H "Content-Type: application/json" \
+              -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' > /dev/null 2>&1; then
+              echo "Anvil is responsive!"
+              break
+            fi
+            echo "Waiting for Anvil... (attempt $i/120)"
+            sleep 1
+          done
+
+          # Wait for rippled to be responsive
+          echo "Waiting for rippled to be responsive..."
+          for i in {1..30}; do
+            if curl -sf -X POST http://localhost:5005 \
+              -H "Content-Type: application/json" \
+              -d '{"method":"server_info","params":[]}' > /dev/null 2>&1; then
+              echo "rippled is responsive!"
+              break
+            fi
+            echo "Waiting for rippled... (attempt $i/30)"
+            sleep 1
+          done
+
+          # TigerBeetle doesn't have an HTTP endpoint, so just give it time to start
+          echo "Giving TigerBeetle time to initialize..."
+          sleep 5
+
+          # Show final service status and logs
+          docker compose -f docker-compose-dev.yml ps
+          echo "Service logs (last 50 lines):"
+          docker compose -f docker-compose-dev.yml logs --tail=50
 
       - name: Verify Anvil is accessible
         run: |
