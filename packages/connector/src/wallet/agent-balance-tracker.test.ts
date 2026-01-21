@@ -173,12 +173,14 @@ describe('AgentBalanceTracker', () => {
     it('should fetch XRP balance from account_info (drops)', async () => {
       mockWalletDerivation.getAgentWallet.mockResolvedValue(TEST_AGENT_1);
       mockXrplClient.request.mockResolvedValue({
+        id: 1,
+        type: 'response',
         result: {
           account_data: {
             Balance: '10000000', // 10 XRP in drops (1 XRP = 1,000,000 drops)
           },
         },
-      } as { result: { account_data: { Balance: string } } });
+      } as any);
 
       tracker = new AgentBalanceTracker(
         mockWalletDerivation,

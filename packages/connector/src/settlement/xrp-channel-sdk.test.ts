@@ -37,10 +37,12 @@ describe('XRPChannelSDK', () => {
 
     mockChannelManager = {
       createChannel: jest.fn().mockResolvedValue('A'.repeat(64)),
+      fundChannel: jest.fn().mockResolvedValue(undefined),
       submitClaim: jest.fn().mockResolvedValue({}),
       closeChannel: jest.fn().mockResolvedValue({}),
       getChannelState: jest.fn(),
-    } as jest.Mocked<PaymentChannelManager>;
+      getChannelsForPeer: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<PaymentChannelManager>;
 
     mockClaimSigner = {
       signClaim: jest.fn().mockResolvedValue('B'.repeat(128)),
@@ -57,7 +59,7 @@ describe('XRPChannelSDK', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
-    sdk = new XRPChannelSDK(mockXRPLClient, mockChannelManager, mockClaimSigner, mockLogger);
+    sdk = new XRPChannelSDK(mockXRPLClient as any, mockChannelManager, mockClaimSigner, mockLogger);
   });
 
   afterEach(() => {

@@ -43,7 +43,7 @@ describe('XRPLClient', () => {
       autofill: jest.fn(),
       isConnected: jest.fn().mockReturnValue(true),
       on: jest.fn(),
-    } as jest.Mocked<Client>;
+    } as unknown as jest.Mocked<Client>;
 
     // Setup mocks
     (Client as jest.MockedClass<typeof Client>).mockImplementation(() => mockXrplClient);

@@ -167,6 +167,10 @@ export async function queryChannelOnLedger(
       payment_channel: channelId,
     });
 
+    if (!ledgerEntry.result.node) {
+      throw new Error(`Channel ${channelId} not found on ledger`);
+    }
+
     return ledgerEntry.result.node;
   } catch (error) {
     throw new Error(`Failed to query channel ${channelId}: ${error}`);

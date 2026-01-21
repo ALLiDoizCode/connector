@@ -192,19 +192,17 @@ describe('ClaimSigner Integration', () => {
     // This should be prevented by the monotonic check, but let's verify DB constraint too
     await expect(
       // Bypass monotonic check by directly inserting
-      new Promise((resolve, reject) => {
+      new Promise((_resolve, reject) => {
         try {
           db.prepare(
             `INSERT INTO xrp_claims (channel_id, amount, signature, public_key, created_at)
              VALUES (?, ?, ?, ?, ?)`
           ).run(channelId, amount, 'sig123', 'pk123', Date.now());
-          resolve(true);
+          // If we get here, the insert succeeded - which means it should fail
+          reject(new Error('Expected UNIQUE constraint violation but insert succeeded'));
         } catch (error) {
-          if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
-            reject(new Error('UNIQUE constraint failed'));
-          } else {
-            reject(error);
-          }
+          // We expect an error here - reject with it so the test can verify it
+          reject(error);
         }
       })
     ).rejects.toThrow('UNIQUE constraint');
