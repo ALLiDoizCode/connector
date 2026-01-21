@@ -59,6 +59,12 @@ export enum TelemetryEventType {
   XRP_CHANNEL_CLAIMED = 'XRP_CHANNEL_CLAIMED',
   /** XRP payment channel closed event - emitted when XRP channel closure initiated (Story 9.7) */
   XRP_CHANNEL_CLOSED = 'XRP_CHANNEL_CLOSED',
+  /** Agent payment channel opened event - emitted when agent opens payment channel (Story 11.6) */
+  AGENT_CHANNEL_OPENED = 'AGENT_CHANNEL_OPENED',
+  /** Agent payment channel payment sent event - emitted when agent sends payment through channel (Story 11.6) */
+  AGENT_CHANNEL_PAYMENT_SENT = 'AGENT_CHANNEL_PAYMENT_SENT',
+  /** Agent payment channel closed event - emitted when agent closes payment channel (Story 11.6) */
+  AGENT_CHANNEL_CLOSED = 'AGENT_CHANNEL_CLOSED',
 }
 
 /**
@@ -731,6 +737,127 @@ export interface XRPChannelClosedEvent {
 }
 
 /**
+ * Agent Channel Opened Telemetry Event
+ *
+ * Emitted when AgentChannelManager (Story 11.6) opens payment channel for agent.
+ * Indicates agent has opened a payment channel (EVM or XRP) for micropayments.
+ *
+ * **BigInt Serialization:** All amount fields are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays agent channel state and activity
+ * - Real-time channel opened events visualization
+ *
+ * @example
+ * ```typescript
+ * const event: AgentChannelOpenedEvent = {
+ *   type: 'AGENT_CHANNEL_OPENED',
+ *   timestamp: 1704729600000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   channelId: '0xabc123...',
+ *   chain: 'evm',
+ *   peerId: 'agent-002',
+ *   amount: '1000000000000000000'
+ * };
+ * ```
+ */
+export interface AgentChannelOpenedEvent {
+  /** Event type discriminator */
+  type: 'AGENT_CHANNEL_OPENED';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Channel ID (EVM: bytes32, XRP: channel_id) */
+  channelId: string;
+  /** Blockchain network ('evm' or 'xrp') */
+  chain: 'evm' | 'xrp';
+  /** Peer agent identifier */
+  peerId: string;
+  /** Initial deposit amount, bigint as string */
+  amount: string;
+}
+
+/**
+ * Agent Channel Payment Sent Telemetry Event
+ *
+ * Emitted when AgentChannelManager (Story 11.6) sends payment through channel.
+ * Indicates agent has sent off-chain payment via balance proof/claim.
+ *
+ * **BigInt Serialization:** All amount fields are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays channel payment activity
+ * - Real-time payment flow visualization
+ *
+ * @example
+ * ```typescript
+ * const event: AgentChannelPaymentSentEvent = {
+ *   type: 'AGENT_CHANNEL_PAYMENT_SENT',
+ *   timestamp: 1704729660000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   channelId: '0xabc123...',
+ *   amount: '100000000000000000'
+ * };
+ * ```
+ */
+export interface AgentChannelPaymentSentEvent {
+  /** Event type discriminator */
+  type: 'AGENT_CHANNEL_PAYMENT_SENT';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Channel ID */
+  channelId: string;
+  /** Payment amount, bigint as string */
+  amount: string;
+}
+
+/**
+ * Agent Channel Closed Telemetry Event
+ *
+ * Emitted when AgentChannelManager (Story 11.6) closes payment channel.
+ * Indicates agent has closed channel on-chain.
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays channel closed events
+ * - Channel lifecycle visualization
+ *
+ * @example
+ * ```typescript
+ * const event: AgentChannelClosedEvent = {
+ *   type: 'AGENT_CHANNEL_CLOSED',
+ *   timestamp: 1704729720000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   channelId: '0xabc123...',
+ *   chain: 'evm'
+ * };
+ * ```
+ */
+export interface AgentChannelClosedEvent {
+  /** Event type discriminator */
+  type: 'AGENT_CHANNEL_CLOSED';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Channel ID */
+  channelId: string;
+  /** Blockchain network ('evm' or 'xrp') */
+  chain: 'evm' | 'xrp';
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -797,4 +924,7 @@ export type TelemetryEvent =
   | PaymentChannelSettledEvent
   | XRPChannelOpenedEvent
   | XRPChannelClaimedEvent
-  | XRPChannelClosedEvent;
+  | XRPChannelClosedEvent
+  | AgentChannelOpenedEvent
+  | AgentChannelPaymentSentEvent
+  | AgentChannelClosedEvent;

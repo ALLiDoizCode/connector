@@ -93,3 +93,30 @@ CREATE TABLE IF NOT EXISTS wallet_archives (
 export const WALLET_ARCHIVES_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_archives_archived_at ON wallet_archives(archived_at);',
 ];
+
+/**
+ * Database Schema for Agent Payment Channels
+ * Story 11.6: Payment Channel Integration for Agent Wallets
+ *
+ * This schema stores payment channel metadata for AI agents.
+ * Tracks channels across both EVM (Base L2) and XRP Ledger.
+ */
+export const AGENT_CHANNELS_TABLE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS agent_channels (
+  agent_id TEXT NOT NULL,              -- Agent identifier
+  channel_id TEXT PRIMARY KEY,         -- On-chain channel ID (EVM: bytes32, XRP: channel_id)
+  chain TEXT NOT NULL,                 -- 'evm' or 'xrp'
+  peer_id TEXT NOT NULL,               -- Peer agent identifier
+  token TEXT NOT NULL,                 -- Token symbol (EVM: USDC/DAI, XRP: XRP)
+  opened_at INTEGER NOT NULL,          -- Unix timestamp (channel opened)
+  last_activity_at INTEGER,            -- Unix timestamp (last payment)
+  closed_at INTEGER                    -- Unix timestamp (channel closed, NULL if active)
+);
+`;
+
+export const AGENT_CHANNELS_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS idx_channels_agent_id ON agent_channels(agent_id);',
+  'CREATE INDEX IF NOT EXISTS idx_channels_chain ON agent_channels(chain);',
+  'CREATE INDEX IF NOT EXISTS idx_channels_peer_id ON agent_channels(peer_id);',
+  'CREATE INDEX IF NOT EXISTS idx_channels_closed_at ON agent_channels(closed_at);',
+];

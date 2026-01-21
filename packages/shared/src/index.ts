@@ -53,7 +53,7 @@ export {
 // Routing Types
 export { RoutingTableEntry } from './types/routing';
 
-// Telemetry Types (Story 6.8, Story 11.3, Story 11.4, Story 11.5, Story 8.10, Story 9.7)
+// Telemetry Types (Story 6.8, Story 11.3, Story 11.4, Story 11.5, Story 8.10, Story 9.7, Story 11.6)
 export {
   TelemetryEventType,
   SettlementState,
@@ -70,6 +70,9 @@ export {
   XRPChannelOpenedEvent,
   XRPChannelClaimedEvent,
   XRPChannelClosedEvent,
+  AgentChannelOpenedEvent,
+  AgentChannelPaymentSentEvent,
+  AgentChannelClosedEvent,
   TelemetryEvent,
 } from './types/telemetry';
 

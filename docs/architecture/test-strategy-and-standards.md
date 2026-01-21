@@ -66,6 +66,41 @@ describe('PacketHandler', () => {
   - **WebSocket:** Use real ws library with localhost connections (not mocked)
   - **Routing Table:** Real RoutingTable instance with test data
   - **BTP:** Real BTPServer + BTPClient connecting locally
+  - **Blockchain Nodes:** Use docker-compose-dev.yml local infrastructure (Anvil + rippled)
+
+**Local Blockchain Infrastructure (Epic 7):**
+
+All integration tests requiring blockchain interaction MUST use the local node infrastructure from `docker-compose-dev.yml`:
+
+- **Anvil (Base L2 EVM)**: Local fork of Base Sepolia at `http://localhost:8545`
+  - 10 pre-funded test accounts with deterministic addresses
+  - Instant block mining for fast test execution
+  - Managed by docker-compose, shared across test runs
+
+- **rippled (XRP Ledger)**: Standalone mode at `http://localhost:5005` (HTTP) and `ws://localhost:6006` (WebSocket)
+  - Manual ledger advancement required (or use `--profile auto-ledger`)
+  - Genesis account pre-funded for test account creation
+  - Managed by docker-compose, shared across test runs
+
+**Starting Infrastructure:**
+
+```bash
+# Start blockchain nodes for integration tests
+docker-compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
+
+# With auto-ledger advancement for XRP (recommended)
+docker-compose -f docker-compose-dev.yml --profile auto-ledger up -d
+
+# Check health status
+docker-compose -f docker-compose-dev.yml ps
+```
+
+**Test Configuration:**
+
+- Tests should check infrastructure availability in `beforeAll()` hook
+- Skip tests if docker-compose-dev not running (use `describe.skip`)
+- Never start/stop blockchain nodes within tests (managed by docker-compose)
+- CI environment: Set `INTEGRATION_TESTS=true` to run, or skip by default
 
 **Example Integration Test:**
 
@@ -73,6 +108,28 @@ describe('PacketHandler', () => {
 - Send ILP Prepare through Connector A
 - Verify packet routed through B to C
 - Validate telemetry events emitted at each hop
+
+**Example Blockchain Integration Test:**
+
+```typescript
+describeIfInfra('Payment Channel Integration', () => {
+  beforeAll(async () => {
+    // Check infrastructure availability
+    const infraHealthy = await checkDockerInfrastructure();
+    if (!infraHealthy) {
+      throw new Error(
+        'Start docker-compose-dev: docker-compose -f docker-compose-dev.yml up -d anvil rippled'
+      );
+    }
+    // Connect to existing Anvil/rippled
+    provider = new ethers.JsonRpcProvider('http://localhost:8545');
+  });
+
+  it('should open and close payment channel', async () => {
+    // Test uses real blockchain transactions
+  });
+});
+```
 
 ### End-to-End Tests
 
