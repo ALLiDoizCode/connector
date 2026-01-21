@@ -143,8 +143,7 @@ services:
     container_name: rippled_standalone
     command:
       - "-a"  # Standalone mode flag: enables offline mode with manual ledger advancement
-      - "--conf"  # Specify custom configuration file
-      - "/config/rippled.cfg"  # Path to configuration file inside container
+      # Note: --conf is automatically added by the entrypoint when /config/rippled.cfg exists
     ports:
       - "5005:5005"  # JSON-RPC endpoint (http://localhost:5005 from host, http://rippled:5005 from containers)
       - "6006:6006"  # WebSocket endpoint (ws://localhost:6006 from host, ws://rippled:6006 from containers)
