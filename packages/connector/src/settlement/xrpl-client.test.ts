@@ -237,6 +237,8 @@ describe('XRPLClient', () => {
         result: {
           hash: '0xABC123',
           ledger_index: 12345,
+          TransactionType: 'Payment',
+          Account: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW',
         },
       });
     });
@@ -432,12 +434,15 @@ describe('XRPLClient', () => {
 
       mockXrplClient.submitAndWait.mockResolvedValue({
         result: {
+          TransactionType: 'PaymentChannelClaim',
+          Account: 'rTest',
+          Channel: validChannelId,
           hash: '0xABC123',
           ledger_index: 12345,
           validated: true,
           meta: 'tesSUCCESS' as any,
         },
-      });
+      } as any);
     });
 
     it('should submit partial claim successfully', async () => {
@@ -557,12 +562,15 @@ describe('XRPLClient', () => {
 
       mockXrplClient.submitAndWait.mockResolvedValue({
         result: {
+          TransactionType: 'PaymentChannelClaim',
+          Account: 'rTest',
+          Channel: validChannelId,
           hash: '0xDEF456',
           ledger_index: 12346,
           validated: true,
           meta: 'tesSUCCESS' as any,
         },
-      });
+      } as any);
     });
 
     it('should close channel successfully', async () => {
@@ -616,12 +624,15 @@ describe('XRPLClient', () => {
 
       mockXrplClient.submitAndWait.mockResolvedValue({
         result: {
+          TransactionType: 'PaymentChannelClaim',
+          Account: 'rTest',
+          Channel: validChannelId,
           hash: '0xGHI789',
           ledger_index: 12347,
           validated: true,
           meta: 'tesSUCCESS' as any,
         },
-      });
+      } as any);
     });
 
     it('should cancel channel closure successfully', async () => {

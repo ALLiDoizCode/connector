@@ -188,23 +188,12 @@ describe('ClaimSigner Integration', () => {
     // Sign first claim
     await signer.signClaim(channelId, amount);
 
-    // Try to sign claim with same channel + amount (should fail due to DB unique constraint)
-    // This should be prevented by the monotonic check, but let's verify DB constraint too
-    await expect(
-      // Bypass monotonic check by directly inserting
-      new Promise((_resolve, reject) => {
-        try {
-          db.prepare(
-            `INSERT INTO xrp_claims (channel_id, amount, signature, public_key, created_at)
-             VALUES (?, ?, ?, ?, ?)`
-          ).run(channelId, amount, 'sig123', 'pk123', Date.now());
-          // If we get here, the insert succeeded - which means it should fail
-          reject(new Error('Expected UNIQUE constraint violation but insert succeeded'));
-        } catch (error) {
-          // We expect an error here - reject with it so the test can verify it
-          reject(error);
-        }
-      })
-    ).rejects.toThrow('UNIQUE constraint');
+    // Try to insert duplicate claim with same channel + amount (should fail due to DB unique constraint)
+    expect(() => {
+      db.prepare(
+        `INSERT INTO xrp_claims (channel_id, amount, signature, public_key, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(channelId, amount, 'sig123', 'pk123', Date.now());
+    }).toThrow(/UNIQUE constraint/);
   });
 });

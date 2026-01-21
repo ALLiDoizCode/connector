@@ -9,22 +9,16 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
-import type { Logger } from 'pino';
 import { XRPChannelSDK } from './xrp-channel-sdk';
 import type { PaymentChannelManager } from './xrp-channel-manager';
 import type { XRPClaim } from './types';
-import type { IXRPLClient } from './xrpl-client';
 
 describe('XRPChannelSDK', () => {
   let sdk: XRPChannelSDK;
   let mockXRPLClient: any;
   let mockChannelManager: jest.Mocked<PaymentChannelManager>;
-  let mockClaimSigner: {
-    signClaim: jest.Mock;
-    getPublicKey: jest.Mock;
-    verifyClaim: jest.Mock;
-  };
-  let mockLogger: jest.Mocked<Pick<Logger, 'info' | 'error' | 'warn' | 'debug' | 'child'>>;
+  let mockClaimSigner: any;
+  let mockLogger: any;
 
   beforeEach(() => {
     // Create fresh mock instances (Anti-Pattern 3 solution)
@@ -54,6 +48,10 @@ describe('XRPChannelSDK', () => {
       error: jest.fn(),
       warn: jest.fn(),
       debug: jest.fn(),
+      fatal: jest.fn(),
+      trace: jest.fn(),
+      silent: jest.fn(),
+      level: 'info',
       child: jest.fn().mockReturnThis(),
     };
 
