@@ -165,15 +165,15 @@ describeIfEnabled('Agent Channel Integration Test', () => {
     const validXrpSecret = 'sEdSJQT8JvGdeJ1P7i1ygnJjPbfH3wo';
 
     // Mock XRPL client with proper typing
-    const mockXrplClient = {
-      request: jest.fn().mockResolvedValue({
-        result: {
-          account_data: {
-            Balance: '10000000',
-          },
+    const mockXrplClient = jest.fn() as unknown as Client;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (mockXrplClient as any).request = jest.fn().mockResolvedValue({
+      result: {
+        account_data: {
+          Balance: '10000000',
         },
-      }),
-    } as unknown as Client;
+      },
+    });
 
     treasuryWallet = new TreasuryWallet(
       anvilDefaultPrivateKey,

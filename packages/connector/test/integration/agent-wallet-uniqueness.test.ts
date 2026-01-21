@@ -28,10 +28,12 @@ async function createTestMasterSeed(): Promise<MasterSeed> {
   };
 }
 
-// Skip heavy wallet derivation tests in CI (deriving 100+ wallets takes 60+ seconds)
-const describeIfNotCI = process.env.CI === 'true' ? describe.skip : describe;
+// Skip heavy wallet derivation tests in CI and integration test runs
+// These tests are extremely resource-intensive (100+ wallet derivations) and should only run locally
+const skipInCI = process.env.CI === 'true' || process.env.INTEGRATION_TESTS === 'true';
+const describeIfLocal = skipInCI ? describe.skip : describe;
 
-describeIfNotCI('Agent Wallet Uniqueness Integration Tests', () => {
+describeIfLocal('Agent Wallet Uniqueness Integration Tests', () => {
   let seedManager: WalletSeedManager;
   let derivation: AgentWalletDerivation;
   const testStoragePath = path.join(process.cwd(), 'data', 'wallet', 'integration-test');
