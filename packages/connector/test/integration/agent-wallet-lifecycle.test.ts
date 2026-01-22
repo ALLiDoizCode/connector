@@ -3,7 +3,12 @@
  * Story 11.5: Agent Wallet Lifecycle Management
  *
  * Integration test validating full lifecycle workflow (create → fund → transact → suspend → archive)
- * with real blockchain transactions using Anvil (EVM).
+ * with real blockchain transactions using docker-compose-dev infrastructure.
+ *
+ * Prerequisites:
+ * - docker-compose-dev.yml infrastructure running (Anvil + rippled + TigerBeetle)
+ * - Start: docker-compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
+ * - Set INTEGRATION_TESTS=true to run
  *
  * Tests:
  * - Full lifecycle workflow with real blockchain transactions
@@ -19,11 +24,10 @@ import { WalletSeedManager, MasterSeed } from '../../src/wallet/wallet-seed-mana
 import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
 import { TreasuryWallet } from '../../src/wallet/treasury-wallet';
 import { ethers } from 'ethers';
-import { Client as XRPLClient } from 'xrpl';
+import type { Client as XRPLClient } from 'xrpl';
 import * as bip39 from 'bip39';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as child_process from 'child_process';
 import pino from 'pino';
 
 // Test mnemonic (deterministic for reproducibility)
@@ -31,9 +35,9 @@ const TEST_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const TEST_PASSWORD = 'TestLifecyclePass123!';
 
-// Anvil configuration
+// Docker compose infrastructure (Anvil + rippled from docker-compose-dev.yml)
 const ANVIL_RPC_URL = 'http://127.0.0.1:8545';
-const ANVIL_CHAIN_ID = 31337;
+const RIPPLED_RPC_URL = 'http://127.0.0.1:5005';
 
 // Helper to create master seed
 async function createTestMasterSeed(): Promise<MasterSeed> {
@@ -45,94 +49,69 @@ async function createTestMasterSeed(): Promise<MasterSeed> {
   };
 }
 
-// Helper to start Anvil
-function startAnvil(): child_process.ChildProcess {
-  // Start Anvil with auto-mining enabled (instant mining by default)
-  const anvil = child_process.spawn('anvil', ['--port', '8545'], {
-    stdio: 'pipe',
-  });
+// Helper to check if docker-compose-dev infrastructure is running
+async function checkDockerInfrastructure(): Promise<boolean> {
+  try {
+    // Check if Anvil is accessible
+    const anvilResponse = await fetch(ANVIL_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+    });
+    const anvilHealthy = anvilResponse.ok;
 
-  // Log Anvil output for debugging
-  anvil.stdout?.on('data', (data) => {
-    // Only log the "Listening on" message
-    const output = data.toString();
-    if (output.includes('Listening on')) {
-      // eslint-disable-next-line no-console
-      console.log('Anvil:', output.trim());
-    }
-  });
+    // Check if rippled is accessible
+    const rippledResponse = await fetch(RIPPLED_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: 'server_info', params: [] }),
+    });
+    const rippledHealthy = rippledResponse.ok;
 
-  anvil.stderr?.on('data', (data) => {
-    // eslint-disable-next-line no-console
-    console.error('Anvil error:', data.toString());
-  });
-
-  return anvil;
-}
-
-// Helper to stop Anvil
-function stopAnvil(anvil: child_process.ChildProcess): void {
-  if (anvil && anvil.pid) {
-    try {
-      anvil.kill('SIGTERM');
-    } catch (error) {
-      // Ignore errors on cleanup
-    }
+    return anvilHealthy && rippledHealthy;
+  } catch (error) {
+    return false;
   }
 }
 
-// Helper to wait for Anvil to be ready
-async function waitForAnvil(provider: ethers.Provider, maxAttempts = 30): Promise<void> {
-  // Give Anvil a moment to start
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+// These tests require docker-compose-dev.yml infrastructure (Anvil + rippled)
+// Start with: docker-compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
+// Tests skip automatically if infrastructure is not running (in CI or locally)
+// To run: Set INTEGRATION_TESTS=true and ensure docker-compose-dev is running
+const integrationTestsEnabled = process.env.INTEGRATION_TESTS === 'true';
+const describeIfEnabled = integrationTestsEnabled ? describe : describe.skip;
 
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      await provider.getBlockNumber();
-      // eslint-disable-next-line no-console
-      console.log('Anvil is ready!');
-      return;
-    } catch (error) {
-      // Wait between attempts
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-  throw new Error(`Anvil not ready after ${maxAttempts} attempts`);
-}
-
-// These tests require Anvil (Foundry's local Ethereum node)
-// Skip in CI unless explicitly enabled with ANVIL_TESTS=true
-const anvilTestsEnabled = process.env.ANVIL_TESTS === 'true';
-const isCI = process.env.CI === 'true';
-const describeIfAnvil = anvilTestsEnabled || !isCI ? describe : describe.skip;
-
-describeIfAnvil('Agent Wallet Lifecycle Integration', () => {
+describeIfEnabled('Agent Wallet Lifecycle Integration', () => {
   let seedManager: WalletSeedManager;
   let walletDerivation: AgentWalletDerivation;
   let balanceTracker: AgentBalanceTracker;
   let walletFunder: AgentWalletFunder;
   let lifecycle: AgentWalletLifecycle;
   let evmProvider: ethers.Provider;
-  let mockXrplClient: jest.Mocked<XRPLClient>;
+  let mockXrplClient: Partial<XRPLClient>;
   let telemetryEmitter: TelemetryEmitter;
   let testDbPath: string;
   let testStoragePath: string;
-  let anvilProcess: child_process.ChildProcess | null = null;
 
   beforeAll(async () => {
-    // Start Anvil for EVM transactions
-    anvilProcess = startAnvil();
-
-    // Create provider and wait for Anvil to be ready
-    evmProvider = new ethers.JsonRpcProvider(ANVIL_RPC_URL, ANVIL_CHAIN_ID);
-    await waitForAnvil(evmProvider);
-  }, 60000); // Increased timeout for CI environments
-
-  afterAll(() => {
-    if (anvilProcess) {
-      stopAnvil(anvilProcess);
+    // Check if docker-compose-dev infrastructure is running
+    const infraHealthy = await checkDockerInfrastructure();
+    if (!infraHealthy) {
+      throw new Error(
+        'docker-compose-dev.yml infrastructure not running.\n' +
+          'Start with: docker-compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle'
+      );
     }
-  });
+
+    // Connect to Anvil (already running from docker-compose-dev)
+    evmProvider = new ethers.JsonRpcProvider(ANVIL_RPC_URL);
+  }, 10000); // 10s timeout for connection
+
+  /**
+   * NOTE: Anvil and rippled are NOT stopped by this test suite.
+   * They are managed by docker-compose-dev.yml and shared across test runs.
+   * This improves test performance and allows parallel test execution.
+   */
 
   beforeEach(async () => {
     // Generate unique paths for test isolation
@@ -180,7 +159,7 @@ describeIfAnvil('Agent Wallet Lifecycle Integration', () => {
           },
         },
       }),
-    } as unknown as jest.Mocked<XRPLClient>;
+    };
 
     // Initialize telemetry emitter
     const logger = pino({ name: 'test-lifecycle' });
@@ -190,7 +169,7 @@ describeIfAnvil('Agent Wallet Lifecycle Integration', () => {
     balanceTracker = new AgentBalanceTracker(
       walletDerivation,
       evmProvider,
-      mockXrplClient,
+      mockXrplClient as XRPLClient,
       telemetryEmitter,
       { pollingInterval: 5000, erc20Tokens: [] },
       testDbPath
@@ -206,7 +185,7 @@ describeIfAnvil('Agent Wallet Lifecycle Integration', () => {
       anvilDefaultPrivateKey,
       validXrpSecret,
       evmProvider,
-      mockXrplClient
+      mockXrplClient as XRPLClient
     );
 
     // Initialize wallet funder
@@ -231,7 +210,7 @@ describeIfAnvil('Agent Wallet Lifecycle Integration', () => {
       treasuryWallet,
       telemetryEmitter,
       evmProvider,
-      mockXrplClient
+      mockXrplClient as XRPLClient
     );
 
     // Initialize lifecycle manager

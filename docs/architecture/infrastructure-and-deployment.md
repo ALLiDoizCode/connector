@@ -23,23 +23,23 @@
 
 1. Developer runs `docker-compose up` locally
 2. Docker pulls pre-built images (if published) or builds from Dockerfiles
-3. Containers start with health checks
-4. Dashboard accessible at `http://localhost:8080`
+3. Containers start with health checks (connectors, agent wallet, TigerBeetle)
+4. Health checks accessible at `http://localhost:8080/health` per container
 
 **CI/CD Pipeline Stages:**
 
 1. **Build:** Compile TypeScript for all packages
 2. **Lint:** Run ESLint and Prettier checks
 3. **Test:** Execute Jest unit and integration tests
-4. **Docker Build:** Build connector and dashboard images (on main branch)
+4. **Docker Build:** Build connector and service images (on main branch)
 5. **Optional:** Push images to GitHub Container Registry
 
 ## Environments
 
 - **Local Development:** Primary environment - `docker-compose up` on developer machine
-  - All services run on localhost
-  - Hot reload for development (Vite HMR for dashboard)
+  - All services run on localhost (connectors, agent wallet, TigerBeetle)
   - Direct log access via `docker-compose logs`
+  - Structured JSON logging to stdout for monitoring
 
 - **CI/CD Testing:** GitHub Actions runners
   - Automated test execution
@@ -48,8 +48,8 @@
 
 - **Future Production (Post-MVP):** Cloud deployment with Kubernetes
   - Multi-node connector clusters
-  - Hosted dashboard with authentication
-  - Persistent metrics storage
+  - Persistent TigerBeetle cluster
+  - Log aggregation and monitoring dashboards
 
 ## Environment Promotion Flow
 

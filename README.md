@@ -8,7 +8,7 @@
 
 > **v0.1.0 MVP Release** - Complete ILPv4 connector with bidirectional BTP, real-time telemetry, and network visualization. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
-Educational implementation of an Interledger Protocol (ILP) connector with Bilateral Transfer Protocol (BTP) support and real-time network visualization dashboard.
+Educational implementation of an Interledger Protocol (ILP) connector with Bilateral Transfer Protocol (BTP) support and multi-chain payment settlement.
 
 ## Table of Contents
 
@@ -22,7 +22,6 @@ Educational implementation of an Interledger Protocol (ILP) connector with Bilat
 - [Testing Packet Routing with send-packet Tool](#testing-packet-routing-with-send-packet-tool)
 - [Docker Compose Deployment](#docker-compose-deployment)
 - [Production Deployment](#production-deployment)
-- [Dashboard](#dashboard)
 - [Documentation](#documentation)
 - [Technology Stack](#technology-stack)
 - [Interledger Protocol References](#interledger-protocol-references)
@@ -40,54 +39,48 @@ M2M provides a complete ILP routing infrastructure for learning and testing mult
 
 - **ILP Connector**: RFC-compliant ILPv4 packet routing with BTP WebSocket protocol for connector-to-connector communication
 - **Dual-Settlement Support**: EVM payment channels (Epic 8) and XRP payment channels (Epic 9) with automatic routing based on token type
-- **XRP Settlement**: Complete XRP Ledger integration with payment channel lifecycle management, off-chain claim signing, and dashboard visualization
-- **Network Dashboard**: Real-time visualization of packet flows, routing topology, connector telemetry, structured logs, and settlement channels (EVM + XRP)
+- **XRP Settlement**: Complete XRP Ledger integration with payment channel lifecycle management and off-chain claim signing
 - **Docker Compose Topologies**: Pre-configured multi-node networks (linear chain, full mesh, hub-spoke, complex 8-node) with local rippled for XRP development
 - **Test Packet Sender**: CLI utility for injecting test packets into the network without external dependencies
-- **Structured Logging**: Filterable log viewer in dashboard for debugging multi-node networks with live telemetry
+- **Structured Logging**: JSON-formatted logs for debugging multi-node networks with live telemetry
 - **Configuration Flexibility**: YAML-based topology configuration with validation for custom network designs
+
+> **Note**: Dashboard visualization has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 ### Why M2M?
 
 - **Educational Purpose**: Learn ILP protocol mechanics through hands-on experimentation with real packet routing
-- **Observability**: Visualize packet routing that's normally invisible in production ILP networks through animated packet flows
 - **Rapid Testing**: Deploy multi-node topologies in seconds with Docker Compose for quick iteration
 - **RFC Compliance**: Implementation follows official Interledger RFCs (ILPv4, BTP, OER) for authenticity
+- **Multi-Chain Settlement**: Test payment channels on both EVM (Base L2) and XRP Ledger networks
 
 ### Architecture Overview
 
 ```mermaid
 graph TB
-    User[Developer/User] -->|Access Dashboard| Dashboard[Dashboard Container<br/>React UI + Telemetry Server]
-    User -->|docker-compose up| Docker[Docker Compose Orchestration]
+    User[Developer/User] -->|docker-compose up| Docker[Docker Compose Orchestration]
 
     Docker -->|Deploys| ConnectorA[Connector Node A<br/>ILPv4 + BTP]
     Docker -->|Deploys| ConnectorB[Connector Node B<br/>ILPv4 + BTP]
     Docker -->|Deploys| ConnectorC[Connector Node C<br/>ILPv4 + BTP]
-    Docker -->|Deploys| Dashboard
 
     ConnectorA <-->|BTP WebSocket| ConnectorB
     ConnectorB <-->|BTP WebSocket| ConnectorC
 
-    ConnectorA -.->|Telemetry<br/>WebSocket| Dashboard
-    ConnectorB -.->|Telemetry<br/>WebSocket| Dashboard
-    ConnectorC -.->|Telemetry<br/>WebSocket| Dashboard
-
     User -->|Send Test Packets| TestSender[Packet Sender CLI Tool]
     TestSender -->|ILP Packet| ConnectorA
 
-    Dashboard -->|Visualizes| NetworkGraph[Network Topology Graph]
-    Dashboard -->|Displays| PacketFlow[Animated Packet Flow]
-    Dashboard -->|Shows| Logs[Filterable Structured Logs]
+    ConnectorA -->|Structured Logs| Logs[Docker Logs]
+    ConnectorB -->|Structured Logs| Logs
+    ConnectorC -->|Structured Logs| Logs
 
-    style Dashboard fill:#2563eb,color:#fff
     style ConnectorA fill:#059669,color:#fff
     style ConnectorB fill:#059669,color:#fff
     style ConnectorC fill:#059669,color:#fff
     style User fill:#6366f1,color:#fff
 ```
 
-This diagram shows the high-level component interaction: developers deploy multi-node networks via Docker Compose, connectors communicate via BTP WebSocket protocol, and all telemetry flows to the dashboard for real-time visualization and monitoring.
+This diagram shows the high-level component interaction: developers deploy multi-node networks via Docker Compose, connectors communicate via BTP WebSocket protocol, and emit structured JSON logs for monitoring.
 
 ## Monorepo Structure
 
@@ -97,7 +90,6 @@ This project uses npm workspaces to organize code into independent packages:
 m2m/
 ├── packages/
 │   ├── connector/       # ILP Connector service (BTP server/client, routing logic)
-│   ├── dashboard/       # React-based network visualization UI
 │   └── shared/          # Shared TypeScript types and utilities (ILP packets, OER encoding)
 ├── tools/               # CLI utilities for testing
 ├── docker/              # Docker Compose configurations
@@ -107,8 +99,9 @@ m2m/
 ### Package Purposes
 
 - **@m2m/connector**: Node.js service that implements ILPv4 routing, BTP protocol, and telemetry emission
-- **@m2m/dashboard**: React app with Cytoscape.js for visualizing network topology and packet animations
 - **@m2m/shared**: Pure TypeScript package with ILP packet types, OER encoding, and validation utilities
+
+> **Note**: The `@m2m/dashboard` package has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 ## Prerequisites
 
@@ -132,7 +125,7 @@ This installs dependencies for all workspace packages using npm's built-in works
 npm run build
 ```
 
-Compiles TypeScript to JavaScript for all packages (`connector`, `dashboard`, `shared`) using their respective `tsconfig.json` configurations.
+Compiles TypeScript to JavaScript for all packages (`connector`, `shared`) using their respective `tsconfig.json` configurations.
 
 ### 3. Run Tests
 
@@ -144,7 +137,6 @@ Executes Jest test suites across all packages with coverage reporting:
 
 - `packages/shared`: >90% coverage threshold
 - `packages/connector`: >80% coverage threshold
-- `packages/dashboard`: >70% coverage threshold
 
 ### 4. Lint Code
 
@@ -176,7 +168,6 @@ The development environment includes local blockchain nodes and settlement infra
 - **rippled (XRP Ledger)** - Standalone XRP Ledger for payment channel testing (Epic 7)
 - **TigerBeetle** - Settlement accounting database
 - **Connectors (Alice & Bob)** - ILP connector nodes for testing packet routing
-- **Dashboard (optional)** - Network visualization UI
 
 **Benefits:**
 
@@ -257,7 +248,7 @@ Use `Ctrl+C` to exit log viewer.
 | --------------------- | --------------------------------------- | ------------------------------------------ |
 | **Blockchain Nodes**  | Local forks (Anvil, rippled standalone) | Public RPC endpoints                       |
 | **Hot-Reload**        | Enabled (code changes auto-restart)     | Disabled                                   |
-| **Optional Services** | Dashboard, auto-ledger (via profiles)   | All services required                      |
+| **Optional Services** | auto-ledger (via profiles)              | All services required                      |
 | **Secrets**           | Hardcoded (acceptable for dev)          | Environment variables (.env file)          |
 | **Log Level**         | DEBUG (verbose)                         | INFO (production-appropriate)              |
 
@@ -268,6 +259,8 @@ Use `Ctrl+C` to exit log viewer.
 
 **Configuration Guide:** For production deployment configuration and environment switching, see [Production Configuration Guide](docs/guides/local-vs-production-config.md)
 
+> **Note**: Dashboard-related services have been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
+
 ### Available Make Commands
 
 M2M includes a Makefile with commands for common development workflows:
@@ -275,9 +268,7 @@ M2M includes a Makefile with commands for common development workflows:
 ```bash
 make help              # Show all available commands
 make dev-up            # Start all development services
-make dev-up-dashboard  # Start with optional dashboard
 make dev-up-auto-ledger # Start with automated rippled ledger advancement
-make dev-up-all        # Start with all optional services (dashboard + auto-ledger)
 make dev-down          # Stop all services (preserves volumes)
 make dev-reset         # Reset to clean state (WARNING: deletes all data volumes)
 make dev-logs          # View logs from all services (follow mode)
@@ -293,9 +284,6 @@ make dev-clean         # Deep clean: remove all containers, volumes, unused Dock
 ```bash
 # Start environment
 make dev-up
-
-# Start with dashboard for network visualization
-make dev-up-dashboard
 
 # Start with auto-ledger advancement (rippled ledgers advance every 5 seconds)
 make dev-up-auto-ledger
@@ -324,7 +312,8 @@ make dev-down
 - **Connector Alice Health**: http://localhost:8081/health
 - **Connector Bob BTP**: ws://localhost:3002
 - **Connector Bob Health**: http://localhost:8082/health
-- **Dashboard UI**: http://localhost:8080 (with `--profile dashboard`)
+
+> **Note**: Port 8080 previously used for dashboard is no longer allocated - dashboard has been deferred. See [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 **From Within Docker Network:**
 
@@ -402,29 +391,17 @@ M2M supports two main blockchain development workflows for Epic 8 (EVM smart con
 
 Choose the right development command for your workflow:
 
-**`make dev-up`** - Default development mode (no dashboard, manual ledger advancement)
+**`make dev-up`** - Default development mode (manual ledger advancement)
 
 - **Best for**: Rapid iteration, minimal resource usage
-- **Use when**: Developing connectors, testing ILP routing without visualization
+- **Use when**: Developing connectors, testing ILP routing
 - **Resource usage**: Low (~2GB RAM)
-
-**`make dev-up-dashboard`** - Development with network visualization
-
-- **Best for**: Debugging packet routing, visualizing network topology
-- **Use when**: Working on multi-connector deployments, debugging packet flow
-- **Resource usage**: Medium (~3GB RAM)
 
 **`make dev-up-auto-ledger`** - Development with automatic XRPL ledger advancement
 
 - **Best for**: XRP payment channel testing (Epic 9), continuous integration testing
 - **Use when**: Testing payment channels without manual ledger advancement
 - **Resource usage**: Low (~2GB RAM)
-
-**`make dev-up-all`** - All optional services (dashboard + auto-ledger)
-
-- **Best for**: Full-featured development environment
-- **Use when**: Working on both Epic 8 (EVM) and Epic 9 (XRP) simultaneously
-- **Resource usage**: High (~4GB RAM)
 
 **`make dev-reset`** - Clean state reset (WARNING: deletes all blockchain data)
 
@@ -573,20 +550,9 @@ NAME           STATUS                    PORTS
 connector-a    Up 30 seconds (healthy)   0.0.0.0:3000->3000/tcp
 connector-b    Up 28 seconds (healthy)   0.0.0.0:3001->3001/tcp
 connector-c    Up 26 seconds (healthy)   0.0.0.0:3002->3002/tcp
-dashboard      Up 25 seconds             0.0.0.0:8080->80/tcp
 ```
 
-### 4. Access the Dashboard (Immediate)
-
-Open your browser to:
-
-```
-http://localhost:8080
-```
-
-You should see the network topology graph with three connectors (A → B → C) and real-time telemetry.
-
-### 5. Send a Test Packet (~1 second)
+### 4. Send a Test Packet (~1 second)
 
 ```bash
 npm run send-packet -- -c ws://localhost:3000 -d g.connectorc.dest -a 1000
@@ -602,13 +568,19 @@ npm run send-packet -- -c ws://localhost:3000 -d g.connectorc.dest -a 1000
 ✓ Packet fulfilled successfully
 ```
 
-### 6. Observe Visualization (Real-time)
+### 5. View Logs (Real-time)
 
-Watch the dashboard to see:
+Check the connector logs to see packet routing:
 
-- Animated packet flow from Connector A → B → C
-- Network graph updates with packet telemetry
-- Structured logs showing PACKET_SENT and PACKET_RECEIVED events
+```bash
+docker-compose logs -f
+```
+
+Watch for:
+
+- PACKET_SENT and PACKET_RECEIVED events
+- Routing decisions and forwarding
+- Settlement events (if configured)
 
 ### Troubleshooting Quick Start
 
@@ -622,14 +594,14 @@ docker version
 **If port conflicts occur:**
 See [Docker Compose Deployment → Troubleshooting → Port Conflicts](#port-conflicts)
 
-**If dashboard doesn't load:**
+**If connectors show "unhealthy":**
 
 ```bash
 # Wait 10 seconds for containers to fully start, then check status
 docker-compose ps
 
 # If containers show "unhealthy", view logs
-docker-compose logs dashboard
+docker-compose logs connector-a
 ```
 
 ## XRP Settlement
@@ -710,16 +682,15 @@ const lifecycleConfig = {
 - Expiration handling: Closes channels within 1 hour of `cancelAfter` timestamp
 - Funding checks: Funds channels when balance falls below `minBalanceThreshold`
 
-### Dashboard XRP Visualization
+### XRP Channel Monitoring
 
-The dashboard displays XRP payment channels with:
+Monitor XRP payment channels through:
 
-- **Settlement Filter**: Filter by settlement type (EVM, XRP, or All)
-- **XRP Badges**: Orange badges indicating XRP settlement
-- **XRP Tooltips**: Hover tooltips showing drops, settle delay, and remaining balance
-- **Channel Timeline**: Visual timeline of XRP channel lifecycle events
+- **Structured Logs**: JSON logs showing channel lifecycle events (open, fund, claim, close)
+- **Health Endpoints**: Query connector health to see settlement status
+- **Docker Logs**: View real-time channel operations with `docker-compose logs -f`
 
-Access dashboard at `http://localhost:8080` and use the settlement type filter to view XRP channels.
+> **Note**: Dashboard visualization for XRP channels has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 ### Documentation
 
@@ -738,10 +709,6 @@ For rapid development with hot module replacement:
 ```bash
 # Start connector in watch mode
 npm run dev --workspace=@m2m/connector
-
-# Start dashboard in watch mode
-npm run dev --workspace=@m2m/dashboard
-# Access at http://localhost:3000
 ```
 
 ### Running Tests with Coverage
@@ -768,7 +735,7 @@ The E2E test validates full system integration by deploying a 3-node network, se
 
 - Validates complete system deployment with Docker Compose
 - Tests multi-hop packet routing through 3 connectors (A → B → C)
-- Verifies telemetry events appear in dashboard WebSocket stream
+- Verifies structured logs contain proper telemetry events
 - Confirms container health checks and peer connections
 - Ensures all components work together correctly
 
@@ -790,11 +757,11 @@ npm test --workspace=packages/connector -- e2e-full-system.test.ts
 PASS packages/connector/test/integration/e2e-full-system.test.ts
   E2E Full System Integration
     Container Deployment and Health
-      ✓ should verify all 4 containers are healthy (3 connectors + dashboard) (15000 ms)
+      ✓ should verify all 3 connectors are healthy (15000 ms)
     Packet Routing Through Network
       ✓ should route packet from A → B → C and verify in logs (30000 ms)
-    Dashboard Telemetry Verification
-      ✓ should connect to dashboard telemetry and verify PACKET_SENT events (40000 ms)
+    Log Verification
+      ✓ should verify structured logs contain PACKET_SENT and PACKET_RECEIVED events (20000 ms)
     Error Handling and Cleanup
       ✓ should provide clear error messages on container failure (2000 ms)
       ✓ should successfully tear down environment after tests (1000 ms)
@@ -813,12 +780,10 @@ Time:        88 s
    - Waits for BTP peer connections to establish
 
 2. **Test Execution**:
-   - Verifies health check endpoints for all 3 connectors + dashboard
+   - Verifies health check endpoints for all 3 connectors
    - Sends ILP Prepare packet from Connector A to Connector C (requires routing through B)
    - Verifies packet appears in logs of all 3 nodes (received, forwarded, delivered)
-   - Connects to dashboard telemetry WebSocket (ws://localhost:9000)
-   - Verifies PACKET_SENT and PACKET_RECEIVED telemetry events for all hops
-   - Verifies NODE_STATUS events show all 3 nodes connected
+   - Verifies structured logs contain PACKET_SENT and PACKET_RECEIVED events for all hops
 
 3. **Cleanup Phase** (`afterAll`):
    - Tears down Docker Compose environment with `docker-compose down`
@@ -826,11 +791,11 @@ Time:        88 s
 
 **Interpreting Test Results:**
 
-- **Success**: All assertions pass, containers deploy and communicate correctly, telemetry events verified
+- **Success**: All assertions pass, containers deploy and communicate correctly, logs show proper packet routing
 - **Failure**: Error message indicates which component failed:
   - **Container startup failure**: Check Docker daemon, image build, port conflicts
   - **Packet routing failure**: Check logs for BTP connection errors, routing configuration
-  - **Telemetry verification failure**: Check dashboard container health, WebSocket connection
+  - **Log verification failure**: Check structured log output format
 
 **Debugging E2E Test Failures:**
 
@@ -839,15 +804,12 @@ Time:        88 s
 docker-compose logs connector-a
 docker-compose logs connector-b
 docker-compose logs connector-c
-docker-compose logs ilp-dashboard
 
 # Verify Docker daemon running
 docker info
 
 # Check port availability
 lsof -i :3000  # Connector A BTP port
-lsof -i :9000  # Dashboard telemetry WebSocket port
-lsof -i :8080  # Dashboard HTTP port
 
 # Manually test health endpoints
 curl http://localhost:9080/health  # Connector A
@@ -974,7 +936,7 @@ The container runs as the non-root `node` user (UID 1000) for security. If you m
 
 ## Testing Packet Routing with send-packet Tool
 
-The `send-packet` CLI tool allows you to inject test ILP packets into the connector network for testing routing behavior and observing packet flow in the dashboard.
+The `send-packet` CLI tool allows you to inject test ILP packets into the connector network for testing routing behavior and observing packet flow in connector logs.
 
 ### Installation
 
@@ -1020,7 +982,8 @@ npm run send-packet -- \
   -d g.connectorc.dest \
   -a 5000
 
-# Open dashboard at http://localhost:8080 to see packet flow animation
+# View logs to see packet flow
+docker-compose logs -f
 ```
 
 ### Batch Testing
@@ -1084,12 +1047,14 @@ npm run send-packet -- -c ws://localhost:3001 -d g.spoke2.dest -a 1000
 - Exit code 0 = packet fulfilled successfully
 - Exit code 1 = packet rejected or error occurred
 
-**Dashboard Visualization:**
+**Log Output:**
 
-- Open http://localhost:8080 to see the live network graph
-- Watch packet animations flow along connector edges
-- View detailed logs in the LogViewer component
-- See PACKET_SENT and PACKET_RECEIVED telemetry events in real-time
+- Use `docker-compose logs -f` to see structured JSON logs
+- Filter by log level: `docker logs connector-a | grep '"level":30'` (info)
+- Search for specific events: `docker logs connector-a | grep PACKET_SENT`
+- View PACKET_SENT and PACKET_RECEIVED telemetry events in real-time
+
+> **Note**: Dashboard visualization has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 ### BTP Authentication Troubleshooting
 
@@ -1184,10 +1149,8 @@ Deploy a multi-node ILP network with a single command using Docker Compose. This
 # Build the connector image
 docker build -t ilp-connector .
 
-# Start the network (connectors + dashboard)
+# Start the network (connectors only)
 docker-compose up -d
-
-# Access dashboard at http://localhost:8080
 
 # View logs from all services
 docker-compose logs -f
@@ -1424,7 +1387,6 @@ Default ports:
 - **connector-a**: http://localhost:9080/health
 - **connector-b**: http://localhost:9081/health
 - **connector-c**: http://localhost:9082/health
-- **dashboard**: http://localhost:8080 (web UI, not health endpoint)
 
 #### Health Status Response Format
 
@@ -1609,7 +1571,7 @@ Payment Channels (Blockchain Settlement)
 TigerBeetle starts automatically with `docker-compose up`:
 
 ```bash
-# Start all services (TigerBeetle + connectors + dashboard)
+# Start all services (TigerBeetle + connectors)
 docker-compose up -d
 
 # Check TigerBeetle status
@@ -1665,21 +1627,12 @@ docker-compose ps tigerbeetle
 docker-compose logs -f tigerbeetle
 ```
 
-**Health Check Method:**
-
-TigerBeetle uses TCP socket check (no HTTP endpoint available):
-
-```bash
-# Manual TCP connectivity test from connector
-docker exec connector-a nc -zv tigerbeetle 3000
-# Expected: tigerbeetle (172.x.x.x:3000) open
-```
-
 **What to Monitor:**
 
 - **Health Status**: Should be "healthy" after ~30 seconds
 - **Startup Logs**: Cluster initialization on first run
 - **Error Logs**: Connection failures, disk I/O errors
+- **Connectivity**: Test from connector with `docker exec connector-a nc -zv tigerbeetle 3000`
 
 #### Data Persistence
 
@@ -1937,15 +1890,14 @@ The production deployment configuration (`docker-compose-production.yml`) is opt
 
 ### Production vs Development
 
-| Aspect        | Development (docker-compose.yml)       | Production (docker-compose-production.yml) |
-| ------------- | -------------------------------------- | ------------------------------------------ |
-| **Nodes**     | Multi-node (3-5-8 nodes)               | Single node                                |
-| **Logging**   | DEBUG level, pretty-printed            | INFO level, JSON structured                |
-| **Secrets**   | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file)          |
-| **Ports**     | All exposed to host                    | Minimal (BTP only, health internal)        |
-| **Restart**   | No restart policy                      | `restart: unless-stopped`                  |
-| **User**      | Root (default)                         | Non-root (node user)                       |
-| **Dashboard** | Always deployed                        | Optional (disabled by default)             |
+| Aspect      | Development (docker-compose.yml)       | Production (docker-compose-production.yml) |
+| ----------- | -------------------------------------- | ------------------------------------------ |
+| **Nodes**   | Multi-node (3-5-8 nodes)               | Single node                                |
+| **Logging** | DEBUG level, pretty-printed            | INFO level, JSON structured                |
+| **Secrets** | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file)          |
+| **Ports**   | All exposed to host                    | Minimal (BTP only, health internal)        |
+| **Restart** | No restart policy                      | `restart: unless-stopped`                  |
+| **User**    | Root (default)                         | Non-root (node user)                       |
 
 ### Prerequisites
 
@@ -1981,10 +1933,6 @@ LOG_LEVEL=info
 
 # BTP server port (exposed to host)
 BTP_PORT=3000
-
-# Optional: Dashboard telemetry WebSocket URL
-# Leave empty to disable dashboard in production
-DASHBOARD_TELEMETRY_URL=
 ```
 
 #### 3. Generate BTP Secrets
@@ -2172,26 +2120,18 @@ docker logs ilp-production-connector | grep '"level":40'  # Warnings only
 }
 ```
 
-#### Optional: Enable Dashboard Telemetry
+#### Production Monitoring
 
-To enable real-time visualization in production (optional):
+For production monitoring, use dedicated observability tools that consume the structured JSON logs:
 
-1. Uncomment the dashboard service in `docker-compose-production.yml`
-2. Set `DASHBOARD_TELEMETRY_URL` in `.env`:
+- **Prometheus + Grafana**: Metric aggregation and visualization
+- **ELK Stack**: Log aggregation and analysis (Elasticsearch, Logstash, Kibana)
+- **Datadog / New Relic**: APM and monitoring platforms
+- **Loki**: Log aggregation designed for Kubernetes
 
-```bash
-DASHBOARD_TELEMETRY_URL=ws://dashboard:9000
-```
+The connector emits structured JSON logs via Pino, making it easy to integrate with these platforms.
 
-3. Redeploy:
-
-```bash
-docker-compose -f docker-compose-production.yml up -d
-```
-
-Access dashboard at `http://localhost:8080` (or configured `DASHBOARD_HTTP_PORT`).
-
-**Note:** The dashboard is primarily for development/testing. For production monitoring, consider using dedicated observability tools (Prometheus, Grafana, ELK stack, etc.) that consume the structured JSON logs.
+> **Note**: Dashboard visualization has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 ### Security Best Practices
 
@@ -2363,7 +2303,6 @@ Before deploying to production, verify:
 - [ ] BTP peers configured in `examples/production-single-node.yaml`
 - [ ] Routes added for all peer address prefixes
 - [ ] `LOG_LEVEL` set to `info` (not `debug`)
-- [ ] Dashboard telemetry disabled or secured (set `DASHBOARD_TELEMETRY_URL` appropriately)
 - [ ] Firewall rules configured to allow BTP port (default 3000)
 - [ ] Health check endpoint accessible via `docker exec`
 - [ ] Container runs as non-root user (verified with `docker exec ... id`)
@@ -2371,139 +2310,6 @@ Before deploying to production, verify:
 - [ ] Monitoring/alerting configured (log aggregation, health checks, etc.)
 - [ ] Secrets rotation schedule established
 - [ ] Backup and disaster recovery plan documented
-
-## Dashboard
-
-The M2M project includes a React-based network visualization dashboard for real-time monitoring of ILP packet flows and connector topology.
-
-### Accessing the Dashboard
-
-#### With Docker Compose
-
-The dashboard is automatically deployed when using Docker Compose:
-
-```bash
-# Start all services (connectors + dashboard)
-docker-compose up -d
-
-# Open browser to dashboard
-# http://localhost:8080
-```
-
-The dashboard UI will display:
-
-- Network visualization (placeholder in current version)
-- Real-time packet flow animations (future stories)
-- Connector health status (future stories)
-- Routing topology graph (future stories)
-
-#### Development Mode
-
-For rapid UI development with hot module replacement:
-
-```bash
-# Start Vite dev server
-npm run dev --workspace=packages/dashboard
-
-# Access at http://localhost:3000 with hot reload
-# Changes to React components auto-update in browser
-```
-
-Development mode is useful for:
-
-- Building new UI features without Docker rebuilds
-- Testing component changes instantly
-- Debugging React components with browser DevTools
-
-### Building Dashboard
-
-#### Production Build
-
-```bash
-# Build optimized production assets
-npm run build --workspace=packages/dashboard
-
-# Output to packages/dashboard/dist/
-# - index.html (entry point)
-# - assets/main.[hash].js (~50KB gzipped)
-# - assets/vendor.[hash].js (~150KB gzipped, React + Router)
-# - assets/index.[hash].css (~10KB gzipped, TailwindCSS)
-```
-
-#### Preview Production Build
-
-```bash
-# Preview production build locally
-npm run preview --workspace=packages/dashboard
-
-# Access at http://localhost:4173
-```
-
-### Technology Stack
-
-The dashboard uses modern React tooling optimized for performance:
-
-| Component  | Technology   | Version | Purpose                         |
-| ---------- | ------------ | ------- | ------------------------------- |
-| Framework  | React        | 18.2.x  | UI component model              |
-| Build Tool | Vite         | 5.0.x   | Fast HMR and optimized bundling |
-| Styling    | TailwindCSS  | 3.4.x   | Utility-first CSS framework     |
-| Routing    | React Router | 6.22.x  | Client-side navigation          |
-| Language   | TypeScript   | 5.3.3   | Type safety                     |
-
-**Dark Theme**: The dashboard uses a dark color scheme by default (bg-gray-900) for reduced eye strain during extended monitoring sessions.
-
-**Custom Colors**: ILP packet types have dedicated color coding:
-
-- **Prepare packets**: Blue (#3b82f6)
-- **Fulfill packets**: Green (#10b981)
-- **Reject packets**: Red (#ef4444)
-
-### Port Allocation
-
-The Docker Compose setup uses the following port mappings:
-
-- **Dashboard**: http://localhost:8080 (nginx serving React app)
-- **Connector A Health**: http://localhost:9080/health
-- **Connector B Health**: http://localhost:9081/health
-- **Connector C Health**: http://localhost:9082/health
-- **Connector A BTP**: port 3000
-- **Connector B BTP**: port 3001
-- **Connector C BTP**: port 3002
-
-**Note**: Connector health check ports were moved from 8080-8082 to 9080-9082 to avoid conflicts with the dashboard on port 8080.
-
-### Development Workflow
-
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Start development server
-npm run dev --workspace=packages/dashboard
-
-# 3. Make changes to React components in packages/dashboard/src/
-
-# 4. Browser auto-updates with hot module replacement
-
-# 5. Build for production
-npm run build --workspace=packages/dashboard
-
-# 6. Test Docker deployment
-docker-compose build dashboard
-docker-compose up dashboard
-```
-
-### Future Features
-
-The current dashboard displays a placeholder welcome message. Future stories will add:
-
-- **Story 3.2**: Network topology visualization with Cytoscape.js
-- **Story 3.3**: WebSocket connection to telemetry backend
-- **Story 3.4**: Real-time packet flow data display
-- **Story 3.5**: Animated packet flow visualization
-- **Story 3.6**: Detailed packet inspection panel
-- **Story 3.7**: Connector health metrics display
 
 ## Documentation
 
@@ -2611,25 +2417,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 - [x] Story 2.6: Configuration file loading
 - [x] Story 2.7: Docker Compose deployment
 
-#### ✅ Epic 3: Real-time Dashboard Telemetry and Visualization (Complete)
+#### ⏸️ Epic 3: Dashboard Visualization (Deferred)
 
-- [x] Story 3.1: React dashboard application
-- [x] Story 3.2: Network topology graph visualization
-- [x] Story 3.3: Packet animation and flow visualization
-- [x] Story 3.4: Dashboard telemetry WebSocket connection
-- [x] Story 3.5: Telemetry aggregation server
-- [x] Story 3.6: Packet detail panel
-- [x] Story 3.7: Node status panel
+Dashboard visualization has been deferred to focus on core connector and settlement functionality. See [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
-#### ✅ Epic 4: Logging, Configuration & Developer Experience (Complete)
+- [x] Story 3.1: ~~React dashboard application~~ (deferred)
+- [x] Story 3.2: ~~Network topology graph visualization~~ (deferred)
+- [x] Story 3.3: ~~Packet animation and flow visualization~~ (deferred)
+- [x] Story 3.4: ~~Dashboard telemetry WebSocket connection~~ (deferred)
+- [x] Story 3.5: ~~Telemetry aggregation server~~ (deferred)
+- [x] Story 3.6: ~~Packet detail panel~~ (deferred)
+- [x] Story 3.7: ~~Node status panel~~ (deferred)
 
-- [x] Story 4.1: Filterable log viewer in dashboard
+#### ✅ Epic 4: Logging, Configuration & Developer Experience (Complete - minus dashboard)
+
+- [ ] Story 4.1: ~~Filterable log viewer in dashboard~~ (deferred with Epic 3)
 - [x] Story 4.2: Full mesh topology configuration
 - [x] Story 4.3: Custom topology configuration support
 - [x] Story 4.4: Test packet sender utility
 - [x] Story 4.5: Comprehensive README documentation
 - [x] Story 4.6: Architecture documentation
-- [x] Story 4.7: Unit and integration test coverage for dashboard
+- [ ] Story 4.7: ~~Unit and integration test coverage for dashboard~~ (deferred with Epic 3)
 - [x] Story 4.8: End-to-end deployment and routing test
 - [x] Story 4.9: Performance testing and optimization
 - [x] Story 4.10: Final documentation, examples, and release preparation

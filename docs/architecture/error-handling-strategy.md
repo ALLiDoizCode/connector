@@ -65,8 +65,10 @@
   - `PacketExpiredError` → ILP T00 (Transfer Timed Out)
   - `RouteNotFoundError` → ILP F02 (Unreachable)
   - `InvalidPacketError` → ILP R00 (Transfer Cancelled)
-- **User-Facing Errors:** Displayed in dashboard log viewer with human-readable messages
+- **Error Logging:** Errors logged with structured JSON for consumption by external monitoring tools
 - **Error Codes:** ILP standard error codes (RFC-0027) used consistently
+
+**Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root
 
 ### Data Consistency
 

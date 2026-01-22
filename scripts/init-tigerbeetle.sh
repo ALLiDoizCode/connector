@@ -48,7 +48,7 @@ else
     echo "  Replica Count: $REPLICA_COUNT"
 
     # Format the data file
-    tigerbeetle format \
+    /tigerbeetle format \
         --cluster="$CLUSTER_ID" \
         --replica="$REPLICA_ID" \
         --replica-count="$REPLICA_COUNT" \
@@ -59,4 +59,4 @@ fi
 
 # Start TigerBeetle server
 echo "Starting TigerBeetle server on 0.0.0.0:3000"
-exec tigerbeetle start --addresses=0.0.0.0:3000 "$DATA_FILE"
+exec /tigerbeetle start --addresses=0.0.0.0:3000 "$DATA_FILE"

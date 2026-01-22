@@ -212,14 +212,6 @@ jobs:
             exit 1
           fi
 
-          if [ -d packages/dashboard/dist ]; then
-            echo "✓ dashboard built successfully"
-            ls -lh packages/dashboard/dist | head -10
-          else
-            echo "✗ dashboard build failed"
-            exit 1
-          fi
-
           if [ -d packages/shared/dist ]; then
             echo "✓ shared built successfully"
             ls -lh packages/shared/dist | head -10
@@ -295,10 +287,6 @@ jobs:
           echo "Checking connector..."
           npx tsc --noEmit --composite false --skipLibCheck true -p packages/connector/tsconfig.json
           echo "✓ connector type check passed"
-
-          echo "Checking dashboard..."
-          npx tsc --noEmit --composite false --skipLibCheck true -p packages/dashboard/tsconfig.json
-          echo "✓ dashboard type check passed"
 
           echo ""
           echo "All type checks passed! ✓"

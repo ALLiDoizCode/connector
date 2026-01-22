@@ -1,0 +1,412 @@
+/**
+ * Mock Factory Functions
+ *
+ * Provides properly typed mock factories for common dependencies.
+ * Using these factories instead of `{} as Type` ensures:
+ * - All required methods are present
+ * - TypeScript catches missing method implementations
+ * - Tests don't fail with "X is not a function" errors
+ *
+ * Usage:
+ * ```typescript
+ * const mockDerivation = createMockWalletDerivation();
+ * const mockTracker = createMockBalanceTracker({
+ *   getBalance: jest.fn().mockResolvedValue(100n), // Override specific methods
+ * });
+ * ```
+ */
+
+import { ethers } from 'ethers';
+import { Client as XRPLClient } from 'xrpl';
+import type { Logger } from 'pino';
+
+import type { AgentWalletDerivation, AgentWallet } from '../wallet/agent-wallet-derivation';
+import type { AgentBalanceTracker, AgentBalance } from '../wallet/agent-balance-tracker';
+import type { AgentWalletLifecycle, WalletLifecycleRecord } from '../wallet/agent-wallet-lifecycle';
+import { WalletState } from '../wallet/agent-wallet-lifecycle';
+import type { AgentWalletFunder, FundingResult } from '../wallet/agent-wallet-funder';
+import type { TreasuryWallet } from '../wallet/treasury-wallet';
+import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
+import type { FraudDetector, FraudCheckResult } from '../wallet/wallet-security';
+
+// ============================================================================
+// Test Data Constants
+// ============================================================================
+
+/** Valid EVM address for testing (40 hex chars after 0x) */
+export const TEST_EVM_ADDRESS = '0x742d35Cc6634C0532925a3b844Bc454321f0bEb0';
+
+/** Valid XRP address for testing (base58, no 0/I/O/l) */
+export const TEST_XRP_ADDRESS = 'rN7n7otQDd6FczFgLdqtyMVrXqHr7XEEwAB';
+
+/** Default test agent ID */
+export const TEST_AGENT_ID = 'test-agent-001';
+
+/** Default test password meeting security requirements */
+export const TEST_PASSWORD = 'TestP@ssw0rd12345678';
+
+// ============================================================================
+// Wallet Derivation Mocks
+// ============================================================================
+
+export interface MockWalletDerivationOptions {
+  agentId?: string;
+  evmAddress?: string;
+  xrpAddress?: string;
+  derivationIndex?: number;
+}
+
+/**
+ * Create a mock AgentWalletDerivation with all required methods
+ */
+export function createMockWalletDerivation(
+  options: MockWalletDerivationOptions = {},
+  overrides?: Partial<jest.Mocked<AgentWalletDerivation>>
+): jest.Mocked<AgentWalletDerivation> {
+  const {
+    agentId = TEST_AGENT_ID,
+    evmAddress = TEST_EVM_ADDRESS,
+    xrpAddress = TEST_XRP_ADDRESS,
+    derivationIndex = 0,
+  } = options;
+
+  const defaultWallet: AgentWallet = {
+    agentId,
+    evmAddress,
+    xrpAddress,
+    derivationIndex,
+    createdAt: Date.now(),
+  };
+
+  return {
+    deriveAgentWallet: jest.fn().mockImplementation((id: string) =>
+      Promise.resolve({
+        ...defaultWallet,
+        agentId: id,
+      })
+    ),
+    getAgentWallet: jest.fn().mockImplementation((id: string) =>
+      Promise.resolve({
+        ...defaultWallet,
+        agentId: id,
+      })
+    ),
+    getAllWallets: jest.fn().mockReturnValue([defaultWallet]),
+    getAgentSigner: jest.fn().mockResolvedValue({} as ethers.Wallet),
+    close: jest.fn(),
+    ...overrides,
+  } as unknown as jest.Mocked<AgentWalletDerivation>;
+}
+
+// ============================================================================
+// Balance Tracker Mocks
+// ============================================================================
+
+export interface MockBalanceTrackerOptions {
+  defaultBalance?: bigint;
+  balances?: AgentBalance[];
+}
+
+/**
+ * Create a mock AgentBalanceTracker with all required methods
+ */
+export function createMockBalanceTracker(
+  options: MockBalanceTrackerOptions = {},
+  overrides?: Partial<jest.Mocked<AgentBalanceTracker>>
+): jest.Mocked<AgentBalanceTracker> {
+  const { defaultBalance = BigInt('1000000000000000000'), balances } = options;
+
+  const defaultBalances: AgentBalance[] = balances || [
+    {
+      agentId: TEST_AGENT_ID,
+      chain: 'evm',
+      token: 'ETH',
+      balance: defaultBalance,
+      lastUpdated: Date.now(),
+    },
+    {
+      agentId: TEST_AGENT_ID,
+      chain: 'evm',
+      token: 'USDC',
+      balance: BigInt('1000000000'),
+      lastUpdated: Date.now(),
+    },
+  ];
+
+  return {
+    getBalance: jest.fn().mockResolvedValue(defaultBalance),
+    getAllBalances: jest.fn().mockImplementation((agentId: string) =>
+      Promise.resolve(
+        defaultBalances.map((b) => ({
+          ...b,
+          agentId,
+        }))
+      )
+    ),
+    refreshBalance: jest.fn().mockResolvedValue(undefined),
+    refreshAllBalances: jest.fn().mockResolvedValue(undefined),
+    startPolling: jest.fn(),
+    stopPolling: jest.fn(),
+    ...overrides,
+  } as unknown as jest.Mocked<AgentBalanceTracker>;
+}
+
+// ============================================================================
+// Wallet Lifecycle Mocks
+// ============================================================================
+
+export interface MockWalletLifecycleOptions {
+  defaultState?: WalletState;
+}
+
+/**
+ * Create a mock AgentWalletLifecycle with all required methods
+ */
+export function createMockWalletLifecycle(
+  options: MockWalletLifecycleOptions = {},
+  overrides?: Partial<jest.Mocked<AgentWalletLifecycle>>
+): jest.Mocked<AgentWalletLifecycle> {
+  const { defaultState = WalletState.ACTIVE } = options;
+
+  const createRecord = (agentId: string): WalletLifecycleRecord => ({
+    agentId,
+    state: defaultState,
+    createdAt: Date.now(),
+    activatedAt: defaultState === WalletState.ACTIVE ? Date.now() : undefined,
+    lastActivity: Date.now(),
+    totalTransactions: 0,
+    totalVolume: {},
+  });
+
+  return {
+    createAgentWallet: jest
+      .fn()
+      .mockImplementation((agentId: string) => Promise.resolve(createRecord(agentId))),
+    getLifecycleRecord: jest
+      .fn()
+      .mockImplementation((agentId: string) => Promise.resolve(createRecord(agentId))),
+    suspendWallet: jest.fn().mockResolvedValue(undefined),
+    reactivateWallet: jest.fn().mockResolvedValue(undefined),
+    archiveWallet: jest.fn().mockResolvedValue(undefined),
+    recordActivity: jest.fn().mockResolvedValue(undefined),
+    getTransactionCount: jest.fn().mockReturnValue(0),
+    close: jest.fn(),
+    ...overrides,
+  } as unknown as jest.Mocked<AgentWalletLifecycle>;
+}
+
+// ============================================================================
+// Wallet Funder Mocks
+// ============================================================================
+
+/**
+ * Create a mock AgentWalletFunder with all required methods
+ */
+export function createMockWalletFunder(
+  overrides?: Partial<jest.Mocked<AgentWalletFunder>>
+): jest.Mocked<AgentWalletFunder> {
+  const defaultFundingResult: FundingResult = {
+    agentId: TEST_AGENT_ID,
+    transactions: [],
+    timestamp: Date.now(),
+  };
+
+  return {
+    fundAgentWallet: jest.fn().mockResolvedValue(defaultFundingResult),
+    checkFundingStatus: jest.fn().mockResolvedValue({ funded: true }),
+    ...overrides,
+  } as unknown as jest.Mocked<AgentWalletFunder>;
+}
+
+// ============================================================================
+// Treasury Wallet Mocks
+// ============================================================================
+
+/**
+ * Create a mock TreasuryWallet with all required methods
+ */
+export function createMockTreasuryWallet(
+  overrides?: Partial<jest.Mocked<TreasuryWallet>>
+): jest.Mocked<TreasuryWallet> {
+  return {
+    fundAgentEVM: jest.fn().mockResolvedValue({ txHash: '0x' + '1'.repeat(64) }),
+    fundAgentXRP: jest.fn().mockResolvedValue({ txHash: 'ABC123' }),
+    getEVMBalance: jest.fn().mockResolvedValue(BigInt('10000000000000000000')),
+    getXRPBalance: jest.fn().mockResolvedValue(BigInt('10000000000')),
+    ...overrides,
+  } as unknown as jest.Mocked<TreasuryWallet>;
+}
+
+// ============================================================================
+// Telemetry Mocks
+// ============================================================================
+
+/**
+ * Create a mock TelemetryEmitter with all required methods
+ */
+export function createMockTelemetryEmitter(
+  overrides?: Partial<jest.Mocked<TelemetryEmitter>>
+): jest.Mocked<TelemetryEmitter> {
+  return {
+    emit: jest.fn(),
+    flush: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as unknown as jest.Mocked<TelemetryEmitter>;
+}
+
+// ============================================================================
+// Fraud Detector Mocks
+// ============================================================================
+
+export interface MockFraudDetectorOptions {
+  shouldDetectFraud?: boolean;
+  fraudScore?: number;
+  fraudReason?: string;
+}
+
+/**
+ * Create a mock FraudDetector with all required methods
+ */
+export function createMockFraudDetector(
+  options: MockFraudDetectorOptions = {},
+  overrides?: Partial<jest.Mocked<FraudDetector>>
+): jest.Mocked<FraudDetector> {
+  const { shouldDetectFraud = false, fraudScore = 0, fraudReason = 'Test fraud' } = options;
+
+  const defaultResult: FraudCheckResult = {
+    detected: shouldDetectFraud,
+    score: fraudScore,
+    reason: shouldDetectFraud ? fraudReason : undefined,
+  };
+
+  return {
+    analyzeTransaction: jest.fn().mockResolvedValue(defaultResult),
+    ...overrides,
+  } as jest.Mocked<FraudDetector>;
+}
+
+// ============================================================================
+// External Provider Mocks
+// ============================================================================
+
+export interface MockEvmProviderOptions {
+  balance?: bigint;
+  chainId?: bigint;
+  networkName?: string;
+}
+
+/**
+ * Create a mock ethers.Provider with commonly used methods
+ */
+export function createMockEvmProvider(
+  options: MockEvmProviderOptions = {},
+  overrides?: Partial<jest.Mocked<ethers.Provider>>
+): jest.Mocked<ethers.Provider> {
+  const {
+    balance = BigInt('1000000000000000000'),
+    chainId = 8453n,
+    networkName = 'base',
+  } = options;
+
+  return {
+    getBalance: jest.fn().mockResolvedValue(balance),
+    getNetwork: jest.fn().mockResolvedValue({ chainId, name: networkName }),
+    getTransactionReceipt: jest.fn().mockResolvedValue({ status: 1 }),
+    waitForTransaction: jest.fn().mockResolvedValue({ status: 1 }),
+    ...overrides,
+  } as unknown as jest.Mocked<ethers.Provider>;
+}
+
+export interface MockXrplClientOptions {
+  balance?: string;
+  isConnected?: boolean;
+}
+
+/**
+ * Create a mock XRPL Client with commonly used methods
+ */
+export function createMockXrplClient(
+  options: MockXrplClientOptions = {},
+  overrides?: Partial<jest.Mocked<XRPLClient>>
+): jest.Mocked<XRPLClient> {
+  const { balance = '1000000000', isConnected = true } = options;
+
+  return {
+    isConnected: jest.fn().mockReturnValue(isConnected),
+    getXrpBalance: jest.fn().mockResolvedValue(balance),
+    request: jest.fn().mockResolvedValue({
+      result: {
+        account_data: { Balance: balance },
+      },
+    }),
+    connect: jest.fn().mockResolvedValue(undefined),
+    disconnect: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as unknown as jest.Mocked<XRPLClient>;
+}
+
+// ============================================================================
+// Logger Mocks
+// ============================================================================
+
+/**
+ * Create a mock Pino logger that captures log calls
+ */
+export function createMockLogger(): jest.Mocked<Logger> {
+  const mockLogger: Record<string, jest.Mock | string> = {
+    trace: jest.fn().mockReturnThis(),
+    debug: jest.fn().mockReturnThis(),
+    info: jest.fn().mockReturnThis(),
+    warn: jest.fn().mockReturnThis(),
+    error: jest.fn().mockReturnThis(),
+    fatal: jest.fn().mockReturnThis(),
+    child: jest.fn(),
+    level: 'silent',
+  };
+
+  // child() should return the same mock
+  (mockLogger.child as jest.Mock).mockReturnValue(mockLogger);
+
+  return mockLogger as unknown as jest.Mocked<Logger>;
+}
+
+// ============================================================================
+// Composite Mock Helpers
+// ============================================================================
+
+/**
+ * Create a complete set of wallet-related mocks
+ * Useful for tests that need the full wallet infrastructure
+ */
+export function createWalletMocks(options?: {
+  derivation?: MockWalletDerivationOptions;
+  balanceTracker?: MockBalanceTrackerOptions;
+  lifecycle?: MockWalletLifecycleOptions;
+  fraudDetector?: MockFraudDetectorOptions;
+  evmProvider?: MockEvmProviderOptions;
+  xrplClient?: MockXrplClientOptions;
+}): {
+  walletDerivation: jest.Mocked<AgentWalletDerivation>;
+  balanceTracker: jest.Mocked<AgentBalanceTracker>;
+  lifecycle: jest.Mocked<AgentWalletLifecycle>;
+  walletFunder: jest.Mocked<AgentWalletFunder>;
+  treasuryWallet: jest.Mocked<TreasuryWallet>;
+  telemetryEmitter: jest.Mocked<TelemetryEmitter>;
+  fraudDetector: jest.Mocked<FraudDetector>;
+  evmProvider: jest.Mocked<ethers.Provider>;
+  xrplClient: jest.Mocked<XRPLClient>;
+  logger: jest.Mocked<Logger>;
+} {
+  return {
+    walletDerivation: createMockWalletDerivation(options?.derivation),
+    balanceTracker: createMockBalanceTracker(options?.balanceTracker),
+    lifecycle: createMockWalletLifecycle(options?.lifecycle),
+    walletFunder: createMockWalletFunder(),
+    treasuryWallet: createMockTreasuryWallet(),
+    telemetryEmitter: createMockTelemetryEmitter(),
+    fraudDetector: createMockFraudDetector(options?.fraudDetector),
+    evmProvider: createMockEvmProvider(options?.evmProvider),
+    xrplClient: createMockXrplClient(options?.xrplClient),
+    logger: createMockLogger(),
+  };
+}

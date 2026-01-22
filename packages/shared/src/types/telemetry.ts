@@ -59,6 +59,18 @@ export enum TelemetryEventType {
   XRP_CHANNEL_CLAIMED = 'XRP_CHANNEL_CLAIMED',
   /** XRP payment channel closed event - emitted when XRP channel closure initiated (Story 9.7) */
   XRP_CHANNEL_CLOSED = 'XRP_CHANNEL_CLOSED',
+  /** Agent payment channel opened event - emitted when agent opens payment channel (Story 11.6) */
+  AGENT_CHANNEL_OPENED = 'AGENT_CHANNEL_OPENED',
+  /** Agent payment channel payment sent event - emitted when agent sends payment through channel (Story 11.6) */
+  AGENT_CHANNEL_PAYMENT_SENT = 'AGENT_CHANNEL_PAYMENT_SENT',
+  /** Agent payment channel closed event - emitted when agent closes payment channel (Story 11.6) */
+  AGENT_CHANNEL_CLOSED = 'AGENT_CHANNEL_CLOSED',
+  /** Wallet balance mismatch event - emitted when backup restore detects balance discrepancy (Story 11.8) */
+  WALLET_BALANCE_MISMATCH = 'WALLET_BALANCE_MISMATCH',
+  /** Suspicious activity detected event - emitted when fraud/suspicious activity detected (Story 11.9) */
+  SUSPICIOUS_ACTIVITY_DETECTED = 'SUSPICIOUS_ACTIVITY_DETECTED',
+  /** Rate limit exceeded event - emitted when rate limit exceeded (Story 11.9) */
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
 }
 
 /**
@@ -731,6 +743,246 @@ export interface XRPChannelClosedEvent {
 }
 
 /**
+ * Agent Channel Opened Telemetry Event
+ *
+ * Emitted when AgentChannelManager (Story 11.6) opens payment channel for agent.
+ * Indicates agent has opened a payment channel (EVM or XRP) for micropayments.
+ *
+ * **BigInt Serialization:** All amount fields are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays agent channel state and activity
+ * - Real-time channel opened events visualization
+ *
+ * @example
+ * ```typescript
+ * const event: AgentChannelOpenedEvent = {
+ *   type: 'AGENT_CHANNEL_OPENED',
+ *   timestamp: 1704729600000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   channelId: '0xabc123...',
+ *   chain: 'evm',
+ *   peerId: 'agent-002',
+ *   amount: '1000000000000000000'
+ * };
+ * ```
+ */
+export interface AgentChannelOpenedEvent {
+  /** Event type discriminator */
+  type: 'AGENT_CHANNEL_OPENED';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Channel ID (EVM: bytes32, XRP: channel_id) */
+  channelId: string;
+  /** Blockchain network ('evm' or 'xrp') */
+  chain: 'evm' | 'xrp';
+  /** Peer agent identifier */
+  peerId: string;
+  /** Initial deposit amount, bigint as string */
+  amount: string;
+}
+
+/**
+ * Agent Channel Payment Sent Telemetry Event
+ *
+ * Emitted when AgentChannelManager (Story 11.6) sends payment through channel.
+ * Indicates agent has sent off-chain payment via balance proof/claim.
+ *
+ * **BigInt Serialization:** All amount fields are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays channel payment activity
+ * - Real-time payment flow visualization
+ *
+ * @example
+ * ```typescript
+ * const event: AgentChannelPaymentSentEvent = {
+ *   type: 'AGENT_CHANNEL_PAYMENT_SENT',
+ *   timestamp: 1704729660000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   channelId: '0xabc123...',
+ *   amount: '100000000000000000'
+ * };
+ * ```
+ */
+export interface AgentChannelPaymentSentEvent {
+  /** Event type discriminator */
+  type: 'AGENT_CHANNEL_PAYMENT_SENT';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Channel ID */
+  channelId: string;
+  /** Payment amount, bigint as string */
+  amount: string;
+}
+
+/**
+ * Agent Channel Closed Telemetry Event
+ *
+ * Emitted when AgentChannelManager (Story 11.6) closes payment channel.
+ * Indicates agent has closed channel on-chain.
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays channel closed events
+ * - Channel lifecycle visualization
+ *
+ * @example
+ * ```typescript
+ * const event: AgentChannelClosedEvent = {
+ *   type: 'AGENT_CHANNEL_CLOSED',
+ *   timestamp: 1704729720000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   channelId: '0xabc123...',
+ *   chain: 'evm'
+ * };
+ * ```
+ */
+export interface AgentChannelClosedEvent {
+  /** Event type discriminator */
+  type: 'AGENT_CHANNEL_CLOSED';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Channel ID */
+  channelId: string;
+  /** Blockchain network ('evm' or 'xrp') */
+  chain: 'evm' | 'xrp';
+}
+
+/**
+ * Wallet Balance Mismatch Telemetry Event
+ *
+ * Emitted when WalletBackupManager (Story 11.8) detects balance mismatch during restore.
+ * Indicates backed-up balance differs from actual on-chain balance after recovery.
+ *
+ * **BigInt Serialization:** All balance fields are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays balance mismatch warnings
+ * - Alerts operators to investigate balance drift
+ *
+ * @example
+ * ```typescript
+ * const event: WalletBalanceMismatchEvent = {
+ *   type: 'WALLET_BALANCE_MISMATCH',
+ *   timestamp: 1704729600000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   chain: 'evm',
+ *   token: 'ETH',
+ *   expectedBalance: '1000000000000000000',
+ *   actualBalance: '1100000000000000000'
+ * };
+ * ```
+ */
+export interface WalletBalanceMismatchEvent {
+  /** Event type discriminator */
+  type: 'WALLET_BALANCE_MISMATCH';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Blockchain network ('evm' or 'xrp') */
+  chain: 'evm' | 'xrp';
+  /** Token identifier (e.g., 'ETH', 'XRP', '0xUSDC...') */
+  token: string;
+  /** Expected balance from backup snapshot, bigint as string */
+  expectedBalance: string;
+  /** Actual on-chain balance after restore, bigint as string */
+  actualBalance: string;
+}
+
+/**
+ * Suspicious Activity Detected Telemetry Event
+ *
+ * Emitted when SuspiciousActivityDetector (Story 11.9) detects fraud patterns.
+ * Indicates rapid funding requests or unusual transaction patterns.
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays security alerts
+ * - Security monitoring panel shows suspicious activity
+ *
+ * @example
+ * ```typescript
+ * const event: SuspiciousActivityDetectedEvent = {
+ *   type: 'SUSPICIOUS_ACTIVITY_DETECTED',
+ *   timestamp: 1704729600000,
+ *   nodeId: 'connector-a',
+ *   agentId: 'agent-001',
+ *   activityType: 'rapid_funding',
+ *   details: { fundingCount: 10, threshold: 5 }
+ * };
+ * ```
+ */
+export interface SuspiciousActivityDetectedEvent {
+  /** Event type discriminator */
+  type: 'SUSPICIOUS_ACTIVITY_DETECTED';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Agent identifier */
+  agentId: string;
+  /** Activity type: rapid funding or unusual transaction */
+  activityType: 'rapid_funding' | 'unusual_transaction';
+  /** Activity-specific details */
+  details: Record<string, unknown>;
+}
+
+/**
+ * Rate Limit Exceeded Telemetry Event
+ *
+ * Emitted when RateLimiter (Story 11.9) blocks operation due to rate limit.
+ * Indicates potential abuse or DoS attack.
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays rate limit violations
+ * - Security monitoring panel shows blocked operations
+ *
+ * @example
+ * ```typescript
+ * const event: RateLimitExceededEvent = {
+ *   type: 'RATE_LIMIT_EXCEEDED',
+ *   timestamp: 1704729600000,
+ *   nodeId: 'connector-a',
+ *   operation: 'wallet_creation',
+ *   identifier: 'agent-001',
+ *   limit: 100
+ * };
+ * ```
+ */
+export interface RateLimitExceededEvent {
+  /** Event type discriminator */
+  type: 'RATE_LIMIT_EXCEEDED';
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+  /** Connector node ID emitting event */
+  nodeId: string;
+  /** Operation type that was rate limited */
+  operation: string;
+  /** Identifier that exceeded limit (agent ID, IP, etc.) */
+  identifier: string;
+  /** Rate limit (operations/hour) */
+  limit: number;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -776,6 +1028,15 @@ export interface XRPChannelClosedEvent {
  *     case 'XRP_CHANNEL_CLOSED':
  *       console.log(`XRP channel closed: ${event.channelId} via ${event.closeType}`);
  *       break;
+ *     case 'WALLET_BALANCE_MISMATCH':
+ *       console.log(`Wallet balance mismatch: ${event.agentId} ${event.chain}:${event.token} expected ${event.expectedBalance}, got ${event.actualBalance}`);
+ *       break;
+ *     case 'SUSPICIOUS_ACTIVITY_DETECTED':
+ *       console.log(`Suspicious activity: ${event.agentId} ${event.activityType}`);
+ *       break;
+ *     case 'RATE_LIMIT_EXCEEDED':
+ *       console.log(`Rate limit exceeded: ${event.operation} for ${event.identifier}`);
+ *       break;
  *     default:
  *       console.log(`Unknown event type: ${event.type}`);
  *   }
@@ -797,4 +1058,10 @@ export type TelemetryEvent =
   | PaymentChannelSettledEvent
   | XRPChannelOpenedEvent
   | XRPChannelClaimedEvent
-  | XRPChannelClosedEvent;
+  | XRPChannelClosedEvent
+  | AgentChannelOpenedEvent
+  | AgentChannelPaymentSentEvent
+  | AgentChannelClosedEvent
+  | WalletBalanceMismatchEvent
+  | SuspiciousActivityDetectedEvent
+  | RateLimitExceededEvent;

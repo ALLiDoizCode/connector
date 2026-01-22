@@ -464,6 +464,65 @@ export class AgentWalletDerivation {
   }
 
   /**
+   * Get wallets modified since timestamp (for incremental backup)
+   * Story 11.8: Backup and Recovery
+   * @param timestamp - Unix timestamp threshold
+   * @returns Array of wallets created since timestamp
+   */
+  getWalletsModifiedSince(timestamp: number): AgentWallet[] {
+    const stmt = this.db.prepare('SELECT * FROM agent_wallets WHERE created_at >= ?');
+    const rows = stmt.all(timestamp) as {
+      agent_id: string;
+      derivation_index: number;
+      evm_address: string;
+      xrp_address: string;
+      created_at: number;
+      metadata: string | null;
+    }[];
+
+    return rows.map((row) => ({
+      agentId: row.agent_id,
+      derivationIndex: row.derivation_index,
+      evmAddress: row.evm_address,
+      xrpAddress: row.xrp_address,
+      createdAt: row.created_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    }));
+  }
+
+  /**
+   * Import wallet from backup (for recovery)
+   * Story 11.8: Backup and Recovery
+   * @param wallet - Wallet to import
+   */
+  async importWallet(wallet: AgentWallet): Promise<void> {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO agent_wallets (agent_id, derivation_index, evm_address, xrp_address, created_at, metadata)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        wallet.agentId,
+        wallet.derivationIndex,
+        wallet.evmAddress,
+        wallet.xrpAddress,
+        wallet.createdAt,
+        wallet.metadata ? JSON.stringify(wallet.metadata) : null
+      );
+
+      // Update cache
+      this.walletCache.set(wallet.agentId, wallet);
+      this.indexToAgentId.set(wallet.derivationIndex, wallet.agentId);
+
+      logger.debug({ agentId: wallet.agentId }, 'Wallet imported from backup');
+    } catch (error) {
+      logger.error({ agentId: wallet.agentId, error }, 'Failed to import wallet from backup');
+      throw error;
+    }
+  }
+
+  /**
    * Close database connection
    * Must be called during connector shutdown
    */

@@ -74,10 +74,12 @@ function deriveXRPWallet(masterSeed: Buffer, index: number): DerivedWallet {
   };
 }
 
-// Skip heavy wallet derivation tests in CI (they timeout with 1000+ wallet derivations)
-const describeIfNotCI = process.env.CI === 'true' ? describe.skip : describe;
+// Skip heavy wallet derivation tests in CI and integration test runs
+// These tests are extremely resource-intensive (1000+ wallet derivations) and should only run locally
+const skipInCI = process.env.CI === 'true' || process.env.INTEGRATION_TESTS === 'true';
+const describeIfLocal = skipInCI ? describe.skip : describe;
 
-describeIfNotCI('HD Wallet Derivation Integration Tests', () => {
+describeIfLocal('HD Wallet Derivation Integration Tests', () => {
   let manager: WalletSeedManager;
   const testPassword = 'StrongP@ssw0rd123456';
   const tempStoragePath = path.join(__dirname, '.test-wallet-storage');

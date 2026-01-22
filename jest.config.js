@@ -1,10 +1,6 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  projects: [
-    '<rootDir>/packages/connector',
-    '<rootDir>/packages/dashboard',
-    '<rootDir>/packages/shared',
-  ],
+  projects: ['<rootDir>/packages/connector', '<rootDir>/packages/shared'],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',

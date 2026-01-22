@@ -313,37 +313,77 @@ export class XRPLClient implements IXRPLClient {
     ledgerIndex: number;
     result: Record<string, unknown>;
   }> {
-    try {
-      this.logger.info({ transaction }, 'Submitting transaction to XRPL...');
+    const maxRetries = 3;
+    let lastError: unknown;
 
-      // Autofill transaction (sequence, fee, lastLedgerSequence)
-      const prepared = await this.client.autofill(transaction as unknown as Transaction);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.info({ transaction, attempt }, 'Submitting transaction to XRPL...');
 
-      // Sign transaction with wallet
-      const signed = this.wallet.sign(prepared);
+        // Check if connected, reconnect if needed
+        if (!this.client.isConnected()) {
+          this.logger.warn({ attempt }, 'Client not connected, reconnecting...');
+          await this.connect();
+        }
 
-      // Submit and wait for validation
-      const result = (await this.client.submitAndWait(signed.tx_blob)) as TxResponse;
+        // Autofill transaction (sequence, fee, lastLedgerSequence)
+        const prepared = await this.client.autofill(transaction as unknown as Transaction);
 
-      this.logger.info(
-        { hash: result.result.hash, ledgerIndex: result.result.ledger_index },
-        'Transaction confirmed on XRPL'
-      );
+        // Sign transaction with wallet
+        const signed = this.wallet.sign(prepared);
 
-      return {
-        hash: result.result.hash as string,
-        ledgerIndex: (result.result.ledger_index as number) ?? 0,
-        result: result.result as unknown as Record<string, unknown>,
-      };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
-      this.logger.error({ error, transaction }, 'Transaction submission failed');
-      throw new XRPLError(
-        XRPLErrorCode.TRANSACTION_FAILED,
-        `Transaction failed: ${errorMessage}`,
-        error
-      );
+        // Submit and wait for validation
+        const result = (await this.client.submitAndWait(signed.tx_blob)) as TxResponse;
+
+        this.logger.info(
+          { hash: result.result.hash, ledgerIndex: result.result.ledger_index },
+          'Transaction confirmed on XRPL'
+        );
+
+        return {
+          hash: result.result.hash as string,
+          ledgerIndex: (result.result.ledger_index as number) ?? 0,
+          result: result.result as unknown as Record<string, unknown>,
+        };
+      } catch (error: unknown) {
+        lastError = error;
+
+        // Check if it's a NotConnectedError
+        const isConnectionError =
+          error &&
+          typeof error === 'object' &&
+          'name' in error &&
+          error.name === 'NotConnectedError';
+
+        if (isConnectionError && attempt < maxRetries) {
+          this.logger.warn(
+            { attempt, maxRetries, error },
+            'Connection lost during transaction, retrying...'
+          );
+          // Wait before retry with exponential backoff
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(1000 * Math.pow(2, attempt - 1), 5000))
+          );
+          continue;
+        }
+
+        // If not a connection error or out of retries, throw
+        const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+        this.logger.error({ error, transaction, attempt }, 'Transaction submission failed');
+        throw new XRPLError(
+          XRPLErrorCode.TRANSACTION_FAILED,
+          `Transaction failed after ${attempt} attempts: ${errorMessage}`,
+          error
+        );
+      }
     }
+
+    // Should never reach here, but TypeScript needs it
+    throw new XRPLError(
+      XRPLErrorCode.TRANSACTION_FAILED,
+      'Transaction failed after all retries',
+      lastError
+    );
   }
 
   async getLedgerEntry(entryId: string): Promise<LedgerEntryResponse['result']['node']> {

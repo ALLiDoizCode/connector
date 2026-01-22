@@ -19,7 +19,6 @@ services:
       NODE_ID: hub-1
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
       # BTP Server Authentication - Environment variables for incoming connections
       BTP_PEER_HUB_2_SECRET: secret-hub1-to-hub2
       BTP_PEER_SPOKE_1A_SECRET: secret-spoke1a-to-hub1
@@ -50,7 +49,6 @@ services:
       NODE_ID: hub-2
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
       # BTP Server Authentication - Environment variables for incoming connections
       BTP_PEER_HUB_1_SECRET: secret-hub1-to-hub2
       BTP_PEER_SPOKE_2A_SECRET: secret-spoke2a-to-hub2
@@ -79,7 +77,6 @@ services:
       NODE_ID: spoke-1a
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/complex-8-node/spoke-1a.yaml:/app/config.yaml:ro
     ports:
@@ -105,7 +102,6 @@ services:
       NODE_ID: spoke-1b
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/complex-8-node/spoke-1b.yaml:/app/config.yaml:ro
     ports:
@@ -131,7 +127,6 @@ services:
       NODE_ID: spoke-1c
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/complex-8-node/spoke-1c.yaml:/app/config.yaml:ro
     ports:
@@ -157,7 +152,6 @@ services:
       NODE_ID: spoke-2a
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/complex-8-node/spoke-2a.yaml:/app/config.yaml:ro
     ports:
@@ -183,7 +177,6 @@ services:
       NODE_ID: spoke-2b
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/complex-8-node/spoke-2b.yaml:/app/config.yaml:ro
     ports:
@@ -209,7 +202,6 @@ services:
       NODE_ID: spoke-2c
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
-      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/complex-8-node/spoke-2c.yaml:/app/config.yaml:ro
     ports:
@@ -227,26 +219,8 @@ services:
       retries: 3
       start_period: 40s
 
-  dashboard:
-    build:
-      context: .
-      dockerfile: packages/dashboard/Dockerfile
-    container_name: ilp-dashboard
-    environment:
-      TELEMETRY_WS_PORT: 9000
-      LOG_LEVEL: info
-    ports:
-      - "8080:8080"
-      - "9000:9000"
-    networks:
-      - ilp-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+  # Dashboard (REMOVED - see DASHBOARD-DEFERRED.md)
+  # Visualization deferred to future standalone project.
 
 networks:
   ilp-network:

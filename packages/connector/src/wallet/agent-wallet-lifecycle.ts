@@ -839,6 +839,84 @@ export class AgentWalletLifecycle {
   }
 
   /**
+   * Get all lifecycle records (for backup)
+   * Story 11.8: Backup and Recovery
+   * @returns Array of all lifecycle records
+   */
+  getAllRecords(): WalletLifecycleRecord[] {
+    return Array.from(this.lifecycleRecords.values());
+  }
+
+  /**
+   * Get lifecycle records modified since timestamp (for incremental backup)
+   * Story 11.8: Backup and Recovery
+   * @param timestamp - Unix timestamp threshold
+   * @returns Array of lifecycle records modified since timestamp
+   */
+  getRecordsModifiedSince(timestamp: number): WalletLifecycleRecord[] {
+    const records: WalletLifecycleRecord[] = [];
+    for (const record of this.lifecycleRecords.values()) {
+      // Check if record was modified after timestamp
+      const lastModified = Math.max(
+        record.createdAt,
+        record.activatedAt || 0,
+        record.suspendedAt || 0,
+        record.archivedAt || 0,
+        record.lastActivity || 0
+      );
+      if (lastModified >= timestamp) {
+        records.push(record);
+      }
+    }
+    return records;
+  }
+
+  /**
+   * Import lifecycle record from backup (for recovery)
+   * Story 11.8: Backup and Recovery
+   * @param record - Lifecycle record to import
+   */
+  async importLifecycleRecord(record: WalletLifecycleRecord): Promise<void> {
+    try {
+      // Insert or replace record in database
+      const totalVolumeJson = JSON.stringify(
+        Object.fromEntries(Object.entries(record.totalVolume).map(([k, v]) => [k, v.toString()]))
+      );
+
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO wallet_lifecycle (
+          agent_id, state, created_at, activated_at, suspended_at, archived_at,
+          last_activity, total_transactions, total_volume, suspension_reason
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        record.agentId,
+        record.state,
+        record.createdAt,
+        record.activatedAt ?? null,
+        record.suspendedAt ?? null,
+        record.archivedAt ?? null,
+        record.lastActivity ?? null,
+        record.totalTransactions,
+        totalVolumeJson,
+        record.suspensionReason ?? null
+      );
+
+      // Update in-memory cache
+      this.lifecycleRecords.set(record.agentId, record);
+
+      logger.debug({ agentId: record.agentId }, 'Lifecycle record imported from backup');
+    } catch (error) {
+      logger.error(
+        { agentId: record.agentId, error },
+        'Failed to import lifecycle record from backup'
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Close database connection and stop periodic cleanup
    * Must be called during connector shutdown
    */

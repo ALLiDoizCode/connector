@@ -62,19 +62,20 @@ services:
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: anvil_base_local
+    entrypoint: []  # Override the image's default entrypoint
     command:
       - anvil
       - --host
-      - "0.0.0.0"  # Listen on all interfaces (required for Docker container access)
+      - "0.0.0.0"
       - --port
-      - "8545"  # Standard Ethereum JSON-RPC port
+      - "8545"
       - --fork-url
-      - "${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}"  # Download Base Sepolia state from public RPC endpoint
+      - "${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}"
       - --fork-block-number
-      - "${FORK_BLOCK_NUMBER:-20702367}"  # Pin to specific block for consistent state across developer machines
+      - "${FORK_BLOCK_NUMBER:-20702367}"
       - --chain-id
-      - "84532"  # Match Base Sepolia chain ID for compatibility with Base L2 tools
-      - --optimism  # Enable OP Stack opcodes and gas calculations (required for Base L2)
+      - "84532"
+      - --optimism
     ports:
       - "8545:8545"  # Expose JSON-RPC endpoint (http://localhost:8545 from host, http://anvil:8545 from containers)
     networks:
@@ -89,7 +90,7 @@ services:
       interval: 10s  # Check every 10 seconds
       timeout: 5s  # RPC call should respond within 5 seconds
       retries: 5  # 5 attempts before marking unhealthy
-      start_period: 10s  # Allow time for fork download before health checks start (fork download ~30-60s)
+      start_period: 60s  # Allow time for fork download before health checks start (fork download ~30-60s)
     restart: unless-stopped
 
   # rippled - Local XRP Ledger node in standalone mode for payment channel development
@@ -142,6 +143,7 @@ services:
     container_name: rippled_standalone
     command:
       - "-a"  # Standalone mode flag: enables offline mode with manual ledger advancement
+      # Note: --conf is automatically added by the entrypoint when /config/rippled.cfg exists
     ports:
       - "5005:5005"  # JSON-RPC endpoint (http://localhost:5005 from host, http://rippled:5005 from containers)
       - "6006:6006"  # WebSocket endpoint (ws://localhost:6006 from host, ws://rippled:6006 from containers)
@@ -149,6 +151,7 @@ services:
       - m2m_dev_network
     volumes:
       - rippled_data:/var/lib/rippled  # Persist ledger state across container restarts
+      - ./config/rippled.cfg:/config/rippled.cfg:ro  # Mount custom config with 0.0.0.0 binding
     healthcheck:
       # Call server_info RPC method to verify rippled is serving requests
       test: ["CMD-SHELL", "curl -f http://localhost:5005 -X POST -H 'Content-Type: application/json' --data '{\"method\":\"server_info\",\"params\":[]}' || exit 1"]
@@ -318,9 +321,6 @@ services:
       # Settlement configuration
       TIGERBEETLE_URL: tigerbeetle:3000
 
-      # Telemetry configuration
-      DASHBOARD_TELEMETRY_URL: http://dashboard:8080/telemetry
-
       # Development configuration
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
@@ -373,9 +373,6 @@ services:
       # Settlement configuration
       TIGERBEETLE_URL: tigerbeetle:3000
 
-      # Telemetry configuration
-      DASHBOARD_TELEMETRY_URL: http://dashboard:8080/telemetry
-
       # Development configuration
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
@@ -405,35 +402,15 @@ services:
       start_period: 20s  # Allow time for dependencies + initialization
     restart: unless-stopped
 
-  # ===== Dashboard =====
-
-  # Dashboard - Network visualization UI and telemetry server
-  dashboard:
-    build:
-      context: .
-      dockerfile: packages/dashboard/Dockerfile
-    container_name: ilp-dashboard
-    environment:
-      TELEMETRY_WS_PORT: 9000
-      LOG_LEVEL: info
-    ports:
-      - "8080:8080"  # Dashboard HTTP port
-      - "9000:9000"  # Telemetry WebSocket port
-    networks:
-      - m2m_dev_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    profiles:
-      - dashboard  # Optional service - start with: docker-compose -f docker-compose-dev.yml --profile dashboard up -d
+  # ===== Dashboard (REMOVED) =====
+  #
+  # Dashboard visualization has been removed from this project.
+  # See DASHBOARD-DEFERRED.md for rationale and future plans.
+  # Telemetry events are still emitted by connectors but not visualized.
 
 networks:
   # Development network for inter-service communication
-  # All development services (Anvil, rippled, TigerBeetle, connectors, dashboard) use this network
+  # All development services (Anvil, rippled, TigerBeetle, connectors) use this network
   m2m_dev_network:
     driver: bridge
 

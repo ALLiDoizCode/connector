@@ -15,7 +15,14 @@ m2m/                                  # Monorepo root
 │   │   │   │   ├── btp-client-manager.ts  # Peer connection manager
 │   │   │   │   └── btp-message-parser.ts  # BTP protocol encoding/decoding
 │   │   │   ├── telemetry/
-│   │   │   │   └── telemetry-emitter.ts   # Dashboard telemetry client
+│   │   │   │   └── telemetry-emitter.ts   # Telemetry event emission
+│   │   │   ├── settlement/
+│   │   │   │   ├── unified-settlement-executor.ts  # Dual-settlement router
+│   │   │   │   ├── xrp-channel-lifecycle-manager.ts  # XRP channel lifecycle
+│   │   │   │   └── settlement-monitor.ts  # Balance monitoring
+│   │   │   ├── wallet/
+│   │   │   │   ├── agent-wallet.ts        # Agent wallet implementation
+│   │   │   │   └── wallet-db-schema.ts    # Wallet database schema
 │   │   │   ├── config/
 │   │   │   │   └── config-loader.ts       # YAML config loading
 │   │   │   ├── http/
@@ -29,42 +36,11 @@ m2m/                                  # Monorepo root
 │   │   │   │   ├── routing-table.test.ts
 │   │   │   │   └── btp-message-parser.test.ts
 │   │   │   └── integration/
-│   │   │       └── multi-node-forwarding.test.ts
+│   │   │       ├── multi-node-forwarding.test.ts
+│   │   │       └── agent-channel-integration.test.ts
 │   │   ├── Dockerfile                     # Connector container build
 │   │   ├── package.json
 │   │   └── tsconfig.json
-│   │
-│   ├── dashboard/                    # Visualization dashboard
-│   │   ├── server/
-│   │   │   ├── telemetry-server.ts        # WebSocket telemetry aggregator
-│   │   │   ├── http-server.ts             # Express static file server
-│   │   │   └── index.ts                   # Dashboard backend entry point
-│   │   ├── src/                           # React UI source
-│   │   │   ├── components/
-│   │   │   │   ├── NetworkGraph.tsx       # Cytoscape.js network visualization
-│   │   │   │   ├── PacketAnimation.tsx    # Animated packet flow layer
-│   │   │   │   ├── LogViewer.tsx          # Filterable log display
-│   │   │   │   ├── PacketDetailPanel.tsx  # Packet inspection panel
-│   │   │   │   └── NodeDetailPanel.tsx    # Connector status panel
-│   │   │   ├── hooks/
-│   │   │   │   ├── useTelemetry.ts        # WebSocket telemetry hook
-│   │   │   │   └── useNetworkGraph.ts     # Cytoscape graph state
-│   │   │   ├── types/
-│   │   │   │   └── telemetry.ts           # UI-specific types
-│   │   │   ├── App.tsx                    # Main React app
-│   │   │   ├── main.tsx                   # Vite entry point
-│   │   │   └── index.css                  # Tailwind imports
-│   │   ├── public/
-│   │   │   └── index.html
-│   │   ├── test/
-│   │   │   └── components/
-│   │   │       ├── NetworkGraph.test.tsx
-│   │   │       └── LogViewer.test.tsx
-│   │   ├── Dockerfile                     # Dashboard container build
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── vite.config.ts
-│   │   └── tailwind.config.js
 │   │
 │   └── shared/                       # Shared TypeScript types and utilities
 │       ├── src/
@@ -131,8 +107,10 @@ m2m/                                  # Monorepo root
 **Key Directory Decisions:**
 
 1. **Monorepo with npm workspaces:** Simplifies dependency management and type sharing
-2. **Clear package boundaries:** `connector`, `dashboard`, `shared` are independently buildable
+2. **Clear package boundaries:** `connector`, `shared` are independently buildable
 3. **Co-located tests:** Test files alongside source for better discoverability
 4. **Docker configs at root:** Easier access for `docker-compose up`
 5. **Examples directory:** Pre-configured topologies for quick experimentation
 6. **Tools separate:** CLI utilities independent of main packages
+
+**Note:** Dashboard package removed - visualization deferred. See DASHBOARD-DEFERRED.md in root.

@@ -17,7 +17,7 @@
 - RoutingTable (route lookups)
 - BTPServer (accept incoming connections)
 - BTPClientManager (manage outbound connections)
-- TelemetryEmitter (send events to dashboard)
+- TelemetryEmitter (emit events for monitoring)
 - Logger (structured logging)
 
 **Technology Stack:** TypeScript, Node.js 20, Pino logger, ws library for WebSocket, Express for health endpoint
@@ -129,62 +129,23 @@
 
 ## TelemetryEmitter
 
-**Responsibility:** Sends telemetry events from connector to dashboard via WebSocket for real-time visualization and logging.
+**Responsibility:** Emits telemetry events from connector for monitoring and observability. Events can be consumed by logging systems, metrics collectors, or future visualization tools.
 
 **Key Interfaces:**
 
-- `connect(dashboardUrl: string): Promise<void>` - Connect to dashboard telemetry server
-- `emitNodeStatus(routes: RoutingTableEntry[], peers: Peer[]): void` - Send node status event
-- `emitPacketReceived(packet: ILPPacket): void` - Send packet received event
-- `emitPacketSent(packetId: string, nextHop: string): void` - Send packet sent event
-- `emitRouteLookup(destination: string, selectedPeer: string, reason: string): void` - Send routing decision
+- `emit(event: TelemetryEvent): void` - Emit telemetry event (logged to stdout)
+- `emitNodeStatus(routes: RoutingTableEntry[], peers: Peer[]): void` - Emit node status event
+- `emitPacketReceived(packet: ILPPacket): void` - Emit packet received event
+- `emitPacketSent(packetId: string, nextHop: string): void` - Emit packet sent event
+- `emitRouteLookup(destination: string, selectedPeer: string, reason: string): void` - Emit routing decision
 
 **Dependencies:**
 
-- Native WebSocket or ws library
 - Logger
 
-**Technology Stack:** WebSocket client with non-blocking send, JSON serialization for telemetry events
+**Technology Stack:** Event emission to structured logging system, JSON serialization for telemetry events
 
-## DashboardBackend
-
-**Responsibility:** Express.js HTTP server serving React static files and WebSocket telemetry aggregation server. Acts as central hub for connector telemetry.
-
-**Key Interfaces:**
-
-- `start(port: number): Promise<void>` - Start HTTP and WebSocket servers
-- `onTelemetryConnection(callback: (connectorId: string) => void)` - New connector connected
-- `onTelemetryEvent(callback: (event: TelemetryEvent) => void)` - Telemetry event received
-- `broadcastToClients(event: TelemetryEvent): void` - Send to all dashboard UI clients
-
-**Dependencies:**
-
-- Express.js (HTTP server)
-- ws library (WebSocket server)
-- Logger
-
-**Technology Stack:** Express 4.18.x for static file serving, ws 8.16.x for WebSocket server, Serves built React app from `packages/dashboard/dist`
-
-## DashboardUI (React Application)
-
-**Responsibility:** React-based web UI providing network visualization, packet animation, log viewer, and interactive inspection panels.
-
-**Key Interfaces:**
-
-- NetworkGraph component (Cytoscape.js visualization)
-- PacketAnimation component (animated packet flow)
-- LogViewer component (filterable structured logs)
-- PacketDetailPanel component (inspect packet contents)
-- NodeDetailPanel component (inspect connector state)
-
-**Dependencies:**
-
-- React 18.2.x
-- Cytoscape.js 3.28.x (network graph)
-- TailwindCSS 3.4.x (styling)
-- Native WebSocket API (telemetry connection)
-
-**Technology Stack:** Built with Vite 5.0.x, TypeScript + React, WebSocket client connects to DashboardBackend telemetry endpoint
+**Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root
 
 ## TestPacketSender (CLI Tool)
 
@@ -225,7 +186,7 @@
 - XRPLClient (ledger interactions)
 - PaymentChannelManager (channel operations)
 - ClaimSigner (off-chain signatures)
-- TelemetryEmitter (optional, dashboard integration)
+- TelemetryEmitter (optional, event emission)
 - Logger
 
 **Technology Stack:** TypeScript, xrpl.js library, Map-based state cache, 30-second auto-refresh interval
@@ -325,42 +286,17 @@ graph TB
         BTPC1 --> OER
     end
 
-    subgraph "Dashboard Container"
-        DB[DashboardBackend]
-        WSSERVER[WebSocket Server]
-        STATIC[Static File Server]
-
-        DB --> WSSERVER
-        DB --> STATIC
-    end
-
-    subgraph "Browser"
-        UI[DashboardUI - React]
-        NG[NetworkGraph]
-        PA[PacketAnimation]
-        LV[LogViewer]
-
-        UI --> NG
-        UI --> PA
-        UI --> LV
-    end
-
     subgraph "Shared Package"
         TYPES[TypeScript Types]
         SHARED_OER[OER Utilities]
     end
 
     BTPC1 -.->|BTP WebSocket| BTPS
-    TE -.->|Telemetry WebSocket| WSSERVER
-    WSSERVER -.->|Broadcast Events| UI
-    STATIC -->|Serve React Build| UI
+    TE -.->|Telemetry Events| LOG
 
     PH --> TYPES
     OER --> SHARED_OER
-    UI --> TYPES
 
     style CN fill:#059669,color:#fff
-    style DB fill:#2563eb,color:#fff
-    style UI fill:#6366f1,color:#fff
     style TYPES fill:#8b5cf6,color:#fff
 ```

@@ -54,6 +54,39 @@ function getValidLogLevel(envLevel?: string): LogLevel {
 }
 
 /**
+ * Serializer for sanitizing wallet objects in logs
+ * @param wallet - Wallet object (may contain sensitive data)
+ * @returns Sanitized wallet object safe for logging
+ * @remarks
+ * Removes: privateKey, mnemonic, seed, encryptionKey, secret
+ * CRITICAL: Prevents private key leakage in logs
+ */
+export function sanitizeWalletForLogs(wallet: Record<string, unknown>): Record<string, unknown> {
+  if (!wallet || typeof wallet !== 'object') {
+    return wallet;
+  }
+
+  // Create shallow copy to avoid mutating original
+  const sanitized = { ...wallet };
+
+  // Remove all sensitive fields
+  sanitized.privateKey = '[REDACTED]';
+  sanitized.mnemonic = '[REDACTED]';
+  sanitized.seed = '[REDACTED]';
+  sanitized.encryptionKey = '[REDACTED]';
+  sanitized.secret = '[REDACTED]';
+
+  // Also handle nested objects (e.g., wallet.signer.privateKey)
+  if (sanitized.signer && typeof sanitized.signer === 'object') {
+    sanitized.signer = { ...(sanitized.signer as Record<string, unknown>) };
+    (sanitized.signer as Record<string, unknown>).privateKey = '[REDACTED]';
+    (sanitized.signer as Record<string, unknown>).secret = '[REDACTED]';
+  }
+
+  return sanitized;
+}
+
+/**
  * Create configured Pino logger instance with node ID context
  * @param nodeId - Connector node ID to include in all log entries
  * @param logLevel - Optional log level override (defaults to LOG_LEVEL env var or 'info')
@@ -82,6 +115,7 @@ function getValidLogLevel(envLevel?: string): LogLevel {
  * - Uses child logger pattern to inject nodeId context
  * - If telemetryEmitter provided, log entries are also sent to dashboard as LOG telemetry events
  * - Telemetry emission is non-blocking and will not impact logging performance
+ * - Wallet data serializers automatically redact sensitive cryptographic material
  */
 export function createLogger(
   nodeId: string,
@@ -94,6 +128,17 @@ export function createLogger(
   // Create base Pino logger with JSON output to stdout
   let baseLogger: pino.Logger;
 
+  // Configure serializers to redact sensitive wallet data
+  const serializers = {
+    wallet: sanitizeWalletForLogs,
+    masterSeed: () => '[REDACTED]',
+    privateKey: () => '[REDACTED]',
+    mnemonic: () => '[REDACTED]',
+    seed: () => '[REDACTED]',
+    encryptionKey: () => '[REDACTED]',
+    secret: () => '[REDACTED]',
+  };
+
   if (telemetryEmitter) {
     // Create telemetry transport for LOG emission
     const transport = createTelemetryTransport((logEntry) => {
@@ -104,6 +149,7 @@ export function createLogger(
     baseLogger = pino(
       {
         level,
+        serializers,
       },
       pino.multistream([
         { stream: process.stdout }, // Primary output to stdout
@@ -114,6 +160,7 @@ export function createLogger(
     // Create standard logger without telemetry
     baseLogger = pino({
       level,
+      serializers,
     });
   }
 
