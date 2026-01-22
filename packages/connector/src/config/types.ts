@@ -256,6 +256,16 @@ export interface ConnectorConfig {
    * Epic 9 (XRP Payment Channels) uses config.blockchain.xrpl
    */
   blockchain?: BlockchainConfig;
+
+  /**
+   * Optional security configuration for key management
+   * When provided, enables enterprise-grade key management with HSM/KMS backends
+   * Defaults to environment variable backend if not specified
+   *
+   * Epic 12 Story 12.2 (HSM/KMS Key Management) uses config.security.keyManagement
+   * Supports backends: env (development), AWS KMS, GCP KMS, Azure Key Vault, HSM (PKCS#11)
+   */
+  security?: SecurityConfig;
 }
 
 /**
@@ -1025,4 +1035,52 @@ export interface XRPLBlockchainConfig {
    * Example: snoPBrXtMeMyMHUVTgbuqAfg1SUTb
    */
   privateKey?: string;
+}
+
+/**
+ * Security Configuration Interface
+ *
+ * Configuration for security features including key management with HSM/KMS support.
+ * Added in Epic 12 Story 12.2 to enable enterprise-grade key security.
+ *
+ * @property keyManagement - Key management configuration with multi-backend support
+ *
+ * @example
+ * ```typescript
+ * import { KeyManagerConfig } from '../security/key-manager';
+ *
+ * // Development configuration (environment variables)
+ * const securityDev: SecurityConfig = {
+ *   keyManagement: {
+ *     backend: 'env',
+ *     nodeId: 'connector-1'
+ *   }
+ * };
+ *
+ * // Production configuration (AWS KMS)
+ * const securityProd: SecurityConfig = {
+ *   keyManagement: {
+ *     backend: 'aws-kms',
+ *     nodeId: 'connector-1',
+ *     aws: {
+ *       region: 'us-east-1',
+ *       evmKeyId: 'arn:aws:kms:us-east-1:123456789012:key/evm-key-id',
+ *       xrpKeyId: 'arn:aws:kms:us-east-1:123456789012:key/xrp-key-id'
+ *     }
+ *   }
+ * };
+ * ```
+ */
+export interface SecurityConfig {
+  /**
+   * Key management configuration
+   * Supports multiple backends: env, AWS KMS, GCP KMS, Azure Key Vault, HSM
+   *
+   * See KeyManagerConfig from ../security/key-manager for full configuration options
+   */
+  keyManagement: {
+    backend: 'env' | 'aws-kms' | 'gcp-kms' | 'azure-kv' | 'hsm';
+    nodeId: string;
+    [key: string]: unknown; // Allow additional backend-specific fields
+  };
 }

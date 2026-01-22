@@ -1,4 +1,5 @@
 import { Logger } from 'pino';
+import { AuditLogger } from './audit-logger';
 
 /**
  * KeyManagerBackend interface for key storage and signing backends
@@ -107,9 +108,16 @@ export interface AuditLogEntry {
 export class KeyManager {
   private backend: KeyManagerBackend;
   private logger: Logger;
+  private auditLogger: AuditLogger;
 
   constructor(config: KeyManagerConfig, logger: Logger) {
     this.logger = logger.child({ component: 'KeyManager' });
+
+    // Initialize audit logger
+    this.auditLogger = new AuditLogger(logger, {
+      nodeId: config.nodeId,
+      backend: config.backend,
+    });
 
     // Select backend based on configuration
     switch (config.backend) {
@@ -170,13 +178,24 @@ export class KeyManager {
    * @returns Signature buffer compatible with EVM (ECDSA) or XRP (ed25519) verification
    */
   async sign(message: Buffer, keyId: string): Promise<Buffer> {
+    const messageHash = message.toString('hex');
+
+    // Log audit event: SIGN_REQUEST
+    this.auditLogger.logSignRequest(keyId, messageHash);
     this.logger.debug({ keyId, messageLength: message.length }, 'Signing message');
 
     try {
       const signature = await this.backend.sign(message, keyId);
+      const signatureHash = signature.toString('hex');
+
+      // Log audit event: SIGN_SUCCESS
+      this.auditLogger.logSignSuccess(keyId, signatureHash);
       this.logger.info({ keyId, signatureLength: signature.length }, 'Message signed successfully');
+
       return signature;
     } catch (error) {
+      // Log audit event: SIGN_FAILURE
+      this.auditLogger.logSignFailure(keyId, error as Error);
       this.logger.error({ keyId, error }, 'Message signing failed');
       throw error;
     }
@@ -206,11 +225,17 @@ export class KeyManager {
    * @returns New key ID to update configuration
    */
   async rotateKey(keyId: string): Promise<string> {
+    // Log audit event: KEY_ROTATION_START
+    this.auditLogger.logKeyRotation(keyId, '', 'START');
     this.logger.info({ keyId }, 'Starting key rotation');
 
     try {
       const newKeyId = await this.backend.rotateKey(keyId);
+
+      // Log audit event: KEY_ROTATION_COMPLETE
+      this.auditLogger.logKeyRotation(keyId, newKeyId, 'COMPLETE');
       this.logger.info({ oldKeyId: keyId, newKeyId }, 'Key rotation completed');
+
       return newKeyId;
     } catch (error) {
       this.logger.error({ keyId, error }, 'Key rotation failed');

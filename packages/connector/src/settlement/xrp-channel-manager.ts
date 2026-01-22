@@ -232,7 +232,7 @@ export class PaymentChannelManager implements IPaymentChannelManager {
     }
 
     // Generate ed25519 keypair for claim signing
-    const publicKey = this.claimSigner.getPublicKey();
+    const publicKey = await this.claimSigner.getPublicKey();
 
     // Construct PaymentChannelCreate transaction
     const tx = {

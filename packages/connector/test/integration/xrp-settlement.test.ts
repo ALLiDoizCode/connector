@@ -458,7 +458,7 @@ describeIfLocal('XRP Settlement End-to-End Integration', () => {
         channelId,
         amount: '1000000000',
         signature: 'INVALID_SIGNATURE_HEX',
-        publicKey: claimSigner.getPublicKey(),
+        publicKey: await claimSigner.getPublicKey(),
       };
 
       // ASSERT: Claim verification fails
@@ -700,7 +700,7 @@ describeIfLocal('XRP Settlement End-to-End Integration', () => {
       const channelId = 'A'.repeat(64);
       const amount = '1000000000';
       const signature = await claimSigner.signClaim(channelId, amount);
-      const publicKey = claimSigner.getPublicKey();
+      const publicKey = await claimSigner.getPublicKey();
 
       // Warm up
       await claimSigner.verifyClaim(channelId, amount, signature, publicKey);
