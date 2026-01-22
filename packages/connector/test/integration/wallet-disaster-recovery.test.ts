@@ -83,6 +83,26 @@ describe('Wallet Disaster Recovery Integration Test', () => {
   });
 
   beforeEach(() => {
+    // Clean up any existing database/seed files from previous tests
+    if (fs.existsSync(tempDbPath)) {
+      fs.unlinkSync(tempDbPath);
+    }
+    const seedPath = path.join(tempDir, 'encrypted-seed');
+    if (fs.existsSync(seedPath)) {
+      fs.unlinkSync(seedPath);
+    }
+    const masterSeedPath = path.join(tempDir, 'master-seed.enc');
+    if (fs.existsSync(masterSeedPath)) {
+      fs.unlinkSync(masterSeedPath);
+    }
+    // Clean backup files
+    if (fs.existsSync(tempBackupPath)) {
+      const backupFiles = fs.readdirSync(tempBackupPath);
+      for (const file of backupFiles) {
+        fs.unlinkSync(path.join(tempBackupPath, file));
+      }
+    }
+
     // Mock EVM provider
     mockEvmProvider = {
       getBalance: jest.fn().mockResolvedValue(BigInt('1000000000000000000')), // 1 ETH
