@@ -8,6 +8,7 @@
  */
 import { XRPLClient } from './xrpl-client';
 import { ClaimSigner } from './xrp-claim-signer';
+import { KeyManager } from '../security/key-manager';
 import type { Database } from 'better-sqlite3';
 import type { Logger } from 'pino';
 
@@ -193,14 +194,22 @@ export class PaymentChannelManager implements IPaymentChannelManager {
     this.db = db;
     this.logger = logger;
 
-    // Initialize ClaimSigner with optional seed from environment
-    const claimSignerSeed = process.env.XRPL_CLAIM_SIGNER_SEED;
-    this.claimSigner = new ClaimSigner(db, logger, claimSignerSeed);
-
-    this.logger.info(
-      { publicKey: this.claimSigner.getPublicKey() },
-      'ClaimSigner initialized for payment channel claims'
+    // Initialize KeyManager with environment backend for XRP keys
+    const keyManager = new KeyManager(
+      {
+        backend: 'env',
+        nodeId: 'xrp-channel-manager',
+      },
+      logger
     );
+
+    // Initialize ClaimSigner with KeyManager
+    this.claimSigner = new ClaimSigner(db, logger, keyManager, 'xrp');
+
+    // Log public key (async operation, but don't block constructor)
+    this.claimSigner.getPublicKey().then((publicKey) => {
+      this.logger.info({ publicKey }, 'ClaimSigner initialized for payment channel claims');
+    });
   }
 
   async createChannel(destination: string, amount: string, settleDelay: number): Promise<string> {
