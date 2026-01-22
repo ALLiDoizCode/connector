@@ -18,14 +18,19 @@ import { AgentWalletLifecycle } from '../../src/wallet/agent-wallet-lifecycle';
 import { AgentBalanceTracker } from '../../src/wallet/agent-balance-tracker';
 import { AgentWalletFunder } from '../../src/wallet/agent-wallet-funder';
 import { WalletBackupManager, BackupConfig } from '../../src/wallet/wallet-backup-manager';
-import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
-import { TreasuryWallet } from '../../src/wallet/treasury-wallet';
 import { FundingConfig } from '../../src/wallet/agent-wallet-funder';
 import { ethers } from 'ethers';
 import { Client as XRPLClient } from 'xrpl';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import {
+  IsolatedTestEnv,
+  createMockEvmProvider,
+  createMockXrplClient,
+  createMockTelemetryEmitter,
+  createMockTreasuryWallet,
+  TEST_PASSWORD,
+} from '../../src/test-utils';
 
 interface StoredWalletInfo {
   agentId: string;
@@ -41,10 +46,11 @@ interface StoredLifecycleRecord {
 }
 
 describe('Wallet Disaster Recovery Integration Test', () => {
-  let tempDir: string;
+  // Use IsolatedTestEnv for automatic cleanup between tests
+  let env: IsolatedTestEnv;
   let tempDbPath: string;
   let tempBackupPath: string;
-  let backupPassword: string;
+  const backupPassword = TEST_PASSWORD;
 
   // Components (will be recreated for each phase)
   let seedManager: WalletSeedManager;
@@ -53,10 +59,10 @@ describe('Wallet Disaster Recovery Integration Test', () => {
   let balanceTracker: AgentBalanceTracker;
   let backupManager: WalletBackupManager;
 
-  // Mock external dependencies
+  // Mock external dependencies (using mock factories)
   let mockEvmProvider: jest.Mocked<ethers.Provider>;
   let mockXrplClient: jest.Mocked<XRPLClient>;
-  let mockTelemetryEmitter: jest.Mocked<TelemetryEmitter>;
+  let mockTelemetryEmitter: ReturnType<typeof createMockTelemetryEmitter>;
 
   // Test data
   const testAgentIds = ['agent-001', 'agent-002', 'agent-003', 'agent-004', 'agent-005'];
@@ -64,68 +70,28 @@ describe('Wallet Disaster Recovery Integration Test', () => {
   let originalWallets: Map<string, StoredWalletInfo>;
   let originalLifecycleRecords: Map<string, StoredLifecycleRecord>;
 
-  beforeAll(async () => {
-    // Create temporary directory for test files
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wallet-disaster-recovery-test-'));
-    tempDbPath = path.join(tempDir, 'test-wallet.db');
-    tempBackupPath = path.join(tempDir, 'backups');
-    backupPassword = 'TestP@ssw0rd12345678'; // Meets strong password requirements
+  beforeEach(async () => {
+    // Create isolated test environment (auto-cleaned between tests)
+    env = new IsolatedTestEnv();
+    await env.setup();
 
-    // Create backup directory
-    fs.mkdirSync(tempBackupPath, { recursive: true });
-  });
+    // Get paths from isolated environment
+    tempDbPath = env.getDbPath('test-wallet');
+    tempBackupPath = env.createSubDir('backups');
 
-  afterAll(async () => {
-    // Cleanup temporary files
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  beforeEach(() => {
-    // Clean up any existing database/seed files from previous tests
-    if (fs.existsSync(tempDbPath)) {
-      fs.unlinkSync(tempDbPath);
-    }
-    const seedPath = path.join(tempDir, 'encrypted-seed');
-    if (fs.existsSync(seedPath)) {
-      fs.unlinkSync(seedPath);
-    }
-    const masterSeedPath = path.join(tempDir, 'master-seed.enc');
-    if (fs.existsSync(masterSeedPath)) {
-      fs.unlinkSync(masterSeedPath);
-    }
-    // Clean backup files
-    if (fs.existsSync(tempBackupPath)) {
-      const backupFiles = fs.readdirSync(tempBackupPath);
-      for (const file of backupFiles) {
-        fs.unlinkSync(path.join(tempBackupPath, file));
-      }
-    }
-
-    // Mock EVM provider
-    mockEvmProvider = {
-      getBalance: jest.fn().mockResolvedValue(BigInt('1000000000000000000')), // 1 ETH
-      getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n, name: 'base' }),
-    } as unknown as jest.Mocked<ethers.Provider>;
-
-    // Mock XRPL client
-    mockXrplClient = {
-      isConnected: jest.fn().mockReturnValue(true),
-      getXrpBalance: jest.fn().mockResolvedValue('1000000'), // 1 XRP
-      request: jest.fn().mockResolvedValue({
-        account_data: { Balance: '1000000' },
-      }),
-    } as unknown as jest.Mocked<XRPLClient>;
-
-    // Mock telemetry emitter
-    mockTelemetryEmitter = {
-      emit: jest.fn(),
-    } as unknown as jest.Mocked<TelemetryEmitter>;
+    // Create mocks using factories (properly typed, all methods present)
+    mockEvmProvider = createMockEvmProvider();
+    mockXrplClient = createMockXrplClient();
+    mockTelemetryEmitter = createMockTelemetryEmitter();
 
     // Reset test data storage
     originalWallets = new Map();
     originalLifecycleRecords = new Map();
+  });
+
+  afterEach(async () => {
+    // IsolatedTestEnv handles all cleanup automatically
+    await env.teardown();
   });
 
   describe('Full Disaster Recovery Workflow', () => {
@@ -138,7 +104,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       // Initialize seed manager and generate master seed
       seedManager = new WalletSeedManager(undefined, {
         storageBackend: 'filesystem',
-        storagePath: tempDir,
+        storagePath: env.getTempDir(),
       });
       await seedManager.initialize();
 
@@ -188,10 +154,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         strategy: 'fixed',
       };
 
-      const mockTreasuryWallet = {
-        fundAgentEVM: jest.fn().mockResolvedValue(undefined),
-        fundAgentXRP: jest.fn().mockResolvedValue(undefined),
-      } as unknown as TreasuryWallet;
+      const mockTreasuryWallet = createMockTreasuryWallet();
 
       const walletFunder = new AgentWalletFunder(
         fundingConfig,
@@ -293,7 +256,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       }
 
       // Delete seed manager encrypted seed file
-      const seedPath = path.join(tempDir, 'encrypted-seed');
+      const seedPath = env.getPath('encrypted-seed');
       if (fs.existsSync(seedPath)) {
         fs.unlinkSync(seedPath);
         console.log(`Deleted encrypted seed: ${seedPath}`);
@@ -313,7 +276,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       // Create NEW component instances (fresh state)
       const newSeedManager = new WalletSeedManager(undefined, {
         storageBackend: 'filesystem',
-        storagePath: tempDir,
+        storagePath: env.getTempDir(),
       });
       await newSeedManager.initialize();
 
@@ -434,7 +397,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       // Setup initial state
       const seedManager = new WalletSeedManager(undefined, {
         storageBackend: 'filesystem',
-        storagePath: tempDir,
+        storagePath: env.getTempDir(),
       });
       await seedManager.initialize();
 
@@ -472,10 +435,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         strategy: 'fixed',
       };
 
-      const mockTreasuryWallet = {
-        fundAgentEVM: jest.fn().mockResolvedValue(undefined),
-        fundAgentXRP: jest.fn().mockResolvedValue(undefined),
-      } as unknown as TreasuryWallet;
+      const mockTreasuryWallet = createMockTreasuryWallet();
 
       const walletFunder = new AgentWalletFunder(
         fundingConfig,
@@ -536,7 +496,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       lifecycleManager.close();
       walletDerivation.close();
       fs.unlinkSync(tempDbPath);
-      const seedPath = path.join(tempDir, 'encrypted-seed');
+      const seedPath = env.getPath('encrypted-seed');
       if (fs.existsSync(seedPath)) {
         fs.unlinkSync(seedPath);
       }
@@ -546,7 +506,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       // Restore from full backup
       const newSeedManager = new WalletSeedManager(undefined, {
         storageBackend: 'filesystem',
-        storagePath: tempDir,
+        storagePath: env.getTempDir(),
       });
       await newSeedManager.initialize();
 
@@ -619,7 +579,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       // Create a valid backup first
       const seedManager = new WalletSeedManager(undefined, {
         storageBackend: 'filesystem',
-        storagePath: tempDir,
+        storagePath: env.getTempDir(),
       });
       await seedManager.initialize();
 
@@ -653,10 +613,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         strategy: 'fixed',
       };
 
-      const mockTreasuryWallet = {
-        fundAgentEVM: jest.fn().mockResolvedValue(undefined),
-        fundAgentXRP: jest.fn().mockResolvedValue(undefined),
-      } as unknown as TreasuryWallet;
+      const mockTreasuryWallet = createMockTreasuryWallet();
 
       const walletFunder = new AgentWalletFunder(
         fundingConfig,

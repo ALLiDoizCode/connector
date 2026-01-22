@@ -6,75 +6,23 @@
  */
 
 import { AgentWalletLifecycle } from '../../src/wallet/agent-wallet-lifecycle';
-import { AgentBalanceTracker, AgentBalance } from '../../src/wallet/agent-balance-tracker';
-import { AgentWalletDerivation, AgentWallet } from '../../src/wallet/agent-wallet-derivation';
+import { AgentBalanceTracker } from '../../src/wallet/agent-balance-tracker';
+import { AgentWalletDerivation } from '../../src/wallet/agent-wallet-derivation';
 import { AgentWalletFunder } from '../../src/wallet/agent-wallet-funder';
 import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
 import { pino } from 'pino';
 
+// Use centralized mock factories from test-utils
+import {
+  createMockWalletDerivation,
+  createMockWalletFunder,
+  createMockBalanceTracker,
+  createMockTelemetryEmitter,
+  TEST_EVM_ADDRESS,
+  TEST_XRP_ADDRESS,
+} from '../../src/test-utils';
+
 const logger = pino({ level: 'silent' }); // Suppress logs in tests
-
-// Create proper mocks for documentation tests with required methods
-const createMockWalletDerivation = (): jest.Mocked<AgentWalletDerivation> =>
-  ({
-    deriveAgentWallet: jest.fn().mockImplementation((agentId: string) =>
-      Promise.resolve({
-        agentId,
-        derivationIndex: 0,
-        evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-        xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw',
-        createdAt: Date.now(),
-      } as AgentWallet)
-    ),
-    getAgentWallet: jest.fn().mockImplementation((agentId: string) =>
-      Promise.resolve({
-        agentId,
-        derivationIndex: 0,
-        evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-        xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw',
-        createdAt: Date.now(),
-      } as AgentWallet)
-    ),
-  }) as unknown as jest.Mocked<AgentWalletDerivation>;
-
-const createMockWalletFunder = (): jest.Mocked<AgentWalletFunder> =>
-  ({
-    fundAgentWallet: jest.fn().mockResolvedValue({
-      agentId: 'test-agent',
-      transactions: [],
-      timestamp: Date.now(),
-    }),
-  }) as unknown as jest.Mocked<AgentWalletFunder>;
-
-const createMockBalanceTracker = (): jest.Mocked<AgentBalanceTracker> =>
-  ({
-    getBalance: jest.fn().mockResolvedValue(BigInt('1000000000000000000')), // 1 ETH
-    getAllBalances: jest.fn().mockImplementation((agentId: string) =>
-      Promise.resolve([
-        {
-          agentId,
-          chain: 'evm',
-          token: 'ETH',
-          balance: BigInt('1000000000000000000'),
-          decimals: 18,
-          lastUpdated: Date.now(),
-        } as AgentBalance,
-        {
-          agentId,
-          chain: 'evm',
-          token: 'USDC',
-          balance: BigInt('1000000000'),
-          decimals: 6,
-          lastUpdated: Date.now(),
-        } as AgentBalance,
-      ])
-    ),
-  }) as unknown as jest.Mocked<AgentBalanceTracker>;
-
-const createMockTelemetryEmitter = (): jest.Mocked<TelemetryEmitter> =>
-  ({
-    emit: jest.fn(),
-  }) as unknown as jest.Mocked<TelemetryEmitter>;
 
 // Global mocks for use in tests
 let mockWalletDerivation: jest.Mocked<AgentWalletDerivation>;
@@ -379,12 +327,13 @@ describe('Documentation Examples - API Reference', () => {
 
       if (balances.length > 0) {
         const balance = balances[0];
+        // Verify AgentBalance interface properties (per agent-balance-tracker.ts)
         expect(balance).toHaveProperty('agentId');
         expect(balance).toHaveProperty('chain');
         expect(balance).toHaveProperty('token');
         expect(balance).toHaveProperty('balance');
-        expect(balance).toHaveProperty('decimals');
         expect(balance).toHaveProperty('lastUpdated');
+        // Note: decimals is NOT part of AgentBalance interface
       }
     });
   });
@@ -421,8 +370,8 @@ describe('Documentation Test Data Consistency', () => {
     // Verify test data matches Story 11.10 Dev Notes > Testing subsection
     const testData = {
       sampleAgentIds: ['agent-001', 'agent-002', 'test-agent-123'],
-      mockEvmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0', // 40 hex chars
-      mockXrpAddress: 'rN7n7otQDd6FczFgLdqtyMVrXqHr7XEEwAB', // Valid base58 (no 0, I, O, l)
+      mockEvmAddress: TEST_EVM_ADDRESS, // From test-utils constants
+      mockXrpAddress: TEST_XRP_ADDRESS, // From test-utils constants
       mockBalances: {
         usdc: BigInt(1000000000), // 1000 USDC with 6 decimals
         eth: BigInt('1000000000000000000'), // 1 ETH with 18 decimals

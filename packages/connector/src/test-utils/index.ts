@@ -1,0 +1,55 @@
+/**
+ * Test Utilities
+ *
+ * This module provides utilities for writing isolated, reliable tests:
+ *
+ * - IsolatedTestEnv: Automatic temp directory management and cleanup
+ * - Mock Factories: Properly typed mock objects for common dependencies
+ *
+ * Usage:
+ * ```typescript
+ * import {
+ *   IsolatedTestEnv,
+ *   createMockWalletDerivation,
+ *   createMockBalanceTracker,
+ *   createWalletMocks,
+ * } from '../test-utils';
+ * ```
+ */
+
+// Isolated test environment
+export {
+  IsolatedTestEnv,
+  createIsolatedTestHelper,
+  type CleanupFunction,
+  type ComponentWithClose,
+} from './isolated-test-env';
+
+// Mock factories
+export {
+  // Test data constants
+  TEST_EVM_ADDRESS,
+  TEST_XRP_ADDRESS,
+  TEST_AGENT_ID,
+  TEST_PASSWORD,
+  // Individual mock factories
+  createMockWalletDerivation,
+  createMockBalanceTracker,
+  createMockWalletLifecycle,
+  createMockWalletFunder,
+  createMockTreasuryWallet,
+  createMockTelemetryEmitter,
+  createMockFraudDetector,
+  createMockEvmProvider,
+  createMockXrplClient,
+  createMockLogger,
+  // Composite helper
+  createWalletMocks,
+  // Option types
+  type MockWalletDerivationOptions,
+  type MockBalanceTrackerOptions,
+  type MockWalletLifecycleOptions,
+  type MockFraudDetectorOptions,
+  type MockEvmProviderOptions,
+  type MockXrplClientOptions,
+} from './mock-factories';
