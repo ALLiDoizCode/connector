@@ -111,7 +111,8 @@ describe('TokenBucket', () => {
       for (let i = 0; i < 100; i++) {
         bucket.tryConsume();
       }
-      expect(bucket.getAvailableTokens()).toBe(0);
+      // Allow tiny refill during loop execution
+      expect(bucket.getAvailableTokens()).toBeLessThan(1);
 
       // Wait 500ms (should refill ~50 tokens)
       await new Promise((resolve) => setTimeout(resolve, 500));
