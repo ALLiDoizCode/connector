@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/ALLiDoizCode/m2m/compare/v1.0.0...v1.1.0) (2026-01-24)
+
+### Features
+
+- **agent:** implement Agent Society Protocol stories 13.3-13.8 ([cb4e0a4](https://github.com/ALLiDoizCode/m2m/commit/cb4e0a4acfcd8aaf2acf59e8caa443b71305fdec))
+- **agent:** implement TOON codec and event database (Epic 13) ([2d70a20](https://github.com/ALLiDoizCode/m2m/commit/2d70a20dd2a82c1ca48367f58dc9d4684a4e3b5e))
+
+### Bug Fixes
+
+- Increase HEAP_MB threshold to 1000 for CI variability ([5d6b189](https://github.com/ALLiDoizCode/m2m/commit/5d6b18998c0568aa79c502fe81c9636649c98146))
+- Increase slope threshold to 10 for CI memory test variability ([e5e093b](https://github.com/ALLiDoizCode/m2m/commit/e5e093b365148341aed7eb6837380c01348221d1))
+
 ## 1.0.0 (2026-01-23)
 
 ### Features
