@@ -1,6 +1,11 @@
 import * as React from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { TelemetryEvent, EVENT_TYPE_COLORS, formatRelativeTime } from '../lib/event-types';
+import {
+  TelemetryEvent,
+  EVENT_TYPE_COLORS,
+  PACKET_TYPE_COLORS,
+  formatRelativeTime,
+} from '../lib/event-types';
 import { Badge } from '@/components/ui/badge';
 
 interface EventTableProps {
@@ -15,32 +20,57 @@ interface EventTableProps {
 const ROW_HEIGHT = 48;
 
 /**
- * Extract direction from event
+ * Check if event is a packet event with ILP semantics
  */
-function getDirection(event: TelemetryEvent): string {
-  if ('direction' in event && event.direction) {
-    return event.direction as string;
-  }
-  if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
-    return 'sent';
-  }
-  return '-';
+function isPacketEvent(event: TelemetryEvent): boolean {
+  return event.type === 'AGENT_CHANNEL_PAYMENT_SENT' && 'packetType' in event;
 }
 
 /**
- * Get direction display with icon
+ * Get display type - packet type for packet events, event type otherwise
  */
-function getDirectionDisplay(direction: string): string {
-  switch (direction) {
-    case 'sent':
-      return '→ Sent';
-    case 'received':
-      return '← Received';
-    case 'internal':
-      return '⟳ Internal';
-    default:
-      return '-';
+function getDisplayType(event: TelemetryEvent): { label: string; colorClass: string } {
+  if (isPacketEvent(event)) {
+    const packetType = (event as { packetType?: string }).packetType;
+    if (packetType) {
+      const label = packetType.charAt(0).toUpperCase() + packetType.slice(1);
+      const colorClass = PACKET_TYPE_COLORS[packetType] || 'bg-gray-500';
+      return { label, colorClass };
+    }
   }
+  // Fallback to event type
+  return {
+    label: event.type.replace(/_/g, ' '),
+    colorClass: EVENT_TYPE_COLORS[event.type] || 'bg-gray-500',
+  };
+}
+
+/**
+ * Get the "from" address (packet sender)
+ */
+function getFrom(event: TelemetryEvent): string | null {
+  if ('from' in event && typeof event.from === 'string') {
+    return event.from;
+  }
+  // Fallback for older events
+  if ('agentId' in event && typeof event.agentId === 'string') {
+    return event.agentId;
+  }
+  return null;
+}
+
+/**
+ * Get the "to" address (next hop)
+ */
+function getTo(event: TelemetryEvent): string | null {
+  if ('to' in event && typeof event.to === 'string') {
+    return event.to;
+  }
+  // Fallback for older events
+  if ('peerId' in event && typeof event.peerId === 'string') {
+    return event.peerId;
+  }
+  return null;
 }
 
 /**
@@ -127,13 +157,20 @@ type EventStatus = 'success' | 'failure' | 'pending' | 'neutral';
 function getEventStatus(event: TelemetryEvent): EventStatus {
   const type = event.type;
 
+  // For packet events, status is based on packet type
+  if (type === 'AGENT_CHANNEL_PAYMENT_SENT' && 'packetType' in event) {
+    const packetType = (event as { packetType?: string }).packetType;
+    if (packetType === 'fulfill') return 'success';
+    if (packetType === 'reject') return 'failure';
+    if (packetType === 'prepare') return 'pending';
+  }
+
   const successTypes = [
     'PACKET_FORWARDED',
     'SETTLEMENT_COMPLETED',
     'FUNDING_TRANSACTION_CONFIRMED',
     'PAYMENT_CHANNEL_SETTLED',
     'XRP_CHANNEL_CLAIMED',
-    'AGENT_CHANNEL_PAYMENT_SENT',
     'AGENT_WALLET_FUNDED',
   ];
 
@@ -186,7 +223,9 @@ const EventRow = React.memo(function EventRow({
   onClick?: () => void;
   style: React.CSSProperties;
 }) {
-  const direction = getDirection(event);
+  const displayType = getDisplayType(event);
+  const from = getFrom(event);
+  const to = getTo(event);
   const amount = getAmount(event);
   const timestamp = normalizeTimestamp(event.timestamp);
   const destination = getDestination(event);
@@ -202,17 +241,20 @@ const EventRow = React.memo(function EventRow({
       <div className="w-[100px] px-4 font-mono text-sm text-muted-foreground truncate">
         {formatRelativeTime(timestamp)}
       </div>
-      <div className="w-[180px] px-4">
+      <div className="w-[120px] px-4">
         <Badge
           variant="secondary"
-          className={`${EVENT_TYPE_COLORS[event.type] || 'bg-gray-500'} text-white text-xs`}
+          className={`${displayType.colorClass} text-white text-xs max-w-full truncate`}
+          title={displayType.label}
         >
-          {event.type.replace(/_/g, ' ')}
+          {displayType.label}
         </Badge>
       </div>
-      <div className="w-[90px] px-4 text-sm">{getDirectionDisplay(direction)}</div>
-      <div className="w-[120px] px-4 font-mono text-sm truncate" title={event.peerId || undefined}>
-        {event.peerId || '-'}
+      <div className="w-[120px] px-4 font-mono text-sm truncate" title={from || undefined}>
+        {from || '-'}
+      </div>
+      <div className="w-[120px] px-4 font-mono text-sm truncate" title={to || undefined}>
+        {to || '-'}
       </div>
       <div className="w-[180px] px-4 font-mono text-sm truncate" title={destination || undefined}>
         {destination ? formatDestination(destination) : '-'}
@@ -251,9 +293,9 @@ export function EventTable({
       {/* Header */}
       <div className="flex items-center border-b border-border bg-muted/50 h-10 shrink-0">
         <div className="w-[100px] px-4 text-sm font-medium">Time</div>
-        <div className="w-[180px] px-4 text-sm font-medium">Type</div>
-        <div className="w-[90px] px-4 text-sm font-medium">Direction</div>
-        <div className="w-[120px] px-4 text-sm font-medium">Peer</div>
+        <div className="w-[120px] px-4 text-sm font-medium">Type</div>
+        <div className="w-[120px] px-4 text-sm font-medium">From</div>
+        <div className="w-[120px] px-4 text-sm font-medium">To</div>
         <div className="w-[180px] px-4 text-sm font-medium">Destination</div>
         <div className="w-[100px] px-4 text-sm font-medium">Amount</div>
         <div className="w-[80px] px-4 text-sm font-medium">Status</div>

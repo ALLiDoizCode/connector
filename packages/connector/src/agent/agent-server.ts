@@ -574,26 +574,29 @@ export class AgentServer {
       if (packet.type === PacketType.PREPARE) {
         const response = await this.agentNode.processIncomingPacket(packet, peerId);
 
+        // Decode the Nostr event from the packet data
+        let decodedEvent: NostrEvent | undefined;
+        try {
+          decodedEvent = this.toonCodec.decode(packet.data);
+        } catch (decodeError) {
+          this.logger.debug(
+            { peerId, err: decodeError },
+            'Could not decode Nostr event from packet'
+          );
+        }
+
         if (response.type === PacketType.FULFILL) {
           this.eventsReceived++;
 
-          // Decode the Nostr event from the packet data
-          let decodedEvent: NostrEvent | undefined;
-          try {
-            decodedEvent = this.toonCodec.decode(packet.data);
-          } catch (decodeError) {
-            this.logger.debug(
-              { peerId, err: decodeError },
-              'Could not decode Nostr event from packet'
-            );
-          }
-
-          // Emit telemetry with full packet and event data
+          // Emit FULFILL telemetry event
           this.telemetryEmitter.emit({
             type: 'AGENT_CHANNEL_PAYMENT_SENT',
             timestamp: Date.now(),
             nodeId: this.config.agentId,
             agentId: this.config.agentId,
+            packetType: 'fulfill',
+            from: this.config.agentId,
+            to: peerId,
             peerId: peerId,
             channelId: `${this.config.agentId}-${peerId}`,
             amount: packet.amount.toString(),
@@ -601,6 +604,37 @@ export class AgentServer {
             executionCondition: packet.executionCondition.toString('hex'),
             expiresAt: packet.expiresAt.toISOString(),
             fulfillment: response.fulfillment.toString('hex'),
+            event: decodedEvent
+              ? {
+                  id: decodedEvent.id,
+                  pubkey: decodedEvent.pubkey,
+                  kind: decodedEvent.kind,
+                  content: decodedEvent.content,
+                  created_at: decodedEvent.created_at,
+                  tags: decodedEvent.tags,
+                  sig: decodedEvent.sig,
+                }
+              : undefined,
+          });
+        } else if (response.type === PacketType.REJECT) {
+          // Emit REJECT telemetry event
+          const rejectResponse = response as ILPRejectPacket;
+          this.telemetryEmitter.emit({
+            type: 'AGENT_CHANNEL_PAYMENT_SENT',
+            timestamp: Date.now(),
+            nodeId: this.config.agentId,
+            agentId: this.config.agentId,
+            packetType: 'reject',
+            from: this.config.agentId,
+            to: peerId,
+            peerId: peerId,
+            channelId: `${this.config.agentId}-${peerId}`,
+            amount: packet.amount.toString(),
+            destination: packet.destination,
+            executionCondition: packet.executionCondition.toString('hex'),
+            expiresAt: packet.expiresAt.toISOString(),
+            errorCode: rejectResponse.code,
+            errorMessage: rejectResponse.message,
             event: decodedEvent
               ? {
                   id: decodedEvent.id,
@@ -715,6 +749,33 @@ export class AgentServer {
       const btpData = this.serializeBtpPacket(packet);
       peer.ws!.send(btpData);
       this.eventsSent++;
+
+      // Emit PREPARE telemetry event
+      this.telemetryEmitter.emit({
+        type: 'AGENT_CHANNEL_PAYMENT_SENT',
+        timestamp: Date.now(),
+        nodeId: this.config.agentId,
+        agentId: this.config.agentId,
+        packetType: 'prepare',
+        from: this.config.agentId,
+        to: request.targetPeerId,
+        peerId: request.targetPeerId,
+        channelId: `${this.config.agentId}-${request.targetPeerId}`,
+        amount: packet.amount.toString(),
+        destination: packet.destination,
+        executionCondition: packet.executionCondition.toString('hex'),
+        expiresAt: packet.expiresAt.toISOString(),
+        event: {
+          id: event.id,
+          pubkey: event.pubkey,
+          kind: event.kind,
+          content: event.content,
+          created_at: event.created_at,
+          tags: event.tags,
+          sig: event.sig,
+        },
+      });
+
       return { success: true };
     } catch (error) {
       return { success: false, error: (error as Error).message };

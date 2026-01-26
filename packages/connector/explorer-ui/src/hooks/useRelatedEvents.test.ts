@@ -30,6 +30,9 @@ describe('useRelatedEvents', () => {
       packet_id: 'packet-123',
       amount: '1000',
       destination: 'g.example.receiver',
+      packet_type: null,
+      from_address: null,
+      to_address: null,
       payload: {
         type: 'PACKET_RECEIVED',
         nodeId: 'test-node',
@@ -361,6 +364,9 @@ describe('hasPacketId', () => {
       packet_id: 'packet-123',
       amount: null,
       destination: null,
+      packet_type: null,
+      from_address: null,
+      to_address: null,
       payload: {
         type: 'PACKET_RECEIVED',
         nodeId: 'test-node',
@@ -382,6 +388,9 @@ describe('hasPacketId', () => {
       packet_id: null,
       amount: null,
       destination: null,
+      packet_type: null,
+      from_address: null,
+      to_address: null,
       payload: {
         type: 'NODE_STATUS',
         nodeId: 'test-node',

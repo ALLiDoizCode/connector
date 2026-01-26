@@ -66,8 +66,25 @@ export interface StoredEvent {
   packet_id: string | null;
   amount: string | null;
   destination: string | null;
+  packet_type: string | null;
+  from_address: string | null;
+  to_address: string | null;
   payload: TelemetryEvent;
 }
+
+/**
+ * ILP Packet types for display
+ */
+export type IlpPacketType = 'prepare' | 'fulfill' | 'reject';
+
+/**
+ * Packet type color mapping
+ */
+export const PACKET_TYPE_COLORS: Record<string, string> = {
+  prepare: 'bg-blue-500',
+  fulfill: 'bg-green-500',
+  reject: 'bg-red-500',
+};
 
 /**
  * Response from GET /api/events

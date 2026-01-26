@@ -135,6 +135,8 @@ function extractPacketData(event: TelemetryEvent): {
   packetType: string;
   packetTypeCode: number;
   amount?: string;
+  from?: string;
+  to?: string;
   destination?: string;
   executionCondition?: string;
   expiresAt?: string | number;
@@ -150,6 +152,37 @@ function extractPacketData(event: TelemetryEvent): {
 
   // Check for packet event types
   const eventType = data.type as string;
+
+  // Handle AGENT_CHANNEL_PAYMENT_SENT events (contains ILP packet data)
+  if (eventType === 'AGENT_CHANNEL_PAYMENT_SENT') {
+    // Extract packet type from the event, default to PREPARE
+    const rawPacketType = (data.packetType as string) || 'prepare';
+    const normalizedType = rawPacketType.toUpperCase();
+    const packetTypeCode =
+      normalizedType === 'PREPARE'
+        ? 12
+        : normalizedType === 'FULFILL'
+          ? 13
+          : normalizedType === 'REJECT'
+            ? 14
+            : 12;
+
+    return {
+      packetType: normalizedType,
+      packetTypeCode,
+      amount: data.amount as string | undefined,
+      from: data.from as string | undefined,
+      to: data.to as string | undefined,
+      destination: data.destination as string | undefined,
+      executionCondition: data.executionCondition as string | undefined,
+      expiresAt: data.expiresAt as string | number | undefined,
+      fulfillment: data.fulfillment as string | undefined,
+      errorCode: data.errorCode as string | undefined,
+      errorMessage: data.errorMessage as string | undefined,
+      packetId: data.channelId as string | undefined,
+    };
+  }
+
   if (!['PACKET_RECEIVED', 'PACKET_FORWARDED', 'PACKET_SENT'].includes(eventType)) {
     return null;
   }
@@ -171,6 +204,8 @@ function extractPacketData(event: TelemetryEvent): {
     packetType: packetTypeStr,
     packetTypeCode,
     amount: payload.amount as string | undefined,
+    from: payload.from as string | undefined,
+    to: payload.to as string | undefined,
     destination: payload.destination as string | undefined,
     executionCondition: (payload.executionCondition || payload.packetId) as string | undefined,
     expiresAt: payload.expiresAt as string | number | undefined,
@@ -222,19 +257,30 @@ export function PacketInspector({ event }: PacketInspectorProps) {
         <span className="text-xs text-muted-foreground">Type {packetTypeCode}</span>
       </div>
 
-      {/* Common Fields */}
+      {/* Routing Info */}
       <div className="grid grid-cols-1 gap-4">
-        {packetData.source && <Field label="Source" value={packetData.source} />}
+        <h4 className="text-xs font-medium text-muted-foreground uppercase">Routing</h4>
+
+        {packetData.from && <Field label="From (Sender)" value={packetData.from} mono />}
+
+        {packetData.to && <Field label="To (Next Hop)" value={packetData.to} mono />}
 
         {packetData.destination && (
-          <Field label="Destination" value={packetData.destination} mono />
+          <Field label="Destination (Final)" value={packetData.destination} mono />
         )}
+      </div>
+
+      {/* Common Fields */}
+      <div className="grid grid-cols-1 gap-4 border-t border-border pt-4">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase">Payment Details</h4>
 
         {packetData.amount && <Field label="Amount" value={formatAmount(packetData.amount)} />}
 
         {packetData.packetId && (
-          <Field label="Packet ID" value={formatHex(packetData.packetId, 64)} mono />
+          <Field label="Channel ID" value={formatHex(packetData.packetId, 64)} mono />
         )}
+
+        {packetData.source && <Field label="Source (Legacy)" value={packetData.source} />}
       </div>
 
       {/* Prepare-specific Fields */}
@@ -325,5 +371,10 @@ export function PacketInspector({ event }: PacketInspectorProps) {
  */
 export function isPacketEvent(event: TelemetryEvent): boolean {
   const type = (event as Record<string, unknown>).type as string;
-  return ['PACKET_RECEIVED', 'PACKET_FORWARDED', 'PACKET_SENT'].includes(type);
+  return [
+    'PACKET_RECEIVED',
+    'PACKET_FORWARDED',
+    'PACKET_SENT',
+    'AGENT_CHANNEL_PAYMENT_SENT',
+  ].includes(type);
 }

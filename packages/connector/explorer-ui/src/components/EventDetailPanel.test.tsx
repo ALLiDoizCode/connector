@@ -46,6 +46,9 @@ describe('EventDetailPanel', () => {
     packet_id: 'abc123',
     amount: '1000000',
     destination: 'g.test.receiver',
+    packet_type: null,
+    from_address: null,
+    to_address: null,
     payload: mockTelemetryEvent,
   };
 

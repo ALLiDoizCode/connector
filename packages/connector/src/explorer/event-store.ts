@@ -70,6 +70,12 @@ export interface StoredEvent {
   amount: string | null;
   /** Destination address if applicable */
   destination: string | null;
+  /** ILP packet type: 'prepare', 'fulfill', 'reject', or null */
+  packet_type: string | null;
+  /** From address (packet sender) */
+  from_address: string | null;
+  /** To address (next hop) */
+  to_address: string | null;
   /** Full event payload (parsed JSON) */
   payload: TelemetryEvent;
 }
@@ -86,6 +92,9 @@ interface ExtractedFields {
   packet_id: string | null;
   amount: string | null;
   destination: string | null;
+  packet_type: string | null;
+  from_address: string | null;
+  to_address: string | null;
 }
 
 // Default configuration values
@@ -130,6 +139,9 @@ function extractIndexedFields(event: TelemetryEvent): ExtractedFields {
     packet_id: null,
     amount: null,
     destination: null,
+    packet_type: null,
+    from_address: null,
+    to_address: null,
   };
 
   // Extract fields based on event type
@@ -194,8 +206,13 @@ function extractIndexedFields(event: TelemetryEvent): ExtractedFields {
 
     case 'AGENT_CHANNEL_PAYMENT_SENT':
       base.direction = 'sent';
+      base.peer_id = event.to ?? event.peerId ?? null;
       base.packet_id = event.channelId;
       base.amount = event.amount;
+      base.destination = event.destination;
+      base.packet_type = event.packetType ?? null;
+      base.from_address = event.from ?? null;
+      base.to_address = event.to ?? null;
       break;
 
     case 'AGENT_CHANNEL_CLOSED':
@@ -291,6 +308,9 @@ export class EventStore {
         packet_id TEXT,
         amount TEXT,
         destination TEXT,
+        packet_type TEXT,
+        from_address TEXT,
+        to_address TEXT,
         payload TEXT NOT NULL
       )
     `);
@@ -328,8 +348,8 @@ export class EventStore {
 
     const result = await client.execute({
       sql: `INSERT INTO events
-        (event_type, timestamp, node_id, direction, peer_id, packet_id, amount, destination, payload)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (event_type, timestamp, node_id, direction, peer_id, packet_id, amount, destination, packet_type, from_address, to_address, payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         fields.event_type,
         fields.timestamp,
@@ -339,6 +359,9 @@ export class EventStore {
         fields.packet_id,
         fields.amount,
         fields.destination,
+        fields.packet_type,
+        fields.from_address,
+        fields.to_address,
         JSON.stringify(event),
       ],
     });
@@ -367,8 +390,8 @@ export class EventStore {
       const fields = extractIndexedFields(event);
       return {
         sql: `INSERT INTO events
-          (event_type, timestamp, node_id, direction, peer_id, packet_id, amount, destination, payload)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (event_type, timestamp, node_id, direction, peer_id, packet_id, amount, destination, packet_type, from_address, to_address, payload)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           fields.event_type,
           fields.timestamp,
@@ -378,6 +401,9 @@ export class EventStore {
           fields.packet_id,
           fields.amount,
           fields.destination,
+          fields.packet_type,
+          fields.from_address,
+          fields.to_address,
           JSON.stringify(event),
         ],
       };
@@ -451,6 +477,9 @@ export class EventStore {
       packet_id: row.packet_id as string | null,
       amount: row.amount as string | null,
       destination: row.destination as string | null,
+      packet_type: (row.packet_type as string | null) ?? null,
+      from_address: (row.from_address as string | null) ?? null,
+      to_address: (row.to_address as string | null) ?? null,
       payload: JSON.parse(row.payload as string) as TelemetryEvent,
     }));
   }

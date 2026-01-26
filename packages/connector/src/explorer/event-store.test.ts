@@ -92,8 +92,12 @@ function createAgentChannelPaymentSentEvent(
     timestamp: 1737720060000,
     nodeId: 'connector-a',
     agentId: 'agent-001',
+    packetType: 'prepare',
+    from: 'agent-001',
+    to: 'peer-b',
     channelId: '0xabc123',
     amount: '100000000000000000',
+    destination: 'g.agent.peer-b',
     ...overrides,
   };
 }
@@ -255,8 +259,8 @@ describe('EventStore', () => {
       expect(id2).toBe(id1 + 1);
     });
 
-    it('should handle events with missing optional fields', async () => {
-      // AgentChannelPaymentSentEvent has direction but no peerId
+    it('should extract routing fields from AgentChannelPaymentSentEvent', async () => {
+      // AgentChannelPaymentSentEvent has packetType, from, to, destination
       const event = createAgentChannelPaymentSentEvent();
 
       const id = await eventStore.storeEvent(event);
@@ -265,8 +269,12 @@ describe('EventStore', () => {
       const stored = await eventStore.queryEvents({});
       expect(stored).toHaveLength(1);
       expect(stored[0]!.direction).toBe('sent');
-      expect(stored[0]!.peer_id).toBeNull();
+      expect(stored[0]!.peer_id).toBe('peer-b'); // Extracted from 'to' field
       expect(stored[0]!.packet_id).toBe('0xabc123');
+      expect(stored[0]!.packet_type).toBe('prepare');
+      expect(stored[0]!.from_address).toBe('agent-001');
+      expect(stored[0]!.to_address).toBe('peer-b');
+      expect(stored[0]!.destination).toBe('g.agent.peer-b');
     });
 
     it('should normalize ISO 8601 timestamp to Unix ms', async () => {

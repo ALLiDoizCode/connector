@@ -788,16 +788,33 @@ export interface AgentChannelOpenedEvent {
 }
 
 /**
+ * ILP Packet Type enumeration
+ *
+ * Represents the three types of ILP packets:
+ * - PREPARE: Initial packet sent to begin a payment
+ * - FULFILL: Response indicating successful payment completion
+ * - REJECT: Response indicating payment failure
+ */
+export type IlpPacketType = 'prepare' | 'fulfill' | 'reject';
+
+/**
  * Agent Channel Payment Sent Telemetry Event
  *
  * Emitted when AgentChannelManager (Story 11.6) sends payment through channel.
  * Indicates agent has sent off-chain payment via balance proof/claim.
+ *
+ * **ILP Packet Semantics:**
+ * - packetType: 'prepare', 'fulfill', or 'reject' (ILP packet type)
+ * - from: The sender of this packet (who originated it)
+ * - to: The next hop (immediate peer receiving this packet)
+ * - destination: The full ILP address destination (final recipient)
  *
  * **BigInt Serialization:** All amount fields are strings (bigint serialized for JSON).
  *
  * **Dashboard Usage:**
  * - Story 11.7 dashboard displays channel payment activity
  * - Real-time payment flow visualization
+ * - Explorer UI shows ILP packet routing with from/to/destination
  *
  * @example
  * ```typescript
@@ -806,8 +823,21 @@ export interface AgentChannelOpenedEvent {
  *   timestamp: 1704729660000,
  *   nodeId: 'connector-a',
  *   agentId: 'agent-001',
+ *   packetType: 'prepare',
+ *   from: 'g.agent.agent-001',
+ *   to: 'peer-002',
  *   channelId: '0xabc123...',
- *   amount: '100000000000000000'
+ *   amount: '100000000000000000',
+ *   destination: 'g.agent.peer-003.final-destination',
+ *   event: {
+ *     id: 'abc123...',
+ *     pubkey: 'def456...',
+ *     kind: 1,
+ *     content: 'Hello world',
+ *     created_at: 1704729600,
+ *     tags: [['p', 'recipient-pubkey']],
+ *     sig: 'sig789...'
+ *   }
  * };
  * ```
  */
@@ -820,10 +850,47 @@ export interface AgentChannelPaymentSentEvent {
   nodeId: string;
   /** Agent identifier */
   agentId: string;
+  /** ILP packet type: 'prepare', 'fulfill', or 'reject' */
+  packetType: IlpPacketType;
+  /** Sender of this packet (who originated it) - ILP address or agent ID */
+  from: string;
+  /** Next hop (immediate peer receiving this packet) - peer ID */
+  to: string;
+  /** Peer ID (deprecated, use 'to' instead) */
+  peerId?: string;
   /** Channel ID */
   channelId: string;
   /** Payment amount, bigint as string */
   amount: string;
+  /** Full ILP destination address (final recipient) */
+  destination: string;
+  /** Decoded Nostr event from ILP packet data */
+  event?: {
+    /** Event ID (32-byte hex SHA-256) */
+    id: string;
+    /** Author public key (32-byte hex) */
+    pubkey: string;
+    /** Event kind (1=note, 3=follows, etc.) */
+    kind: number;
+    /** Event content */
+    content: string;
+    /** Unix timestamp in seconds */
+    created_at: number;
+    /** Event tags */
+    tags: string[][];
+    /** Schnorr signature (64-byte hex) */
+    sig: string;
+  };
+  /** ILP packet execution condition (32-byte hex) */
+  executionCondition?: string;
+  /** ILP packet expiry timestamp */
+  expiresAt?: string;
+  /** Fulfillment if packet was fulfilled (32-byte hex) */
+  fulfillment?: string;
+  /** Error code if packet was rejected (e.g., 'F00', 'T01') */
+  errorCode?: string;
+  /** Error message if packet was rejected */
+  errorMessage?: string;
 }
 
 /**
