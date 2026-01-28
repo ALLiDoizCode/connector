@@ -142,6 +142,32 @@ function parseRelaysTag(tags: string[][]): string[] {
 }
 
 /**
+ * Parses 'e' tags with 'dependency' marker from a DVM job request event.
+ * Format: ['e', eventId, relay?, 'dependency']
+ *
+ * Used for job chaining where one job depends on previous job results.
+ *
+ * @param tags - The event tags array
+ * @returns Array of dependency event IDs
+ */
+function parseDependencyTags(tags: string[][]): string[] {
+  const dependencies: string[] = [];
+
+  for (const tag of tags) {
+    // 'e' tag format: ["e", "<event-id>", "<relay-url>", "<marker>"]
+    if (tag[0] === 'e' && tag.length >= 2) {
+      // Check for 'dependency' marker (4th element, index 3)
+      const marker = tag[3];
+      if (marker === 'dependency') {
+        dependencies.push(tag[1] as string);
+      }
+    }
+  }
+
+  return dependencies;
+}
+
+/**
  * Parses a NIP-90 DVM job request from a Nostr event.
  *
  * Extracts all DVM-specific tags (i, output, param, bid, relays) and
@@ -170,6 +196,7 @@ export function parseDVMJobRequest(event: NostrEvent): DVMJobRequest {
     params: parseParamTags(tags),
     bid: parseBidTag(tags),
     relays: parseRelaysTag(tags),
+    dependencies: parseDependencyTags(tags),
     event,
   };
 }

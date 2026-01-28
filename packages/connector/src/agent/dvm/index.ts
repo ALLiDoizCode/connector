@@ -17,6 +17,8 @@ export type {
   DVMFeedback,
   DVMFeedbackEvent,
   DVMFeedbackStatus,
+  ResolvedDependency,
+  ResolvedDependencies,
 } from './types';
 
 // Constants and Error class
@@ -36,3 +38,6 @@ export { formatDVMJobResult, formatDVMErrorResult } from './dvm-result-formatter
 
 // Feedback formatter
 export { formatDVMFeedback } from './dvm-feedback';
+
+// Job resolver (for job chaining)
+export { resolveJobDependencies } from './job-resolver';

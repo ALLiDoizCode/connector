@@ -662,4 +662,154 @@ describe('parseDVMJobRequest', () => {
       expect(error.field).toBeUndefined();
     });
   });
+
+  describe('dependency tag parsing (job chaining)', () => {
+    it('should parse single dependency', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        tags: [
+          ['i', '', 'job'],
+          ['e', 'dep1-event-id', '', 'dependency'],
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.dependencies).toEqual(['dep1-event-id']);
+    });
+
+    it('should parse multiple dependencies', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        tags: [
+          ['i', '', 'job'],
+          ['e', 'dep1-event-id', '', 'dependency'],
+          ['e', 'dep2-event-id', '', 'dependency'],
+          ['e', 'dep3-event-id', '', 'dependency'],
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.dependencies).toEqual(['dep1-event-id', 'dep2-event-id', 'dep3-event-id']);
+    });
+
+    it('should parse dependency with relay hint', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        tags: [
+          ['i', '', 'job'],
+          ['e', 'dep1-event-id', 'wss://relay.example.com', 'dependency'],
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.dependencies).toEqual(['dep1-event-id']);
+    });
+
+    it('should return empty array when no dependency tags', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        tags: [['i', 'test', 'text']],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.dependencies).toEqual([]);
+    });
+
+    it('should ignore e tags without dependency marker', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        tags: [
+          ['i', 'test', 'text'],
+          ['e', 'some-event-id', '', 'reply'], // Different marker
+          ['e', 'another-event-id'], // No marker
+          ['e', 'dep1-event-id', '', 'dependency'], // Valid dependency
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.dependencies).toEqual(['dep1-event-id']);
+      expect(result.dependencies).toHaveLength(1);
+    });
+
+    it('should handle job input type with dependencies', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        kind: 5200, // Text summarization
+        tags: [
+          ['i', '', 'job'], // Job input type
+          ['e', 'translation-job-id', 'wss://relay.example.com', 'dependency'],
+          ['output', 'text/plain'],
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.inputs).toHaveLength(1);
+      expect(result.inputs[0]!.type).toBe('job');
+      expect(result.inputs[0]!.data).toBe('');
+      expect(result.dependencies).toEqual(['translation-job-id']);
+    });
+
+    it('should parse mixed e tags and dependency tags', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        tags: [
+          ['i', 'test', 'text'],
+          ['e', 'reference-event-id'], // Regular e tag (no marker)
+          ['e', 'dep1-event-id', '', 'dependency'],
+          ['e', 'reply-event-id', '', 'reply'],
+          ['e', 'dep2-event-id', '', 'dependency'],
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.dependencies).toEqual(['dep1-event-id', 'dep2-event-id']);
+      expect(result.dependencies).toHaveLength(2);
+    });
+
+    it('should handle complete job chaining request', () => {
+      // Arrange
+      const event = createDVMJobEvent({
+        kind: 5200, // Text summarization
+        tags: [
+          ['i', '', 'job'],
+          ['i', 'es', 'text', '', 'language'],
+          ['e', 'translation-job-id', '', 'dependency'],
+          ['output', 'text/plain'],
+          ['param', 'max_length', '500'],
+        ],
+      });
+
+      // Act
+      const result = parseDVMJobRequest(event);
+
+      // Assert
+      expect(result.kind).toBe(5200);
+      expect(result.inputs).toHaveLength(2);
+      expect(result.inputs[0]!.type).toBe('job');
+      expect(result.dependencies).toEqual(['translation-job-id']);
+      expect(result.outputType).toBe('text/plain');
+      expect(result.params.get('max_length')).toBe('500');
+    });
+  });
 });

@@ -13,6 +13,7 @@ import type { EventHandlerResult } from '../../event-handler';
 import type { NostrFilter } from '../../event-database';
 import { parseDVMJobRequest } from '../../dvm/dvm-job-parser';
 import { formatDVMJobResult, formatDVMErrorResult } from '../../dvm/dvm-result-formatter';
+import { resolveJobDependencies } from '../../dvm/job-resolver';
 
 const DEFAULT_MAX_RESULTS = 100;
 
@@ -158,6 +159,37 @@ export function createDVMQuerySkill(
             message: `Failed to parse DVM job request: ${errorMessage}`,
           },
         };
+      }
+
+      // Resolve job dependencies if present (job chaining support)
+      // Note: Dependencies are validated but not yet used in query execution.
+      // Future enhancement: merge dependency content with query filter or pass as context.
+      if (jobRequest.dependencies.length > 0) {
+        try {
+          await resolveJobDependencies(jobRequest, context.database);
+        } catch (error) {
+          // Get error code from DVMParseError if available
+          const errorCode =
+            error && typeof error === 'object' && 'code' in error
+              ? (error.code as string)
+              : 'DEPENDENCY_ERROR';
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to resolve job dependencies';
+          const errorResult = formatDVMErrorResult(
+            context.event,
+            errorCode,
+            errorMessage,
+            context.amount
+          );
+          return {
+            success: false,
+            responseEvents: [errorResult],
+            error: {
+              code: 'F99',
+              message: `Dependency resolution failed: ${errorMessage}`,
+            },
+          };
+        }
       }
 
       // Extract filter from param tags
