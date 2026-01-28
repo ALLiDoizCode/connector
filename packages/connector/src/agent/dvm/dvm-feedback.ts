@@ -1,4 +1,4 @@
-import type { DVMFeedback, DVMFeedbackEvent, DVMFeedbackStatus } from './types';
+import type { DVMFeedback, DVMFeedbackEvent, DVMFeedbackStatus, TaskFeedback } from './types';
 import { DVM_FEEDBACK_KIND } from './types';
 
 /**
@@ -66,6 +66,34 @@ function formatFeedbackContent(status: DVMFeedbackStatus, message?: string): str
 }
 
 /**
+ * Create a 'progress' tag with progress percentage (Story 17.8).
+ *
+ * @param progress - Progress percentage (0-100)
+ * @returns Tag array ['progress', progressString]
+ * @throws Error if progress is out of valid range
+ */
+export function createProgressTag(progress: number): string[] {
+  if (progress < 0 || progress > 100) {
+    throw new Error(`Invalid progress value: ${progress}. Must be between 0 and 100.`);
+  }
+  return ['progress', Math.floor(progress).toString()];
+}
+
+/**
+ * Create an 'eta' tag with estimated seconds remaining (Story 17.8).
+ *
+ * @param seconds - Estimated seconds remaining
+ * @returns Tag array ['eta', secondsString]
+ * @throws Error if seconds is negative
+ */
+export function createEtaTag(seconds: number): string[] {
+  if (seconds < 0) {
+    throw new Error(`Invalid ETA value: ${seconds}. Must be non-negative.`);
+  }
+  return ['eta', Math.floor(seconds).toString()];
+}
+
+/**
  * Format a DVM job feedback event (Kind 7000).
  *
  * Creates an unsigned Nostr event template with all required tags and content.
@@ -114,6 +142,48 @@ export function formatDVMFeedback(feedback: DVMFeedback): DVMFeedbackEvent {
     tags,
     sig: '',
   };
+
+  return event;
+}
+
+/**
+ * Format a task-specific feedback event with progress/eta tracking (Story 17.8).
+ *
+ * Creates an unsigned Kind 7000 event with optional progress and ETA tags.
+ * This is a convenience wrapper around formatDVMFeedback for task tracking use cases.
+ *
+ * @param feedback - The task feedback data to format
+ * @returns Unsigned DVM feedback event with progress/eta tags
+ *
+ * @example
+ * ```typescript
+ * const taskFeedback: TaskFeedback = {
+ *   kind: 7000,
+ *   status: 'processing',
+ *   jobEventId: 'task-123...',
+ *   requesterPubkey: 'requester-pubkey...',
+ *   progress: 50,
+ *   eta: 30,
+ *   message: 'Processing translation task...'
+ * };
+ *
+ * const event = formatTaskFeedback(taskFeedback);
+ * // event includes progress and eta tags
+ * ```
+ */
+export function formatTaskFeedback(feedback: TaskFeedback): DVMFeedbackEvent {
+  // Start with base feedback event
+  const event = formatDVMFeedback(feedback);
+
+  // Add progress tag if provided
+  if (feedback.progress !== undefined) {
+    event.tags.push(createProgressTag(feedback.progress));
+  }
+
+  // Add ETA tag if provided
+  if (feedback.eta !== undefined) {
+    event.tags.push(createEtaTag(feedback.eta));
+  }
 
   return event;
 }

@@ -253,3 +253,49 @@ export interface ResolvedDependency {
 export interface ResolvedDependencies {
   [eventId: string]: ResolvedDependency;
 }
+
+/**
+ * Task state for status tracking (Story 17.8).
+ * Tracks the lifecycle of a task from queuing to completion/failure.
+ */
+export type TaskState =
+  | 'queued' // Task accepted, waiting to start
+  | 'processing' // Currently executing
+  | 'waiting' // Blocked on dependency (e.g., waiting for delegated task)
+  | 'completed' // Successfully finished
+  | 'failed' // Error occurred during execution
+  | 'cancelled'; // Manually stopped or timed out
+
+/**
+ * Metadata for tracking task status locally (Story 17.8).
+ * Used by TaskStatusTracker to manage task lifecycle and emit progress updates.
+ */
+export interface TaskTrackingMetadata {
+  /** Event ID of Kind 5900 task request */
+  taskId: string;
+  /** Requester's pubkey */
+  requesterPubkey: string;
+  /** Unix timestamp when task started */
+  startTime: number;
+  /** Current task state */
+  currentState: TaskState;
+  /** Optional progress indicator (0-100) */
+  progress?: number;
+  /** Optional estimated seconds remaining */
+  eta?: number;
+  /** Unix timestamp of last Kind 7000 emission (for throttling) */
+  lastUpdateTime: number;
+}
+
+/**
+ * Task-specific feedback extending DVMFeedback with progress/eta (Story 17.8).
+ * Used for Kind 7000 events with task tracking extensions.
+ */
+export interface TaskFeedback extends Omit<DVMFeedback, 'kind'> {
+  /** Always 7000 */
+  kind: 7000;
+  /** Optional progress indicator (0-100) */
+  progress?: number;
+  /** Optional estimated seconds remaining */
+  eta?: number;
+}

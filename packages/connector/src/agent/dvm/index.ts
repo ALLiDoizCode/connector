@@ -23,6 +23,9 @@ export type {
   TaskDelegationRequest,
   TaskDelegationResult,
   TokenMetrics,
+  TaskState,
+  TaskTrackingMetadata,
+  TaskFeedback,
 } from './types';
 
 // Constants and Error class
@@ -45,7 +48,20 @@ export {
 } from './dvm-result-formatter';
 
 // Feedback formatter
-export { formatDVMFeedback } from './dvm-feedback';
+export {
+  formatDVMFeedback,
+  formatTaskFeedback,
+  createProgressTag,
+  createEtaTag,
+} from './dvm-feedback';
 
 // Job resolver (for job chaining)
 export { resolveJobDependencies } from './job-resolver';
+
+// Task status tracker (Story 17.8)
+export {
+  TaskStatusTracker,
+  DEFAULT_TASK_TRACKING_CONFIG,
+  type TaskTrackingConfig,
+  type FeedbackEmitter,
+} from './task-status-tracker';
