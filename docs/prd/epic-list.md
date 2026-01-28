@@ -48,4 +48,27 @@ Rebrand "M2M Explorer" to "Agent Explorer" and polish the Explorer UI with perfo
 **Epic 16: AI Agent Node — Vercel AI SDK Integration**
 Integrate the Vercel AI SDK to make the M2M agent node AI-native. The AI agent uses agent skills — modular capabilities mapped to Nostr event kinds — to process events, compose responses, and route packets. Each skill wraps an existing handler as an AI SDK tool() with a description, Zod schema, and execute function. The AI agent orchestrates which skills to invoke based on the incoming event. AI dispatch is enabled by default, with direct handler dispatch (from Epic 13) serving as a fallback when the AI is unavailable (budget exhausted, API error) or explicitly disabled. Provider-agnostic via the AI SDK provider system (Anthropic, OpenAI, Google, etc.).
 
+**Epic 17: NIP-90 DVM Compatibility & Agent Task Delegation**
+Migrate the M2M agent's service architecture to NIP-90 Data Vending Machine (DVM) patterns, establishing ecosystem compatibility with the broader Nostr agent ecosystem. Includes structured task delegation between agents (Kind 5900) as a DVM job type. The current Kind 10000 query service will be refactored to use the NIP-90 job marketplace model (kinds 5000-6999). Payment is handled by existing ILP infrastructure — the packet amount field IS the payment. Critical foundation for all agent-to-agent service interactions.
+
+**Epic 18: Agent Capability Discovery (NIP-XX1)**
+Implement NIP-XX1 (Agent Capability Advertisement), enabling agents to advertise their capabilities, supported event kinds, pricing, and availability to the network. Builds on NIP-89 (Recommended Application Handlers) with agent-specific metadata fields, allowing agents to discover peers through the social graph and filter by required capabilities before task delegation. Includes pricing tags for price discovery.
+
+**Epic 20: Multi-Agent Coordination (NIP-XX3)**
+Implement NIP-XX3 (Multi-Agent Coordination), defining coordination primitives for multi-agent consensus, voting, and collective decision-making. Enables scenarios requiring multiple agents to agree on actions: multi-signature approvals, distributed task allocation, consensus on shared state, and conflict resolution.
+
+**Epic 21: Agent Reputation, Trust & Disputes (NIP-XX4)**
+Implement NIP-XX4 (Agent Reputation & Trust), defining a decentralized reputation system for AI agents based on attestations, performance metrics, and trust scoring within the social graph. Enables agents to evaluate peer reliability before delegation, build reputation through successful interactions, and share trust assessments with the network. Includes dispute resolution mechanisms (Kind 30882) for contesting attestations and resolving conflicts, absorbed from the removed Epic 23.
+
+**Epic 22: Emergent Workflow Composition (NIP-XX5)**
+Implement NIP-XX5 (Emergent Workflow Composition), defining how agents compose multi-step workflows dynamically. Enables declarative workflow definitions that orchestrate multiple agents in sequence or parallel for complex task pipelines like data processing, multi-modal transformations, approval workflows, and conditional branching.
+
+---
+
+## Removed Epics (After Redundancy Review)
+
+**Epic 19: Agent Task Delegation** — _Merged into Epic 17_. Task delegation is implemented as a DVM job type (Kind 5900) rather than a separate protocol, avoiding duplication of patterns.
+
+**Epic 23: Agent Payment Protocol** — _Removed as redundant_. Payment is already handled by existing infrastructure: ILP PREPARE packet amounts, `EventHandler._validatePayment()`, EVM/XRP payment channels (Epics 8, 9), and TigerBeetle accounting (Epic 6). Dispute resolution mechanisms were absorbed into Epic 21. No additional payment protocol needed.
+
 ---
