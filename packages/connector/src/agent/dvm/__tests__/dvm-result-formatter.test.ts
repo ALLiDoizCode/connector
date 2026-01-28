@@ -2,8 +2,10 @@ import type { NostrEvent } from '../../toon-codec';
 import {
   formatDVMJobResult,
   formatDVMErrorResult,
+  formatTaskDelegationResult,
   DVM_RESULT_KIND_OFFSET,
   type DVMJobResult,
+  type TaskDelegationResult,
 } from '../index';
 
 /**
@@ -637,5 +639,317 @@ describe('formatDVMErrorResult', () => {
 describe('DVM_RESULT_KIND_OFFSET constant', () => {
   it('should be 1000', () => {
     expect(DVM_RESULT_KIND_OFFSET).toBe(1000);
+  });
+});
+
+describe('formatTaskDelegationResult', () => {
+  /**
+   * Creates a test task delegation result with optional overrides.
+   */
+  function createTaskDelegationResult(
+    overrides?: Partial<TaskDelegationResult>
+  ): TaskDelegationResult {
+    const requestEvent = createDVMJobEvent({ kind: 5900 });
+    return {
+      requestEvent,
+      content: { result: 'Task completed successfully' },
+      amount: 5000n,
+      status: 'success',
+      runtime: 1250,
+      tokens: { input: 150, output: 200 },
+      ...overrides,
+    };
+  }
+
+  describe('kind calculation', () => {
+    it('should calculate Kind 6900 from Kind 5900 request', () => {
+      // Arrange
+      const result = createTaskDelegationResult();
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      expect(event.kind).toBe(6900);
+    });
+
+    it('should use DVM_RESULT_KIND_OFFSET for calculation', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        requestEvent: createDVMJobEvent({ kind: 5900 }),
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      expect(event.kind).toBe(5900 + DVM_RESULT_KIND_OFFSET);
+    });
+  });
+
+  describe('runtime tag', () => {
+    it('should include runtime tag when runtime provided', () => {
+      // Arrange
+      const result = createTaskDelegationResult({ runtime: 2500 });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const runtimeTag = event.tags.find((tag) => tag[0] === 'runtime');
+      expect(runtimeTag).toEqual(['runtime', '2500']);
+    });
+
+    it('should not include runtime tag when runtime is undefined', () => {
+      // Arrange
+      const result = createTaskDelegationResult({ runtime: undefined });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const runtimeTag = event.tags.find((tag) => tag[0] === 'runtime');
+      expect(runtimeTag).toBeUndefined();
+    });
+
+    it('should handle runtime of 0', () => {
+      // Arrange
+      const result = createTaskDelegationResult({ runtime: 0 });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const runtimeTag = event.tags.find((tag) => tag[0] === 'runtime');
+      expect(runtimeTag).toEqual(['runtime', '0']);
+    });
+
+    it('should handle large runtime values', () => {
+      // Arrange
+      const result = createTaskDelegationResult({ runtime: 999999 });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const runtimeTag = event.tags.find((tag) => tag[0] === 'runtime');
+      expect(runtimeTag).toEqual(['runtime', '999999']);
+    });
+  });
+
+  describe('tokens tag', () => {
+    it('should include tokens tag when tokens provided', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        tokens: { input: 100, output: 250 },
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const tokensTag = event.tags.find((tag) => tag[0] === 'tokens');
+      expect(tokensTag).toEqual(['tokens', '100', '250']);
+    });
+
+    it('should not include tokens tag when tokens is undefined', () => {
+      // Arrange
+      const result = createTaskDelegationResult({ tokens: undefined });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const tokensTag = event.tags.find((tag) => tag[0] === 'tokens');
+      expect(tokensTag).toBeUndefined();
+    });
+
+    it('should handle tokens with 0 values', () => {
+      // Arrange
+      const result = createTaskDelegationResult({ tokens: { input: 0, output: 0 } });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const tokensTag = event.tags.find((tag) => tag[0] === 'tokens');
+      expect(tokensTag).toEqual(['tokens', '0', '0']);
+    });
+
+    it('should handle large token counts', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        tokens: { input: 999999, output: 888888 },
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const tokensTag = event.tags.find((tag) => tag[0] === 'tokens');
+      expect(tokensTag).toEqual(['tokens', '999999', '888888']);
+    });
+  });
+
+  describe('standard DVM tags', () => {
+    it('should include all standard DVM result tags', () => {
+      // Arrange
+      const requestEvent = createDVMJobEvent({
+        kind: 5900,
+        id: 'task_request_id_' + 'x'.repeat(49),
+        pubkey: 'task_requester_' + 'y'.repeat(49),
+      });
+      const result = createTaskDelegationResult({
+        requestEvent,
+        amount: 7500n,
+        status: 'success',
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const eTag = event.tags.find((tag) => tag[0] === 'e');
+      const pTag = event.tags.find((tag) => tag[0] === 'p');
+      const amountTag = event.tags.find((tag) => tag[0] === 'amount');
+      const statusTag = event.tags.find((tag) => tag[0] === 'status');
+
+      expect(eTag![1]).toBe(requestEvent.id);
+      expect(pTag![1]).toBe(requestEvent.pubkey);
+      expect(amountTag).toEqual(['amount', '7500']);
+      expect(statusTag).toEqual(['status', 'success']);
+    });
+
+    it('should include request tag with stringified event', () => {
+      // Arrange
+      const requestEvent = createDVMJobEvent({ kind: 5900 });
+      const result = createTaskDelegationResult({ requestEvent });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const requestTag = event.tags.find((tag) => tag[0] === 'request');
+      expect(requestTag).toBeDefined();
+      expect(requestTag![0]).toBe('request');
+      expect(requestTag![1]).toBeDefined();
+
+      const parsedRequest = JSON.parse(requestTag![1]!);
+      expect(parsedRequest.id).toBe(requestEvent.id);
+      expect(parsedRequest.kind).toBe(5900);
+    });
+  });
+
+  describe('complete task delegation result', () => {
+    it('should format complete result with all fields', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        runtime: 1500,
+        tokens: { input: 200, output: 300 },
+        status: 'success',
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      expect(event.kind).toBe(6900);
+      expect(event.content).toBe(JSON.stringify({ result: 'Task completed successfully' }));
+
+      const runtimeTag = event.tags.find((tag) => tag[0] === 'runtime');
+      const tokensTag = event.tags.find((tag) => tag[0] === 'tokens');
+      const statusTag = event.tags.find((tag) => tag[0] === 'status');
+
+      expect(runtimeTag).toEqual(['runtime', '1500']);
+      expect(tokensTag).toEqual(['tokens', '200', '300']);
+      expect(statusTag).toEqual(['status', 'success']);
+    });
+
+    it('should format result with error status', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        content: { error: true, message: 'Task failed' },
+        status: 'error',
+        runtime: 500,
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      expect(event.content).toBe(JSON.stringify({ error: true, message: 'Task failed' }));
+      const statusTag = event.tags.find((tag) => tag[0] === 'status');
+      expect(statusTag).toEqual(['status', 'error']);
+    });
+
+    it('should format result with partial status', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        status: 'partial',
+        runtime: 1000,
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      const statusTag = event.tags.find((tag) => tag[0] === 'status');
+      expect(statusTag).toEqual(['status', 'partial']);
+    });
+
+    it('should format minimal result without optional fields', () => {
+      // Arrange
+      const result = createTaskDelegationResult({
+        runtime: undefined,
+        tokens: undefined,
+      });
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      expect(event.kind).toBe(6900);
+
+      const runtimeTag = event.tags.find((tag) => tag[0] === 'runtime');
+      const tokensTag = event.tags.find((tag) => tag[0] === 'tokens');
+
+      expect(runtimeTag).toBeUndefined();
+      expect(tokensTag).toBeUndefined();
+
+      // Should still have standard tags
+      const statusTag = event.tags.find((tag) => tag[0] === 'status');
+      const amountTag = event.tags.find((tag) => tag[0] === 'amount');
+      expect(statusTag).toBeDefined();
+      expect(amountTag).toBeDefined();
+    });
+  });
+
+  describe('event structure', () => {
+    it('should create unsigned event template', () => {
+      // Arrange
+      const result = createTaskDelegationResult();
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+
+      // Assert
+      expect(event.id).toBe('');
+      expect(event.pubkey).toBe('');
+      expect(event.sig).toBe('');
+    });
+
+    it('should set created_at timestamp', () => {
+      // Arrange
+      const before = Math.floor(Date.now() / 1000);
+      const result = createTaskDelegationResult();
+
+      // Act
+      const event = formatTaskDelegationResult(result);
+      const after = Math.floor(Date.now() / 1000);
+
+      // Assert
+      expect(event.created_at).toBeGreaterThanOrEqual(before);
+      expect(event.created_at).toBeLessThanOrEqual(after);
+    });
   });
 });

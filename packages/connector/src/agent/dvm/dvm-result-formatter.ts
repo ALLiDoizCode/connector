@@ -4,6 +4,8 @@ import {
   type DVMJobResult,
   type DVMResultEvent,
   type DVMResultStatus,
+  type TaskDelegationResult,
+  type TokenMetrics,
 } from './types';
 
 /**
@@ -54,6 +56,32 @@ function createAmountTag(amount: bigint): string[] {
  */
 function createStatusTag(status: DVMResultStatus): string[] {
   return ['status', status];
+}
+
+/**
+ * Creates the 'runtime' tag with execution time in milliseconds.
+ *
+ * @param runtime - Execution time in milliseconds
+ * @returns Tag array ['runtime', runtime-string] or undefined if not provided
+ */
+function createRuntimeTag(runtime?: number): string[] | undefined {
+  if (runtime === undefined) {
+    return undefined;
+  }
+  return ['runtime', runtime.toString()];
+}
+
+/**
+ * Creates the 'tokens' tag with input and output token counts.
+ *
+ * @param tokens - Token usage metrics (input and output counts)
+ * @returns Tag array ['tokens', input-count, output-count] or undefined if not provided
+ */
+function createTokensTag(tokens?: TokenMetrics): string[] | undefined {
+  if (!tokens) {
+    return undefined;
+  }
+  return ['tokens', tokens.input.toString(), tokens.output.toString()];
 }
 
 /**
@@ -168,4 +196,69 @@ export function formatDVMErrorResult(
     amount,
     status: 'error',
   });
+}
+
+/**
+ * Formats a task delegation result into an unsigned Kind 6900 event.
+ *
+ * Creates a Kind 6900 event (Kind 5900 + 1000) with all DVM result tags
+ * plus task delegation-specific metrics:
+ * - runtime: Execution time in milliseconds
+ * - tokens: Input/output token counts for AI tasks
+ *
+ * @param result - The task delegation result to format
+ * @returns Unsigned DVMResultEvent ready for signing
+ *
+ * @example
+ * ```typescript
+ * const result = formatTaskDelegationResult({
+ *   requestEvent: kind5900Event,
+ *   content: { result: 'Task completed' },
+ *   amount: 1000n,
+ *   status: 'success',
+ *   runtime: 1250,
+ *   tokens: { input: 150, output: 200 },
+ * });
+ * ```
+ */
+export function formatTaskDelegationResult(result: TaskDelegationResult): DVMResultEvent {
+  const { requestEvent, content, amount, status, runtime, tokens } = result;
+
+  // Calculate result kind: request kind + 1000 (5900 + 1000 = 6900)
+  const resultKind = requestEvent.kind + DVM_RESULT_KIND_OFFSET;
+
+  // Build base tags array
+  const tags: string[][] = [
+    createRequestTag(requestEvent),
+    createEventTag(requestEvent.id),
+    createPubkeyTag(requestEvent.pubkey),
+    createAmountTag(amount),
+    createStatusTag(status),
+  ];
+
+  // Add optional runtime tag
+  const runtimeTag = createRuntimeTag(runtime);
+  if (runtimeTag) {
+    tags.push(runtimeTag);
+  }
+
+  // Add optional tokens tag
+  const tokensTag = createTokensTag(tokens);
+  if (tokensTag) {
+    tags.push(tokensTag);
+  }
+
+  // Format content based on type
+  const formattedContent = formatContent(content, status);
+
+  // Return unsigned event template
+  return {
+    id: '',
+    pubkey: '',
+    kind: resultKind,
+    created_at: Math.floor(Date.now() / 1000),
+    content: formattedContent,
+    tags,
+    sig: '',
+  };
 }

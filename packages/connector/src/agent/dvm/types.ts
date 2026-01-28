@@ -97,6 +97,28 @@ export interface DVMJobResult {
 }
 
 /**
+ * Token usage metrics for AI-powered task delegation.
+ * Includes input and output token counts for cost tracking and optimization.
+ */
+export interface TokenMetrics {
+  /** Number of input tokens consumed */
+  input: number;
+  /** Number of output tokens generated */
+  output: number;
+}
+
+/**
+ * Task delegation result (Kind 6900) with execution metrics.
+ * Extends DVMJobResult with runtime and token tracking for performance monitoring.
+ */
+export interface TaskDelegationResult extends DVMJobResult {
+  /** Execution time in milliseconds */
+  runtime?: number;
+  /** Token usage metrics (for AI tasks) */
+  tokens?: TokenMetrics;
+}
+
+/**
  * Unsigned DVM result event template ready for signing.
  * Matches NostrEvent structure with empty signature fields.
  */

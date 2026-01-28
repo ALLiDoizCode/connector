@@ -21,6 +21,8 @@ export type {
   ResolvedDependencies,
   TaskPriority,
   TaskDelegationRequest,
+  TaskDelegationResult,
+  TokenMetrics,
 } from './types';
 
 // Constants and Error class
@@ -36,7 +38,11 @@ export {
 export { parseDVMJobRequest, parseTaskDelegationRequest } from './dvm-job-parser';
 
 // Result formatter
-export { formatDVMJobResult, formatDVMErrorResult } from './dvm-result-formatter';
+export {
+  formatDVMJobResult,
+  formatDVMErrorResult,
+  formatTaskDelegationResult,
+} from './dvm-result-formatter';
 
 // Feedback formatter
 export { formatDVMFeedback } from './dvm-feedback';
