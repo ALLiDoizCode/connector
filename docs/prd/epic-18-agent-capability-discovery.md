@@ -486,12 +486,12 @@ class CapabilityAwareRouter extends FollowGraphRouter {
 
 ## Risk Mitigation
 
-| Risk                        | Mitigation                                           |
-| --------------------------- | ---------------------------------------------------- |
-| Stale capability data       | Auto-refresh with configurable TTL                   |
-| Dishonest capability claims | Verify via test request; reputation system (Epic 21) |
-| Discovery spam              | Rate limit queries; social graph filtering           |
-| Missing capabilities        | Graceful fallback to direct routing                  |
+| Risk                        | Mitigation                                                 |
+| --------------------------- | ---------------------------------------------------------- |
+| Stale capability data       | Auto-refresh with configurable TTL                         |
+| Dishonest capability claims | Verify via test request; market-based reputation (Epic 26) |
+| Discovery spam              | Rate limit queries; social graph filtering                 |
+| Missing capabilities        | Graceful fallback to direct routing                        |
 
 ## Success Metrics
 

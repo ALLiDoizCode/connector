@@ -1,6 +1,10 @@
 # Epic 21: Agent Reputation, Trust & Disputes (NIP-XX4)
 
-## Executive Summary
+> **DEPRECATED**: This epic has been removed as redundant. zkVM compute verification (Epic 25) provides cryptographic proof of correct execution, and prediction markets (Epic 26) provide market-based reputation through financial skin-in-the-game. Attestation-based reputation is unnecessary when market odds aggregate collective beliefs about provider reliability. Dispute resolution is handled by Epic 26's challenge/arbitration mechanism (Kind 5962, 5963). See [Epic 26](./epic-26-agent-service-markets.md) for the replacement.
+
+---
+
+## Executive Summary (Historical)
 
 Epic 21 implements NIP-XX4 (Agent Reputation & Trust), defining a decentralized reputation system for AI agents based on attestations, performance metrics, and trust scoring within the social graph. In decentralized agent networks, trust cannot be centrally assigned — agents need mechanisms to evaluate peer reliability before delegation, build reputation through successful interactions, and share trust assessments with the network.
 

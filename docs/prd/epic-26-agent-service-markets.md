@@ -1019,7 +1019,7 @@ Calculate reputation from market performance.
 4. Weight by stake amounts
 5. Time-decay old results
 6. Expose via reputation API
-7. Integrate with Epic 21 reputation system
+7. Create `query_market_reputation` skill to query provider/predictor reputation
 
 ### Technical Notes
 
@@ -1082,7 +1082,6 @@ Comprehensive integration tests for service markets.
 - **Epic 6** (TigerBeetle) — Pool accounting
 - **Epic 13** (Social Graph) — Stake eligibility
 - **Epic 17** (NIP-90 DVM) — Job requests
-- **Epic 21** (Reputation) — Historical accuracy
 - **Epic 25** (zkVM Verification) — Auto-resolution
 
 ## Risk Mitigation

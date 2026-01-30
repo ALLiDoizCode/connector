@@ -57,9 +57,6 @@ Implement NIP-XX1 (Agent Capability Advertisement), enabling agents to advertise
 **Epic 20: Multi-Agent Coordination (NIP-XX3)**
 Implement NIP-XX3 (Multi-Agent Coordination), defining coordination primitives for multi-agent consensus, voting, and collective decision-making. Enables scenarios requiring multiple agents to agree on actions: multi-signature approvals, distributed task allocation, consensus on shared state, and conflict resolution.
 
-**Epic 21: Agent Reputation, Trust & Disputes (NIP-XX4)**
-Implement NIP-XX4 (Agent Reputation & Trust), defining a decentralized reputation system for AI agents based on attestations, performance metrics, and trust scoring within the social graph. Enables agents to evaluate peer reliability before delegation, build reputation through successful interactions, and share trust assessments with the network. Includes dispute resolution mechanisms (Kind 30882) for contesting attestations and resolving conflicts, absorbed from the removed Epic 23.
-
 **Epic 22: Emergent Workflow Composition (NIP-XX5)**
 Implement NIP-XX5 (Emergent Workflow Composition), defining how agents compose multi-step workflows dynamically. Enables declarative workflow definitions that orchestrate multiple agents in sequence or parallel for complex task pipelines like data processing, multi-modal transformations, approval workflows, and conditional branching.
 
@@ -73,7 +70,7 @@ Integrate live streaming infrastructure with the Agent Society Protocol, enablin
 Implement trustless verification of agent compute using zero-knowledge virtual machines (zkVMs). The key insight: we don't prove LLM inference (impractical), we prove the compute execution that results from LLM planning. The LLM generates a deterministic Execution Plan IR, which is executed in RISC Zero or SP1 to generate a cryptographic proof of correct execution. Enables automatic payment settlement based on proof validity, with auto-FULFILL on valid proof and auto-REJECT + slashing on invalid. Includes proof storage via Blossom/IPFS, DVM integration with ZK tags, program registry for known-good guest binaries, and tiered verification (hash commitment → TEE → zkVM → zkVM + TLS oracle). Foundation for Epic 26 (Service Markets).
 
 **Epic 26: Agent Service Markets**
-Implement multi-party staking markets for agent services, transforming bilateral escrow into true prediction markets. Third parties can stake YES (provider delivers) or NO (provider fails) on job outcomes, with market prices aggregating collective beliefs about provider reliability. Features social graph-bounded stake eligibility, simple pool accounting (upgradeable to AMM), ZK proof auto-resolution via Epic 25, challenge/arbitration mechanism for disputes, and proportional payout distribution. Enables price discovery (market odds = reliability signal), social graph vouching (followers stake on trusted agents), and market-based reputation as an alternative to Epic 21's attestation system.
+Implement multi-party staking markets for agent services, transforming bilateral escrow into true prediction markets. Third parties can stake YES (provider delivers) or NO (provider fails) on job outcomes, with market prices aggregating collective beliefs about provider reliability. Features social graph-bounded stake eligibility, simple pool accounting (upgradeable to AMM), ZK proof auto-resolution via Epic 25, challenge/arbitration mechanism for disputes, and proportional payout distribution. Enables price discovery (market odds = reliability signal), social graph vouching (followers stake on trusted agents), and market-based reputation (replaces attestation-based Epic 21).
 
 ---
 
@@ -81,6 +78,8 @@ Implement multi-party staking markets for agent services, transforming bilateral
 
 **Epic 19: Agent Task Delegation** — _Merged into Epic 17_. Task delegation is implemented as a DVM job type (Kind 5900) rather than a separate protocol, avoiding duplication of patterns.
 
-**Former Epic 23: Agent Payment Protocol** — _Removed as redundant_. Payment is already handled by existing infrastructure: ILP PREPARE packet amounts, `EventHandler._validatePayment()`, EVM/XRP payment channels (Epics 8, 9), and TigerBeetle accounting (Epic 6). Dispute resolution mechanisms were absorbed into Epic 21. The Epic 23 number was reassigned to NIP-56XX Payment Streams Protocol.
+**Epic 21: Agent Reputation, Trust & Disputes** — _Removed as redundant_. zkVM compute verification (Epic 25) provides cryptographic proof of correct execution, and prediction markets (Epic 26) provide market-based reputation through financial skin-in-the-game. Attestation-based reputation is unnecessary when market odds aggregate collective beliefs about provider reliability. Dispute resolution is handled by Epic 26's challenge/arbitration mechanism (Kind 5962, 5963).
+
+**Former Epic 23: Agent Payment Protocol** — _Removed as redundant_. Payment is already handled by existing infrastructure: ILP PREPARE packet amounts, `EventHandler._validatePayment()`, EVM/XRP payment channels (Epics 8, 9), and TigerBeetle accounting (Epic 6). The Epic 23 number was reassigned to NIP-56XX Payment Streams Protocol.
 
 ---
