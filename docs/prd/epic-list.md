@@ -19,7 +19,7 @@ Create comprehensive developer documentation explaining ILP concepts and ensure 
 Integrate TigerBeetle as the double-entry accounting database, build account management infrastructure to track balances and credit limits between peers, implement settlement threshold triggers, and provide dashboard visualization of account states and settlement events.
 
 **Epic 7: Local Blockchain Development Infrastructure**
-Establish local blockchain node infrastructure with Anvil (Base L2 fork) and rippled (XRP Ledger standalone mode) via Docker Compose, enabling developers to build and test payment channel smart contracts locally without testnet/mainnet dependencies, with instant block finality and zero gas costs.
+Establish local blockchain node infrastructure with Anvil (Base L2 fork), rippled (XRP Ledger standalone mode), and Aptos local testnet via Docker Compose, enabling developers to build and test payment channel smart contracts locally without testnet/mainnet dependencies, with instant block finality and zero gas costs. Provides tri-chain local development for EVM, XRP, and Aptos payment channels.
 
 **Epic 8: EVM Payment Channels (Base L2)**
 Implement XRP-style payment channels as EVM smart contracts on Base L2, deploy payment channel infrastructure via Docker, integrate with settlement layer for automatic channel settlement, and enable instant cryptocurrency micropayments between connector peers.
@@ -74,6 +74,9 @@ Implement multi-party staking markets for agent services, transforming bilateral
 
 **Epic 27: Aptos Payment Channels (Move Modules)**
 Integrate Aptos blockchain payment channels for settlement, enabling tri-chain settlement support where connectors can settle using EVM payment channels (Epic 8), XRP payment channels (Epic 9), and Aptos Move-based payment channels. Build minimal Aptos payment channel infrastructure including Move smart contract modules, TypeScript SDK integration, integration with the existing UnifiedSettlementExecutor, and basic telemetry. Leverages Aptos's high throughput (160,000+ TPS) and sub-second finality for AI agent micropayments.
+
+**Epic 28: ARM64 Aptos Docker Image for Local Development**
+Build and publish a multi-architecture Docker image containing the Aptos node and CLI tools, supporting both linux/amd64 and linux/arm64 platforms. The official aptoslabs/tools image only provides amd64 builds, preventing developers on Apple Silicon Macs from running Aptos local testnet in Docker. Includes CI/CD pipeline via GitHub Actions for automated builds on main branch merge, publishing to Docker Hub, and integration with docker-compose-agent-test.yml to enable full tri-chain testing on ARM64 systems.
 
 ---
 
