@@ -1,0 +1,71 @@
+# Epic 32 Messaging Gateway Configuration
+# Configuration for X402 gateway with NIP-59 giftwrap routing
+# Used by: facilitator service in docker-compose-messaging-demo.yml
+
+gateway:
+  nodeId: "facilitator-gateway"
+  ilpAddress: "g.facilitator"
+
+  http:
+    port: 3001
+    cors:
+      enabled: true
+      origins:
+        - "http://localhost:5173"  # Explorer UI (client-side encryption UI)
+        - "http://localhost:5174"  # Bob's client (second browser tab)
+
+  websocket:
+    port: 3003  # Message receiver WebSocket (for Bob's client)
+    pingInterval: 30000  # 30s keepalive (detect disconnected clients)
+    maxConnections: 100  # Maximum concurrent WebSocket connections
+
+  messaging:
+    enabled: true
+    port: 3002  # X402 HTTP API (/api/route-giftwrap endpoint)
+    maxGiftwrapSize: 65536  # 64KB max payload size
+    routingEndpoint: "/api/route-giftwrap"
+    queueEnabled: true  # Queue messages when WebSocket disconnected
+    queueMaxSize: 1000  # Maximum queued messages per recipient
+    queueTTL: 86400  # Queue message expiry: 24 hours (seconds)
+
+  btp:
+    listenPort: 9001  # BTP server port (accept incoming peer connections)
+    peers:
+      - nodeId: "connector1"
+        address: "connector1:9001"  # Docker network hostname
+        authToken: "shared-secret-facilitator-c1"
+        role: "relay"  # First hop relay connector
+
+  routing:
+    # Static routing table for private messaging
+    # Format: { destination: nextHop }
+    table:
+      "g.agent.bob.private": "connector1"  # Bob's messages go through Connector1
+      "g.agent.carol.private": "connector1"  # Carol's messages also via Connector1
+      "g.agent.dave.private": "connector1"  # Dave's messages also via Connector1
+
+  settlement:
+    engine: "aptos"  # Settlement engine type: aptos | evm | xrp
+    rpcUrl: "http://anvil:8545"  # Aptos local testnet (Anvil fork)
+    thresholds:
+      triggerAmount: 1000  # msat - Trigger settlement at 1000 msat balance
+      settleAmount: 5000   # msat - Full settlement amount (when triggered)
+    claimExchangeEnabled: true  # Enable Epic 30 balance proof exchange via BTP
+
+  security:
+    rateLimiting:
+      enabled: true
+      requestsPerMinute: 60  # Max 60 requests/minute per IP
+      burstSize: 10  # Allow bursts of 10 requests
+    maxPayloadSize: 65536  # 64KB (matches maxGiftwrapSize)
+
+  telemetry:
+    enabled: true
+    websocketPort: 5001  # Telemetry WebSocket for Explorer UI
+    bufferSize: 1000  # Telemetry event buffer size
+    flushInterval: 1000  # Flush telemetry every 1 second
+
+  logging:
+    level: "info"  # Log levels: error | warn | info | debug | trace
+    format: "json"  # Log format: json | pretty
+    prettyPrint: false  # Pretty-print logs (dev mode only)

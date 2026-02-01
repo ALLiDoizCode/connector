@@ -1,0 +1,237 @@
+# Docker Compose configuration for Epic 32 Private Messaging Demo
+#
+# NIP-59 giftwrap encrypted messaging with multi-hop ILP routing:
+#   Alice (Browser) → Facilitator (X402 Gateway) → Connector1 → Connector2 → Bob Agent
+#
+# Uses public Aptos Testnet for settlement with M2M tokens
+# Requires: testnet-wallets.json with funded Aptos wallet and deployed M2M token
+#
+# Usage:
+#   ./scripts/run-messaging-demo.sh
+#
+#   # Or manually:
+#   docker compose -f docker-compose-messaging-demo.yml up -d
+#
+#   # View logs
+#   docker compose -f docker-compose-messaging-demo.yml logs -f
+#
+#   # Stop and cleanup
+#   docker compose -f docker-compose-messaging-demo.yml down -v
+#
+# Service URLs:
+#   Explorer UI (Dev):    http://localhost:5173/messenger
+#   Gateway API:          http://localhost:3002
+#   Facilitator UI:       http://localhost:9200
+#   Connector 1 UI:       http://localhost:9201
+#   Connector 2 UI:       http://localhost:9202
+#   Bob Agent UI:         http://localhost:9203
+
+services:
+  # Bob Agent - Message receiver with WebSocket server
+  bob-agent:
+    build:
+      context: .
+      dockerfile: packages/connector/Dockerfile.agent
+    container_name: messaging_bob_agent
+    environment:
+      AGENT_ID: bob-agent
+      AGENT_HTTP_PORT: 8080
+      AGENT_BTP_PORT: 3000
+      AGENT_EXPLORER_PORT: 9000
+      AGENT_DATABASE_PATH: ":memory:"
+      AGENT_EXPLORER_DB_PATH: ":memory:"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NETWORK_MODE: testnet
+
+      # Private messaging receiver
+      ENABLE_PRIVATE_MESSAGING: "true"
+      MESSAGING_WEBSOCKET_PORT: 3003
+      MESSAGING_ADDRESS: "g.agent.bob.private"
+
+      # Settlement - Public Aptos Testnet with M2M tokens
+      APTOS_ENABLED: "true"
+      APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1
+      APTOS_FAUCET_URL: https://faucet.testnet.aptoslabs.com
+      APTOS_MODULE_ADDRESS: ${APTOS_MODULE_ADDRESS:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a}
+      APTOS_COIN_TYPE: ${APTOS_COIN_TYPE:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::m2m_token::M2M}
+    ports:
+      - "8203:8080"  # HTTP API
+      - "3203:3000"  # BTP WebSocket
+      - "9203:9000"  # Explorer UI
+      - "3020:3003"  # Message receiver WebSocket
+    networks:
+      - messaging_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Connector 2 - Second relay hop (closer to Bob)
+  connector2:
+    build:
+      context: .
+      dockerfile: packages/connector/Dockerfile.agent
+    container_name: messaging_connector2
+    environment:
+      AGENT_ID: connector2
+      AGENT_HTTP_PORT: 8080
+      AGENT_BTP_PORT: 3000
+      AGENT_EXPLORER_PORT: 9000
+      AGENT_DATABASE_PATH: ":memory:"
+      AGENT_EXPLORER_DB_PATH: ":memory:"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NETWORK_MODE: testnet
+
+      # ILP Forwarding - Forward to Bob Agent
+      ENABLE_PRIVATE_MESSAGING: "true"
+      FIRST_HOP_BTP_URL: "ws://bob-agent:3000"
+      MESSAGING_ADDRESS: "g.agent.connector2"
+
+      # Settlement - Public Aptos Testnet with M2M tokens
+      APTOS_ENABLED: "true"
+      APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1
+      APTOS_FAUCET_URL: https://faucet.testnet.aptoslabs.com
+      APTOS_MODULE_ADDRESS: ${APTOS_MODULE_ADDRESS:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a}
+      APTOS_COIN_TYPE: ${APTOS_COIN_TYPE:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::m2m_token::M2M}
+    ports:
+      - "8202:8080"
+      - "3202:3000"
+      - "9202:9000"
+    networks:
+      - messaging_network
+    depends_on:
+      bob-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Connector 1 - First relay hop (after facilitator)
+  connector1:
+    build:
+      context: .
+      dockerfile: packages/connector/Dockerfile.agent
+    container_name: messaging_connector1
+    environment:
+      AGENT_ID: connector1
+      AGENT_HTTP_PORT: 8080
+      AGENT_BTP_PORT: 3000
+      AGENT_EXPLORER_PORT: 9000
+      AGENT_DATABASE_PATH: ":memory:"
+      AGENT_EXPLORER_DB_PATH: ":memory:"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NETWORK_MODE: testnet
+
+      # ILP Forwarding - Forward to Connector 2
+      ENABLE_PRIVATE_MESSAGING: "true"
+      FIRST_HOP_BTP_URL: "ws://connector2:3000"
+      MESSAGING_ADDRESS: "g.agent.connector1"
+
+      # Settlement - Public Aptos Testnet with M2M tokens
+      APTOS_ENABLED: "true"
+      APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1
+      APTOS_FAUCET_URL: https://faucet.testnet.aptoslabs.com
+      APTOS_MODULE_ADDRESS: ${APTOS_MODULE_ADDRESS:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a}
+      APTOS_COIN_TYPE: ${APTOS_COIN_TYPE:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::m2m_token::M2M}
+    ports:
+      - "8201:8080"
+      - "3201:3000"
+      - "9201:9000"
+    networks:
+      - messaging_network
+    depends_on:
+      connector2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Facilitator - X402 Gateway + Messaging Gateway
+  facilitator:
+    build:
+      context: .
+      dockerfile: packages/connector/Dockerfile.facilitator
+    container_name: messaging_facilitator
+    environment:
+      AGENT_ID: facilitator
+      AGENT_HTTP_PORT: 8080
+      AGENT_BTP_PORT: 3000
+      AGENT_EXPLORER_PORT: 9000
+      AGENT_DATABASE_PATH: ":memory:"
+      AGENT_EXPLORER_DB_PATH: ":memory:"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NETWORK_MODE: testnet
+
+      # Facilitator-specific
+      FACILITATOR_ENABLED: "true"
+      FACILITATOR_API_PORT: 3001
+
+      # Messaging Gateway
+      ENABLE_PRIVATE_MESSAGING: "true"
+      MESSAGING_GATEWAY_PORT: 3002
+      MESSAGING_WEBSOCKET_PORT: 3003
+      # Multi-hop routing: Facilitator → Connector1 → Connector2 → Bob Agent
+      FIRST_HOP_BTP_URL: "ws://connector1:3000"
+
+      # Settlement - Public Aptos Testnet with M2M tokens
+      APTOS_ENABLED: "true"
+      APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1
+      APTOS_FAUCET_URL: https://faucet.testnet.aptoslabs.com
+      APTOS_MODULE_ADDRESS: ${APTOS_MODULE_ADDRESS:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a}
+      APTOS_COIN_TYPE: ${APTOS_COIN_TYPE:-0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::m2m_token::M2M}
+    ports:
+      - "8200:8080"   # Internal HTTP API
+      - "3200:3000"   # BTP WebSocket
+      - "9200:9000"   # Explorer UI
+      - "3001:3001"   # Facilitator API (SPSP)
+      - "3002:3002"   # Messaging Gateway API
+      - "3003:3003"   # Message receiver WebSocket
+    networks:
+      - messaging_network
+    depends_on:
+      connector1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # Explorer UI - Private Messenger React frontend
+  explorer-ui:
+    build:
+      context: .
+      dockerfile: packages/connector/Dockerfile.client-ui
+    container_name: messaging_explorer_ui
+    environment:
+      VITE_FACILITATOR_URL: http://localhost:3001
+      VITE_GATEWAY_URL: http://localhost:3002
+      VITE_WEBSOCKET_URL: ws://localhost:3003
+    ports:
+      - "5173:3000"
+    networks:
+      - messaging_network
+    depends_on:
+      facilitator:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  messaging_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16

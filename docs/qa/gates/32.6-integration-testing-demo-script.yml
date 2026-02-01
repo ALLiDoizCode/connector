@@ -1,0 +1,170 @@
+# Quality Gate Decision: Story 32.6 - Integration Testing and Demo Script
+# Epic 32: Private Messaging with NIP-59 Giftwrap Routing
+
+schema: 1
+story: "32.6"
+story_title: "Integration Testing and Demo Script"
+gate: CONCERNS
+status_reason: "Strong implementation with excellent documentation and test structure, but 3 critical issues block production readiness: linting errors, settlement verification placeholder, and integration tests not executed for verification."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-01T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "LINT-001"
+    severity: high
+    finding: "20+ TypeScript linting errors - @typescript-eslint/no-explicit-any violations"
+    suggested_action: "Replace all 'any' types with proper TypeScript interfaces to comply with strict mode standards"
+    refs: ["Multiple files - run 'npm run lint' for full list"]
+    suggested_owner: dev
+
+  - id: "TEST-001"
+    severity: high
+    finding: "Settlement verification is placeholder implementation (returns hardcoded true)"
+    suggested_action: "Implement actual Aptos blockchain query using ethers.js provider in verifySettlementOnAptos() function"
+    refs: ["packages/connector/test/integration/private-messaging.test.ts:173-181"]
+    suggested_owner: dev
+
+  - id: "TEST-002"
+    severity: high
+    finding: "Integration tests not executed for verification - all tests skip by default (MESSAGING_TESTS env var required)"
+    suggested_action: "Start Docker infrastructure, run integration tests with MESSAGING_TESTS=true, and verify all 5 scenarios pass"
+    refs: ["packages/connector/test/integration/private-messaging.test.ts:202-203"]
+    suggested_owner: dev
+
+  - id: "TEST-003"
+    severity: medium
+    finding: "Performance benchmarks documented but not executable as automated Jest tests"
+    suggested_action: "Create private-messaging-performance.test.ts with executable benchmarks that measure latency, throughput, and encryption time"
+    refs: ["docs/qa/benchmarks/32.6-private-messaging-performance.md"]
+    suggested_owner: dev
+
+  - id: "CI-001"
+    severity: medium
+    finding: "CI/CD integration-tests-messaging job added but not verified to run successfully"
+    suggested_action: "Trigger GitHub Actions workflow and verify job starts Docker infrastructure and completes within 15-minute timeout"
+    refs: [".github/workflows/ci.yml"]
+    suggested_owner: dev
+
+risk_summary:
+  totals: { critical: 0, high: 3, medium: 2, low: 0 }
+  highest: high
+  recommendations:
+    must_fix:
+      - "Fix all TypeScript linting errors (LINT-001)"
+      - "Implement actual settlement verification (TEST-001)"
+      - "Execute integration tests and verify 5/5 scenarios pass (TEST-002)"
+    monitor:
+      - "Add executable performance benchmark tests (TEST-003)"
+      - "Verify CI/CD job execution (CI-001)"
+
+quality_score: 70
+# Calculation: 100 - (20 × 0 FAIL) - (10 × 3 high) = 70
+
+expires: "2026-02-15T00:00:00Z"
+
+evidence:
+  tests_reviewed: 15
+  # Integration test scenarios: 5 main scenarios × 3 assertions each = 15 test cases
+  # Helper function tests: 5 helpers × 3-4 tests each = 18 test cases
+  # Total: 33 test cases reviewed
+
+  risks_identified: 5
+  # LINT-001, TEST-001, TEST-002, TEST-003, CI-001
+
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 7, 10]
+    # AC 1: Integration test file created ✓
+    # AC 2: Test covers 5 scenarios ✓
+    # AC 3: Demo startup script created ✓
+    # AC 4: Docker Compose configuration created ✓
+    # AC 5: Demo documentation created ✓
+    # AC 7: Demo completes <5 minutes (documented) ✓
+    # AC 10: Troubleshooting section included ✓
+
+    ac_gaps: [6, 8, 9]
+    # AC 6: All integration tests pass - NOT VERIFIED (tests skip by default)
+    # AC 8: Performance benchmarks documented - PARTIAL (doc exists, no executable tests)
+    # AC 9: Settlement verified on Aptos testnet - PLACEHOLDER (not implemented)
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "NIP-59 encryption properly implemented with ephemeral keys, no hardcoded private keys, read-only config mounts, privacy verification tested"
+
+  performance:
+    status: PASS
+    notes: "Documented benchmarks meet all targets (latency p95 4.6s < 5s, throughput 12 msg/min > 10, encryption 42ms < 50ms, TOON 36.5% > 35%). Note: Benchmarks documented but not executable as automated tests."
+
+  reliability:
+    status: CONCERNS
+    notes: "Test structure is strong (5 scenarios, helper functions), but actual execution not verified. Integration tests skip by default, settlement verification is placeholder."
+
+  maintainability:
+    status: PASS
+    notes: "Excellent documentation (5-minute demo script, performance benchmarks, troubleshooting guide with 6 issues). Code follows AAA pattern, descriptive test names, well-organized helper functions."
+
+recommendations:
+  immediate:
+    - action: "Fix all TypeScript linting errors - replace 'any' types with proper interfaces"
+      refs: ["Multiple files - run 'npm run lint'"]
+      estimated_effort: "1 hour"
+
+    - action: "Implement actual settlement verification using Aptos SDK and ethers.js provider"
+      refs: ["packages/connector/test/integration/private-messaging.test.ts:173-181"]
+      estimated_effort: "1 hour"
+
+    - action: "Start Docker infrastructure and execute integration tests to verify 5/5 scenarios pass"
+      refs: ["docker-compose-messaging-demo.yml", "packages/connector/test/integration/private-messaging.test.ts"]
+      estimated_effort: "30 minutes"
+
+  future:
+    - action: "Create executable performance benchmark tests (not just documentation)"
+      refs: ["Create: packages/connector/test/integration/private-messaging-performance.test.ts"]
+      estimated_effort: "2 hours"
+
+    - action: "Verify CI/CD integration-tests-messaging job runs successfully in GitHub Actions"
+      refs: [".github/workflows/ci.yml"]
+      estimated_effort: "30 minutes"
+
+    - action: "Add retry logic with exponential backoff to demo script health checks"
+      refs: ["scripts/run-messaging-demo.sh:124-136"]
+      estimated_effort: "30 minutes"
+
+# Key Strengths (Positive Findings)
+strengths:
+  - "Comprehensive test structure with 5 clear scenarios (Happy Path, Multi-User, Error Handling, Privacy Verification, Settlement)"
+  - "Production-ready demo infrastructure with one-command startup, health checks, and detailed error messages"
+  - "Excellent documentation: 5-minute narrated demo script, performance benchmarks with metrics, FAQ with 4 questions"
+  - "Proper NIP-59 giftwrap implementation with manual nip44.decrypt() for seal and rumor layers"
+  - "Well-designed Docker Compose with sequential startup, health checks, and proper volume mounts"
+  - "Comprehensive troubleshooting guide covering 6 common issues with solutions"
+  - "Helper functions with good test coverage (5 helpers × 3-4 tests each = 18 test cases)"
+
+# Review Summary
+summary: |
+  Story 32.6 delivers a **strong foundation** for Epic 32 integration testing and demo infrastructure:
+
+  **What's Excellent:**
+  - Test structure is comprehensive (5 scenarios covering all critical paths)
+  - Demo documentation is outstanding (5-minute script, performance benchmarks, troubleshooting)
+  - Docker infrastructure is well-designed (health checks, sequential startup, proper mounts)
+  - Code quality follows established patterns from Stories 32.1-32.5
+
+  **What Needs Attention (3 Critical Issues):**
+  1. **Linting Errors:** 20+ violations of TypeScript strict mode (no-explicit-any)
+  2. **Settlement Verification:** Placeholder implementation (returns hardcoded true)
+  3. **Test Execution:** Integration tests not verified (skip by default, need actual run)
+
+  **Impact Assessment:**
+  - Story is ~90% complete (7/10 ACs fully met, 3 partially met)
+  - Documentation and structure are production-ready
+  - Implementation gaps prevent confident claim of "all tests pass" (AC#6)
+
+  **Time to Resolve:** 2-3 hours
+  - 1h: Fix linting errors (replace any types)
+  - 1h: Implement settlement verification with Aptos SDK
+  - 30min: Run Docker + execute tests for verification
+
+  **Recommendation:** Changes required before marking story as Done. Once critical issues resolved, story will be **READY FOR PRODUCTION** ✅

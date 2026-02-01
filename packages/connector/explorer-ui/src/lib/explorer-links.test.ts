@@ -65,9 +65,7 @@ describe('detectAddressType', () => {
   describe('Edge cases', () => {
     it('should return unknown for null or empty', () => {
       expect(detectAddressType('')).toBe('unknown');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(detectAddressType(null as unknown as string)).toBe('unknown');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(detectAddressType(undefined as unknown as string)).toBe('unknown');
     });
 
@@ -78,11 +76,8 @@ describe('detectAddressType', () => {
     });
 
     it('should return unknown for non-string types', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(detectAddressType(12345 as unknown as string)).toBe('unknown');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(detectAddressType({} as unknown as string)).toBe('unknown');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(detectAddressType([] as unknown as string)).toBe('unknown');
     });
 
@@ -224,18 +219,13 @@ describe('getExplorerUrl', () => {
 
     it('should return null for null/empty input', () => {
       expect(getExplorerUrl('', 'address')).toBeNull();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(getExplorerUrl(null as unknown as string, 'address')).toBeNull();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(getExplorerUrl(undefined as unknown as string, 'address')).toBeNull();
     });
 
     it('should return null for non-string types', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(getExplorerUrl(12345 as unknown as string, 'address')).toBeNull();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(getExplorerUrl({} as unknown as string, 'address')).toBeNull();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(getExplorerUrl([] as unknown as string, 'address')).toBeNull();
     });
 

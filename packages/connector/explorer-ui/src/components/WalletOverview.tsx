@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { Link2, Copy, Check, RefreshCw } from 'lucide-react';
+import { Link2, Copy, Check, RefreshCw, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getExplorerUrl } from '@/lib/explorer-links';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -67,6 +68,17 @@ function XrpIcon({ className }: { className?: string }) {
   );
 }
 
+function AptosIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M71.4 36.5h-9.8c-.8 0-1.6.4-2.1 1l-4.5 5.5c-.7.9-2.1.9-2.8 0l-4.5-5.5c-.5-.6-1.3-1-2.1-1h-17c-.9 0-1.4 1-.8 1.7l7.8 9.5c.5.6.5 1.5 0 2.1l-7.8 9.5c-.6.7-.1 1.7.8 1.7h17c.8 0 1.6-.4 2.1-1l4.5-5.5c.7-.9 2.1-.9 2.8 0l4.5 5.5c.5.6 1.3 1 2.1 1h9.8c.9 0 1.4-1 .8-1.7l-12.3-15c-.5-.6-.5-1.5 0-2.1l12.3-15c.6-.7.1-1.7-.8-1.7z"
+        fill="#10B981"
+      />
+    </svg>
+  );
+}
+
 /** Truncate an address to first 6 + last 4 characters */
 function truncateAddress(addr: string): string {
   if (addr.length <= 12) return addr;
@@ -74,8 +86,30 @@ function truncateAddress(addr: string): string {
 }
 
 /** Copyable address inline component */
-function CopyableAddress({ address }: { address: string }) {
+function CopyableAddress({ address, explorerUrl }: { address: string; explorerUrl?: string }) {
   const { copy, copied } = useCopyToClipboard();
+
+  if (explorerUrl) {
+    return (
+      <a
+        href={explorerUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 font-mono text-xs text-blue-500 hover:text-blue-700 hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+        onClick={(e) => {
+          e.preventDefault();
+          window.open(explorerUrl, '_blank', 'noopener,noreferrer');
+        }}
+        title={address}
+        aria-label="View on blockchain explorer"
+      >
+        {truncateAddress(address)}
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    );
+  }
+
+  // Fallback: plain copy button (existing behavior)
   return (
     <button
       onClick={() => copy(address)}
@@ -128,11 +162,28 @@ export const WalletOverview = React.memo(function WalletOverview({
             Agent: <span className="font-medium text-foreground">{data.agentId}</span>
           </span>
           <span>
-            EVM: <CopyableAddress address={data.evmAddress} />
+            EVM:{' '}
+            <CopyableAddress
+              address={data.evmAddress}
+              explorerUrl={getExplorerUrl(data.evmAddress, 'address') ?? undefined}
+            />
           </span>
           {data.xrpAddress && (
             <span>
-              XRP: <CopyableAddress address={data.xrpAddress} />
+              XRP:{' '}
+              <CopyableAddress
+                address={data.xrpAddress}
+                explorerUrl={getExplorerUrl(data.xrpAddress, 'address') ?? undefined}
+              />
+            </span>
+          )}
+          {data.aptosAddress && (
+            <span>
+              Aptos:{' '}
+              <CopyableAddress
+                address={data.aptosAddress}
+                explorerUrl={getExplorerUrl(data.aptosAddress, 'address') ?? undefined}
+              />
             </span>
           )}
         </div>
@@ -140,7 +191,7 @@ export const WalletOverview = React.memo(function WalletOverview({
 
       <CardContent className="space-y-4">
         {/* Balance cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* ETH Balance */}
           <div className="rounded-lg border p-3">
             <div className="flex items-center gap-1.5 text-xs font-medium text-blue-500 mb-1">
@@ -181,6 +232,19 @@ export const WalletOverview = React.memo(function WalletOverview({
                 : '—'}
             </div>
           </div>
+
+          {/* APT Balance */}
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 mb-1">
+              <AptosIcon className="h-3.5 w-3.5" />
+              APT
+            </div>
+            <div className="text-lg font-bold font-mono">
+              {data.aptBalance != null
+                ? Number(data.aptBalance).toLocaleString(undefined, { maximumFractionDigits: 4 })
+                : '—'}
+            </div>
+          </div>
         </div>
 
         {/* EVM Channels */}
@@ -203,10 +267,16 @@ export const WalletOverview = React.memo(function WalletOverview({
                 {data.evmChannels.map((ch) => (
                   <TableRow key={ch.channelId}>
                     <TableCell>
-                      <CopyableAddress address={ch.channelId} />
+                      <CopyableAddress
+                        address={ch.channelId}
+                        explorerUrl={getExplorerUrl(ch.channelId, 'address') ?? undefined}
+                      />
                     </TableCell>
                     <TableCell>
-                      <CopyableAddress address={ch.peerAddress} />
+                      <CopyableAddress
+                        address={ch.peerAddress}
+                        explorerUrl={getExplorerUrl(ch.peerAddress, 'address') ?? undefined}
+                      />
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
                       {Number(ch.deposit).toLocaleString(undefined, { maximumFractionDigits: 4 })}
@@ -246,10 +316,20 @@ export const WalletOverview = React.memo(function WalletOverview({
                 {data.xrpChannels.map((ch) => (
                   <TableRow key={ch.channelId}>
                     <TableCell>
-                      <CopyableAddress address={ch.channelId} />
+                      <CopyableAddress
+                        address={ch.channelId}
+                        explorerUrl={
+                          data.xrpAddress
+                            ? (getExplorerUrl(data.xrpAddress, 'address') ?? undefined)
+                            : undefined
+                        }
+                      />
                     </TableCell>
                     <TableCell>
-                      <CopyableAddress address={ch.destination} />
+                      <CopyableAddress
+                        address={ch.destination}
+                        explorerUrl={getExplorerUrl(ch.destination, 'address') ?? undefined}
+                      />
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
                       {Number(ch.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -267,12 +347,63 @@ export const WalletOverview = React.memo(function WalletOverview({
           </div>
         )}
 
-        {/* No channels message */}
-        {data.evmChannels.length === 0 && data.xrpChannels.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-2">
-            No payment channels open yet.
-          </p>
+        {/* Aptos Channels */}
+        {data.aptosChannels && data.aptosChannels.length > 0 && (
+          <div>
+            <h4 className="text-xs font-medium text-muted-foreground mb-2">
+              Aptos Channels ({data.aptosChannels.length})
+            </h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[20%]">Channel</TableHead>
+                  <TableHead className="w-[20%]">Peer</TableHead>
+                  <TableHead className="w-[25%] text-right">Deposit</TableHead>
+                  <TableHead className="w-[25%] text-right">Transferred</TableHead>
+                  <TableHead className="w-[10%] text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.aptosChannels.map((ch) => (
+                  <TableRow key={ch.channelId}>
+                    <TableCell>
+                      <CopyableAddress
+                        address={ch.channelId}
+                        explorerUrl={getExplorerUrl(ch.channelId, 'address') ?? undefined}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CopyableAddress
+                        address={ch.peerAddress}
+                        explorerUrl={getExplorerUrl(ch.peerAddress, 'address') ?? undefined}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {Number(ch.deposit).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {Number(ch.transferredAmount).toLocaleString(undefined, {
+                        maximumFractionDigits: 4,
+                      })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ChannelStatusBadge status={ch.status} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
+
+        {/* No channels message */}
+        {data.evmChannels.length === 0 &&
+          data.xrpChannels.length === 0 &&
+          (!data.aptosChannels || data.aptosChannels.length === 0) && (
+            <p className="text-xs text-muted-foreground text-center py-2">
+              No payment channels open yet.
+            </p>
+          )}
       </CardContent>
     </Card>
   );

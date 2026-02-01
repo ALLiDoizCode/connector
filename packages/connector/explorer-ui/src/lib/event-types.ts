@@ -199,7 +199,7 @@ export interface AccountState {
   settlementState: SettlementState;
   balanceHistory: BalanceHistoryEntry[];
   hasActiveChannel?: boolean;
-  channelType?: 'evm' | 'xrp';
+  channelType?: 'evm' | 'xrp' | 'aptos';
   lastUpdated: number;
 }
 
@@ -224,8 +224,8 @@ export interface ChannelState {
   openedAt: string;
   settledAt?: string;
   lastActivityAt: string;
-  // XRP-specific fields
-  settlementMethod?: 'evm' | 'xrp';
+  // Chain-specific fields
+  settlementMethod?: 'evm' | 'xrp' | 'aptos';
   xrpAccount?: string;
   xrpDestination?: string;
   xrpAmount?: string;
@@ -287,15 +287,29 @@ export interface WalletXrpChannel {
 }
 
 /**
+ * Aptos payment channel from /api/balances
+ */
+export interface WalletAptosChannel {
+  channelId: string;
+  peerAddress: string;
+  deposit: string;
+  transferredAmount: string;
+  status: string;
+}
+
+/**
  * Response from GET /api/balances
  */
 export interface WalletBalances {
   agentId: string;
   evmAddress: string;
   xrpAddress: string | null;
+  aptosAddress: string | null;
   ethBalance: string | null;
   agentTokenBalance: string | null;
   xrpBalance: string | null;
+  aptBalance: string | null;
   evmChannels: WalletEvmChannel[];
   xrpChannels: WalletXrpChannel[];
+  aptosChannels: WalletAptosChannel[];
 }

@@ -1118,6 +1118,132 @@ export interface RateLimitExceededEvent {
 }
 
 /**
+ * Claim Settlement Initiated Telemetry Event
+ *
+ * Emitted when automatic settlement execution begins for a payment channel.
+ * Indicates settlement triggered by threshold exceeded, now executing on-chain settlement.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows settlement execution lifecycle
+ * - Settlement monitoring panel displays in-progress settlements
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSettlementInitiatedEvent = {
+ *   type: 'CLAIM_SETTLEMENT_INITIATED',
+ *   nodeId: 'connector-a',
+ *   chain: 'evm',
+ *   channelId: '0xabc123...',
+ *   amount: '5000000000000000000',
+ *   peerId: 'peer-bob',
+ *   timestamp: '2026-02-01T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSettlementInitiatedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SETTLEMENT_INITIATED';
+  /** Connector node ID initiating settlement */
+  nodeId: string;
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
+  /** Channel ID (EVM: bytes32, XRP: 64-char hex, Aptos: channelOwner address) */
+  channelId: string;
+  /** Settlement amount, bigint as string */
+  amount: string;
+  /** Peer identifier */
+  peerId: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Settlement Success Telemetry Event
+ *
+ * Emitted when automatic settlement execution completes successfully on-chain.
+ * Indicates settlement transaction confirmed, channel balances updated.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows successful settlement completion
+ * - Settlement monitoring panel updates channel status
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSettlementSuccessEvent = {
+ *   type: 'CLAIM_SETTLEMENT_SUCCESS',
+ *   nodeId: 'connector-a',
+ *   chain: 'evm',
+ *   channelId: '0xabc123...',
+ *   txHash: '0xdef456...',
+ *   settledAmount: '5000000000000000000',
+ *   peerId: 'peer-bob',
+ *   timestamp: '2026-02-01T12:01:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSettlementSuccessEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SETTLEMENT_SUCCESS';
+  /** Connector node ID completing settlement */
+  nodeId: string;
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
+  /** Channel ID */
+  channelId: string;
+  /** On-chain transaction hash */
+  txHash: string;
+  /** Settled amount, bigint as string */
+  settledAmount: string;
+  /** Peer identifier */
+  peerId: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Settlement Failed Telemetry Event
+ *
+ * Emitted when automatic settlement execution fails.
+ * Indicates settlement transaction failed, or no claim available for settlement.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows settlement failures for investigation
+ * - Settlement monitoring panel displays failed settlements
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSettlementFailedEvent = {
+ *   type: 'CLAIM_SETTLEMENT_FAILED',
+ *   nodeId: 'connector-a',
+ *   chain: 'evm',
+ *   channelId: '0xabc123...',
+ *   error: 'No stored claim available',
+ *   attemptedAmount: '5000000000000000000',
+ *   peerId: 'peer-bob',
+ *   timestamp: '2026-02-01T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSettlementFailedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SETTLEMENT_FAILED';
+  /** Connector node ID failing settlement */
+  nodeId: string;
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
+  /** Channel ID */
+  channelId: string;
+  /** Error message describing failure */
+  error: string;
+  /** Attempted settlement amount, bigint as string */
+  attemptedAmount: string;
+  /** Peer identifier */
+  peerId: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -1200,4 +1326,7 @@ export type TelemetryEvent =
   | AgentChannelClosedEvent
   | WalletBalanceMismatchEvent
   | SuspiciousActivityDetectedEvent
-  | RateLimitExceededEvent;
+  | RateLimitExceededEvent
+  | ClaimSettlementInitiatedEvent
+  | ClaimSettlementSuccessEvent
+  | ClaimSettlementFailedEvent;

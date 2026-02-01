@@ -96,3 +96,14 @@ export type {
 // DVM Module - NIP-90 Compatibility
 export { DVM_KIND_RANGE, DVM_ERROR_CODES, DVMParseError, parseDVMJobRequest } from './dvm';
 export type { DVMJobRequest, DVMInput, DVMInputType, DVMErrorCode } from './dvm';
+
+// Claim Event Builder & Parser (Epic 30 Story 30.2)
+export { ClaimEventBuilder } from './claim-event-builder';
+export { ClaimEventParser } from './claim-event-parser';
+
+// Claim Store (Epic 30 Story 30.3)
+export { ClaimStore } from './claim-store';
+
+// Claim Manager (Epic 30 Story 30.4)
+export { ClaimManager } from './claim-manager';
+export type { WalletAddresses, ProcessClaimResult } from './claim-manager';

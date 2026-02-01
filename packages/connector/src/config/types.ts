@@ -294,6 +294,32 @@ export interface ConnectorConfig {
    * - EXPLORER_MAX_EVENTS: Maximum events to retain (default: 1000000)
    */
   explorer?: ExplorerConfig;
+
+  /**
+   * Operating mode for the connector
+   * Determines whether to run as a standard connector or messaging gateway
+   *
+   * Modes:
+   * - 'connector': Standard ILP connector (default)
+   * - 'gateway': Messaging gateway mode (Epic 32)
+   */
+  mode?: 'connector' | 'gateway';
+
+  /**
+   * BTP URL of the first-hop connector (gateway mode only)
+   * Used when mode='gateway' to establish BTP client connection
+   *
+   * Example: 'ws://connector1:3000'
+   */
+  firstHopUrl?: string;
+
+  /**
+   * BTP authentication token for first-hop connector (gateway mode only)
+   * Used when mode='gateway' to authenticate with first-hop connector
+   *
+   * Example: 'shared-secret-123'
+   */
+  btpAuthToken?: string;
 }
 
 /**

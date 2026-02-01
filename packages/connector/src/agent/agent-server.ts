@@ -6,6 +6,7 @@
  * - BTP WebSocket endpoint for ILP communication
  * - HTTP API for configuration and management
  * - Health check endpoint
+ * - Automatic balance proof exchange via claim events (CLAIM_EXCHANGE_ENABLED)
  *
  * Environment Variables:
  *   AGENT_HTTP_PORT - HTTP API port (default: 8080)
@@ -15,6 +16,11 @@
  *   AGENT_ID - Unique agent identifier (default: "agent-0")
  *   AGENT_DATABASE_PATH - Database path (default: ":memory:")
  *   LOG_LEVEL - Log level (default: "info")
+ *   CLAIM_EXCHANGE_ENABLED - Enable balance proof claim exchange (default: true)
+ *                            When enabled, outgoing BTP packets are wrapped with signed
+ *                            balance proofs for all active payment channels. Incoming
+ *                            claims are verified and stored for settlement. When disabled,
+ *                            the system operates in backward-compatible mode without claims.
  */
 
 import * as http from 'http';
@@ -37,10 +43,34 @@ import { IAptosClient, AptosClient, AptosClientConfig } from '../settlement/apto
 import { AptosClaimSigner } from '../settlement/aptos-claim-signer';
 import { Ed25519PrivateKey, Account } from '@aptos-labs/ts-sdk';
 import { ToonCodec, NostrEvent } from './toon-codec';
-import { PacketType, ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+import {
+  PacketType,
+  ILPPreparePacket,
+  ILPFulfillPacket,
+  ILPRejectPacket,
+  ILPErrorCode,
+} from '@m2m/shared';
 import { EventStore } from '../explorer/event-store';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { ExplorerServer } from '../explorer/explorer-server';
+import { ClaimManager, WalletAddresses } from './claim-manager';
+import { ClaimStore } from './claim-store';
+import { ClaimEventParser } from './claim-event-parser';
+import { ClaimEventBuilder } from './claim-event-builder';
+import { SignedClaim, ClaimRequest } from '@m2m/shared';
+import { PaymentChannelSDK } from '../settlement/payment-channel-sdk';
+import { ClaimSigner } from '../settlement/xrp-claim-signer';
+import { KeyManager } from '../security/key-manager';
+import Database, { type Database as DatabaseType } from 'better-sqlite3';
+// Private Messaging imports (Story 32.7)
+import { GiftwrapWebSocketServer } from '../messaging/giftwrap-websocket-server';
+import { MessagingGateway } from '../messaging/messaging-gateway';
+import { GiftwrapRouter } from '../messaging/giftwrap-router';
+import { BTPClient, Peer as BTPPeer } from '../btp/btp-client';
+// BTP message parsing for proper protocol handling
+import { parseBTPMessage, serializeBTPMessage } from '../btp/btp-message-parser';
+import { BTPMessage, BTPMessageType, BTPData, isBTPData } from '../btp/btp-types';
+import { deserializePacket } from '@m2m/shared';
 
 // ============================================
 // Types
@@ -77,6 +107,14 @@ interface AgentServerConfig {
   aptosCoinType: string | null; // Coin type for payment channels (default: AptosCoin)
   // Settlement Threshold Configuration
   settlementThreshold: bigint | null; // Auto-settle when owed balance exceeds this (in base units)
+  // Claim Exchange Configuration
+  claimExchangeEnabled: boolean; // Feature flag for balance proof claim exchange (default: true)
+  // Private Messaging Configuration (Story 32.7)
+  enablePrivateMessaging: boolean; // Enable private messaging WebSocket and HTTP gateway
+  messagingGatewayPort: number; // HTTP gateway port (default: 3002)
+  messagingWebsocketPort: number; // WebSocket server port (default: 3003)
+  messagingAddress: string; // ILP address for incoming messages (e.g., "g.agent.bob.private")
+  firstHopBtpUrl: string | null; // BTP URL of first-hop connector for outbound messaging (e.g., "ws://connector1:3000")
 }
 
 // EVM Payment channel state tracking
@@ -168,6 +206,7 @@ export class AgentServer {
   private paymentChannels: Map<string, PaymentChannel> = new Map(); // channelId -> PaymentChannel
   private tokenNetworkContract: ethers.Contract | null = null;
   private agentTokenContract: ethers.Contract | null = null;
+  private paymentChannelSDK: PaymentChannelSDK | null = null; // EVM payment channel SDK for cooperative settlement
   // XRP Payment Channel state
   private xrplClient: XrplClient | null = null;
   private xrplWallet: XrplWallet | null = null;
@@ -176,6 +215,15 @@ export class AgentServer {
   private aptosClient: IAptosClient | null = null;
   private aptosChannelSDK: IAptosChannelSDK | null = null;
   private aptosChannels: Map<string, AptosPaymentChannel> = new Map(); // channelOwner -> AptosPaymentChannel
+  // Claim Exchange state
+  private claimManager: ClaimManager | null = null;
+  private claimStore: ClaimStore | null = null;
+  private xrpClaimDb: DatabaseType | null = null; // XRP claim database for ClaimSigner
+  // Private Messaging state (Story 32.7)
+  private _giftwrapWebSocketServer: GiftwrapWebSocketServer | null = null;
+  private _messagingGateway: MessagingGateway | null = null;
+  private _giftwrapRouter: GiftwrapRouter | null = null;
+  private _messagingBtpClient: BTPClient | null = null;
 
   constructor(config: Partial<AgentServerConfig> = {}) {
     // Generate keypair if not provided
@@ -200,9 +248,9 @@ export class AgentServer {
     const evmAddress = evmWallet.address;
 
     this.config = {
-      httpPort: config.httpPort || parseInt(process.env.AGENT_HTTP_PORT || '8080', 10),
-      btpPort: config.btpPort || parseInt(process.env.AGENT_BTP_PORT || '3000', 10),
-      explorerPort: config.explorerPort || parseInt(process.env.AGENT_EXPLORER_PORT || '9000', 10),
+      httpPort: config.httpPort ?? parseInt(process.env.AGENT_HTTP_PORT || '8080', 10),
+      btpPort: config.btpPort ?? parseInt(process.env.AGENT_BTP_PORT || '3000', 10),
+      explorerPort: config.explorerPort ?? parseInt(process.env.AGENT_EXPLORER_PORT || '9000', 10),
       agentId,
       nostrPubkey: pubkey,
       nostrPrivkey: privkey,
@@ -232,12 +280,44 @@ export class AgentServer {
       settlementThreshold:
         config.settlementThreshold ??
         (process.env.SETTLEMENT_THRESHOLD ? BigInt(process.env.SETTLEMENT_THRESHOLD) : null),
+      // Claim exchange configuration
+      claimExchangeEnabled:
+        config.claimExchangeEnabled ?? process.env.CLAIM_EXCHANGE_ENABLED !== 'false',
+      // Private messaging configuration (Story 32.7)
+      enablePrivateMessaging:
+        config.enablePrivateMessaging ?? process.env.ENABLE_PRIVATE_MESSAGING === 'true',
+      messagingGatewayPort:
+        config.messagingGatewayPort ?? parseInt(process.env.MESSAGING_GATEWAY_PORT || '3002', 10),
+      messagingWebsocketPort:
+        config.messagingWebsocketPort ??
+        parseInt(process.env.MESSAGING_WEBSOCKET_PORT || '3003', 10),
+      messagingAddress:
+        config.messagingAddress || process.env.MESSAGING_ADDRESS || `g.agent.${agentId}.private`,
+      firstHopBtpUrl: config.firstHopBtpUrl || process.env.FIRST_HOP_BTP_URL || null,
     };
 
     this.logger = pino({
       level: process.env.LOG_LEVEL || 'info',
       name: this.config.agentId,
     });
+
+    // Validate messaging ports don't conflict with existing ports (Story 32.7)
+    if (this.config.enablePrivateMessaging) {
+      const usedPorts = [this.config.httpPort, this.config.btpPort, this.config.explorerPort];
+      if (usedPorts.includes(this.config.messagingGatewayPort)) {
+        throw new Error(
+          `Messaging gateway port ${this.config.messagingGatewayPort} conflicts with existing port`
+        );
+      }
+      if (usedPorts.includes(this.config.messagingWebsocketPort)) {
+        throw new Error(
+          `Messaging WebSocket port ${this.config.messagingWebsocketPort} conflicts with existing port`
+        );
+      }
+      if (this.config.messagingGatewayPort === this.config.messagingWebsocketPort) {
+        throw new Error('Messaging gateway port and WebSocket port cannot be the same');
+      }
+    }
 
     // Create EventStore for Explorer persistence
     this.eventStore = new EventStore({ path: this.config.explorerDbPath }, this.logger);
@@ -290,11 +370,25 @@ export class AgentServer {
   async start(): Promise<void> {
     this.logger.info({ config: this.config }, 'Starting agent server');
 
+    // Log claim exchange feature flag status
+    this.logger.info(
+      { claimExchangeEnabled: this.config.claimExchangeEnabled },
+      'Claim exchange configuration'
+    );
+
     // Initialize EventStore
     await this.eventStore.initialize();
 
     // Initialize AgentNode
     await this.agentNode.initialize();
+
+    // Initialize ClaimStore if claim exchange enabled
+    if (this.config.claimExchangeEnabled) {
+      // Create ClaimStore with persistent database (initializes automatically in constructor)
+      const claimStorePath = path.join(path.dirname(this.config.databasePath), 'claim-store.db');
+      this.claimStore = new ClaimStore(claimStorePath, this.logger);
+      this.logger.info({ claimStorePath }, 'ClaimStore initialized');
+    }
 
     // Initialize EVM provider and contracts if configured
     await this.initializeEVM();
@@ -305,6 +399,89 @@ export class AgentServer {
     // Initialize Aptos client if configured
     await this.initializeAptos();
 
+    // Initialize ClaimManager if claim exchange enabled and ClaimStore exists
+    if (this.config.claimExchangeEnabled && this.claimStore) {
+      try {
+        // Check if at least one payment channel type is configured
+        if (!this.evmProvider || !this.evmWallet || !this.tokenNetworkContract) {
+          this.logger.warn(
+            'EVM provider/wallet/contract not initialized - ClaimManager initialization skipped'
+          );
+          // ClaimStore remains available even if ClaimManager can't be created
+          this.claimManager = null;
+        } else {
+          // Create KeyManager with 'env' backend for claim signing
+          const keyManager = new KeyManager(
+            {
+              backend: 'env',
+              nodeId: this.config.agentId,
+            },
+            this.logger
+          );
+
+          // EVM PaymentChannelSDK requires KeyManager
+          const evmKeyId = `evm-${this.config.agentId}`;
+          this.paymentChannelSDK = new PaymentChannelSDK(
+            this.evmProvider,
+            keyManager,
+            evmKeyId,
+            this.tokenNetworkContract.target as string,
+            this.logger
+          );
+
+          // Create database for XRP ClaimSigner (separate from agent database)
+          const xrpClaimDbPath = path.join(path.dirname(this.config.databasePath), 'xrp-claims.db');
+          this.xrpClaimDb = new Database(xrpClaimDbPath);
+
+          // Initialize XRP ClaimSigner with KeyManager
+          const xrpKeyId = `xrp-${this.config.agentId}`; // Key ID for KeyManager
+          const xrpClaimSigner = new ClaimSigner(
+            this.xrpClaimDb,
+            this.logger,
+            keyManager,
+            xrpKeyId
+          );
+
+          // Create AptosClaimSigner with config object
+          const aptosClaimSigner = new AptosClaimSigner(
+            {
+              privateKey: this.config.aptosPrivateKey || '',
+            },
+            this.logger
+          );
+
+          // Create ClaimEventBuilder (only takes privateKey) and ClaimEventParser
+          const claimEventBuilder = new ClaimEventBuilder(this.config.nostrPrivkey);
+          const claimEventParser = new ClaimEventParser(this.logger);
+
+          // Create WalletAddresses
+          const walletAddresses: WalletAddresses = {
+            evm: this.config.evmAddress,
+            xrp: this.config.xrpAccountAddress || undefined,
+            aptos: this.config.aptosAccountAddress || undefined,
+          };
+
+          // Create ClaimManager
+          this.claimManager = new ClaimManager(
+            this.paymentChannelSDK,
+            xrpClaimSigner,
+            aptosClaimSigner,
+            this.claimStore,
+            claimEventBuilder,
+            claimEventParser,
+            walletAddresses,
+            this.logger
+          );
+
+          this.logger.info({ walletAddresses }, 'ClaimManager initialized');
+        }
+      } catch (error) {
+        this.logger.error({ error }, 'Failed to initialize ClaimManager');
+        // ClaimStore remains available even if ClaimManager initialization fails
+        this.claimManager = null;
+      }
+    }
+
     // Start HTTP server
     await this.startHttpServer();
 
@@ -313,6 +490,11 @@ export class AgentServer {
 
     // Start Explorer server
     await this.explorerServer.start();
+
+    // Initialize and start Private Messaging components (Story 32.7)
+    if (this.config.enablePrivateMessaging) {
+      await this.initializeMessaging();
+    }
 
     this.logger.info(
       {
@@ -324,6 +506,7 @@ export class AgentServer {
         pubkey: this.config.nostrPubkey,
         evmAddress: this.config.evmAddress,
         settlementThreshold: this.config.settlementThreshold?.toString() || 'disabled',
+        privateMessaging: this.config.enablePrivateMessaging,
       },
       'Agent server started'
     );
@@ -524,11 +707,179 @@ export class AgentServer {
     }
   }
 
+  /**
+   * Initialize Private Messaging components (Story 32.7)
+   * Starts WebSocket server for client connections and HTTP gateway for routing
+   */
+  private async initializeMessaging(): Promise<void> {
+    this.logger.info(
+      {
+        messagingGatewayPort: this.config.messagingGatewayPort,
+        messagingWebsocketPort: this.config.messagingWebsocketPort,
+        messagingAddress: this.config.messagingAddress,
+      },
+      'Initializing private messaging components'
+    );
+
+    try {
+      // Create BTPClient for GiftwrapRouter - use config firstHopBtpUrl or fall back to first peer's BTP URL
+      const firstPeer = this.peers.values().next().value;
+      const btpUrl = this.config.firstHopBtpUrl || firstPeer?.btpUrl;
+
+      if (btpUrl) {
+        const btpPeer: BTPPeer = {
+          id: `messaging-${this.config.agentId}`,
+          url: btpUrl,
+          authToken: 'messaging-auth', // Simple auth token for messaging BTP connection
+          connected: false,
+          lastSeen: new Date(),
+        };
+        this._messagingBtpClient = new BTPClient(btpPeer, this.config.agentId, this.logger);
+        await this._messagingBtpClient.connect();
+
+        // Create GiftwrapRouter with BTP client
+        this._giftwrapRouter = new GiftwrapRouter(this._messagingBtpClient, this.logger);
+        this.logger.info({ btpUrl }, 'GiftwrapRouter initialized with BTP client');
+      } else {
+        this.logger.warn(
+          'No peer BTP URL available for GiftwrapRouter - outbound messaging disabled. ' +
+            'Set FIRST_HOP_BTP_URL environment variable to enable outbound messaging.'
+        );
+      }
+
+      // Initialize GiftwrapWebSocketServer (must start before Gateway)
+      this._giftwrapWebSocketServer = new GiftwrapWebSocketServer(
+        { wsPort: this.config.messagingWebsocketPort },
+        this.logger
+      );
+      await this._giftwrapWebSocketServer.start();
+      this.logger.info(
+        { port: this.config.messagingWebsocketPort },
+        'GiftwrapWebSocketServer started'
+      );
+
+      // Initialize MessagingGateway (requires GiftwrapRouter)
+      if (this._giftwrapRouter && btpUrl) {
+        this._messagingGateway = new MessagingGateway(
+          {
+            httpPort: this.config.messagingGatewayPort,
+            wsPort: this.config.messagingWebsocketPort,
+            btpConnectionUrl: btpUrl,
+          },
+          this._giftwrapRouter,
+          this.logger
+        );
+        await this._messagingGateway.start();
+        this.logger.info({ port: this.config.messagingGatewayPort }, 'MessagingGateway started');
+      } else {
+        this.logger.warn('MessagingGateway not started - no GiftwrapRouter available');
+      }
+
+      this.logger.info({ address: this.config.messagingAddress }, 'Private messaging enabled');
+    } catch (error) {
+      this.logger.error({ err: error }, 'Failed to initialize messaging components');
+      // Clean up partial initialization
+      await this.shutdownMessaging();
+    }
+  }
+
+  /**
+   * Handle incoming ILP packet destined for private messaging address (Story 32.7)
+   * Forwards giftwrap events to connected WebSocket clients
+   * @returns ILP response if handled, null if should fall through to normal processing
+   */
+  private async handleMessagingPacket(
+    _ws: WebSocket,
+    packet: ILPPreparePacket
+  ): Promise<ILPFulfillPacket | ILPRejectPacket | null> {
+    // Check if WebSocket server is available
+    if (!this._giftwrapWebSocketServer) {
+      this.logger.warn('Messaging packet received but WebSocket server not initialized');
+      return null; // Fall through to normal processing
+    }
+
+    // Extract client ID from packet destination (e.g., "g.agent.bob.private" → "bob")
+    // For now, use the agent ID as the client ID
+    const clientId = this.config.agentId;
+
+    this.logger.info(
+      {
+        destination: packet.destination,
+        clientId,
+        amount: packet.amount.toString(),
+      },
+      'Handling messaging packet'
+    );
+
+    try {
+      // Forward to WebSocket server for delivery to client
+      this._giftwrapWebSocketServer.handleIncomingPacket(packet, clientId);
+
+      // Return ILP Fulfill to confirm delivery
+      // Generate fulfillment from the execution condition (sha256 preimage)
+      // In production, this would be derived from the actual preimage
+      const fulfillment = Buffer.alloc(32);
+      crypto.randomFillSync(fulfillment);
+
+      this.logger.info({ clientId }, 'Messaging packet delivered to WebSocket client');
+
+      return {
+        type: PacketType.FULFILL,
+        fulfillment,
+        data: Buffer.alloc(0),
+      };
+    } catch (error) {
+      this.logger.error({ err: error, clientId }, 'Failed to deliver messaging packet');
+
+      // Return ILP Reject with T01 (Peer Unreachable) if client not connected
+      return {
+        type: PacketType.REJECT,
+        code: ILPErrorCode.T01_PEER_UNREACHABLE,
+        message: 'Recipient not connected',
+        triggeredBy: this.config.ilpAddress,
+        data: Buffer.alloc(0),
+      };
+    }
+  }
+
+  /**
+   * Shutdown Private Messaging components (Story 32.7)
+   * Stops components in reverse order: Gateway, WebSocket, BTPClient
+   */
+  private async shutdownMessaging(): Promise<void> {
+    // Stop MessagingGateway first (stops accepting new requests)
+    if (this._messagingGateway) {
+      await this._messagingGateway.stop();
+      this.logger.info('MessagingGateway stopped');
+      this._messagingGateway = null;
+    }
+
+    // Stop GiftwrapWebSocketServer (closes all WebSocket connections)
+    if (this._giftwrapWebSocketServer) {
+      await this._giftwrapWebSocketServer.stop();
+      this.logger.info('GiftwrapWebSocketServer stopped');
+      this._giftwrapWebSocketServer = null;
+    }
+
+    // Disconnect messaging BTP client
+    if (this._messagingBtpClient) {
+      await this._messagingBtpClient.disconnect();
+      this.logger.info('Messaging BTP client disconnected');
+      this._messagingBtpClient = null;
+    }
+
+    this._giftwrapRouter = null;
+  }
+
   async shutdown(): Promise<void> {
     if (this.isShutdown) return;
     this.isShutdown = true;
 
     this.logger.info('Shutting down agent server...');
+
+    // Stop Private Messaging components first (Story 32.7)
+    // Must stop before BTP server since messaging depends on BTP
+    await this.shutdownMessaging();
 
     // Close peer connections
     for (const peer of this.peers.values()) {
@@ -568,6 +919,17 @@ export class AgentServer {
       await this.aptosClient.disconnect();
     }
     this.aptosClient = null;
+
+    // Close ClaimStore
+    if (this.claimStore) {
+      await this.claimStore.close();
+    }
+
+    // Close XRP claim database
+    if (this.xrpClaimDb) {
+      this.xrpClaimDb.close();
+      this.xrpClaimDb = null;
+    }
 
     // Shutdown AgentNode
     await this.agentNode.shutdown();
@@ -638,6 +1000,13 @@ export class AgentServer {
             channelCount: this.paymentChannels.size,
             xrpChannelCount: this.xrpChannels.size,
             aptosChannelCount: this.aptosChannels.size,
+            claimExchange: this.config.claimExchangeEnabled
+              ? {
+                  enabled: true,
+                  storedClaimCount: this.claimStore?.getClaimCount() || 0,
+                  lastClaimReceived: this.claimStore?.getLastClaimTimestamp() || null,
+                }
+              : { enabled: false },
             ai: this.agentNode.aiDispatcher
               ? {
                   enabled: this.agentNode.aiDispatcher.isEnabled,
@@ -1110,6 +1479,43 @@ export class AgentServer {
         return;
       }
 
+      // Get stored claims for a peer
+      if (req.method === 'GET' && url.pathname.startsWith('/claims/')) {
+        if (!this.claimStore) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: 'Claim exchange not enabled' }));
+          return;
+        }
+
+        const peerId = url.pathname.split('/claims/')[1];
+        const chainParam = url.searchParams.get('chain') as 'evm' | 'xrp' | 'aptos' | null;
+
+        // Validate peerId
+        if (!peerId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Peer ID required' }));
+          return;
+        }
+
+        try {
+          if (chainParam && this.claimManager) {
+            // Get claims for specific chain
+            const claims = this.claimManager.getClaimsForSettlement(peerId, chainParam);
+            res.writeHead(200);
+            res.end(JSON.stringify({ peerId, chain: chainParam, claims }));
+          } else {
+            // Get all claims for peer
+            const allClaims = this.claimStore.getAllClaimsByPeer(peerId);
+            res.writeHead(200);
+            res.end(JSON.stringify({ peerId, claims: allClaims }));
+          }
+        } catch (error) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: (error as Error).message }));
+        }
+        return;
+      }
+
       // Not found
       res.writeHead(404);
       res.end(JSON.stringify({ error: 'Not found' }));
@@ -1162,13 +1568,173 @@ export class AgentServer {
 
   private async handleBtpMessage(ws: WebSocket, peerId: string, data: Buffer): Promise<void> {
     try {
-      // Parse BTP packet (simplified - just the ILP data)
-      // In real implementation, this would be proper BTP framing
-      const packet = this.parseBtpPacket(data);
+      // Try to parse as proper BTP message first
+      let btpMessage: BTPMessage | null = null;
+      let packet: ILPPreparePacket | null = null;
+
+      try {
+        btpMessage = parseBTPMessage(data);
+        this.logger.debug(
+          { peerId, messageType: BTPMessageType[btpMessage.type], requestId: btpMessage.requestId },
+          'Received BTP message'
+        );
+
+        // Handle AUTH messages - respond immediately
+        if (btpMessage.type === BTPMessageType.MESSAGE && isBTPData(btpMessage)) {
+          const messageData = btpMessage.data as BTPData;
+          const authProtocolData = messageData.protocolData.find(
+            (pd) => pd.protocolName === 'auth'
+          );
+
+          if (authProtocolData) {
+            // This is an auth message - extract peer info and send success response
+            try {
+              const authData = JSON.parse(authProtocolData.data.toString('utf8'));
+              this.logger.info({ peerId: authData.peerId }, 'BTP auth received - auto-accepting');
+
+              // Send RESPONSE acknowledging authentication (simple auto-accept for internal messaging)
+              const responseMessage: BTPMessage = {
+                type: BTPMessageType.RESPONSE,
+                requestId: btpMessage.requestId,
+                data: {
+                  protocolData: [],
+                },
+              };
+
+              ws.send(serializeBTPMessage(responseMessage));
+              this.logger.info({ peerId: authData.peerId }, 'BTP auth success response sent');
+              return;
+            } catch (authError) {
+              this.logger.warn({ peerId, err: authError }, 'Failed to parse auth message');
+            }
+          }
+
+          // Not an auth message - extract ILP packet
+          if (messageData.ilpPacket && messageData.ilpPacket.length > 0) {
+            const ilpPacket = deserializePacket(messageData.ilpPacket);
+            if (ilpPacket.type === PacketType.PREPARE) {
+              packet = ilpPacket as ILPPreparePacket;
+            }
+          }
+        }
+      } catch {
+        // Not a proper BTP message - try simplified JSON format (backward compatibility)
+        this.logger.debug({ peerId }, 'Not a proper BTP message, trying JSON format');
+      }
+
+      // If we didn't get an ILP packet from BTP parsing, try simplified JSON format
+      if (!packet) {
+        packet = this.parseBtpPacket(data);
+      }
+
+      // Story 32.7: Check if packet is destined for private messaging address
+      if (
+        packet.type === PacketType.PREPARE &&
+        this.config.enablePrivateMessaging &&
+        packet.destination.startsWith(this.config.messagingAddress)
+      ) {
+        const messagingResponse = await this.handleMessagingPacket(ws, packet);
+        if (messagingResponse) {
+          // Packet was handled by messaging - send response and return
+          const responseBuffer = this.serializeBtpResponse(messagingResponse);
+          ws.send(responseBuffer);
+          return;
+        }
+        // If messagingResponse is null, fall through to normal processing
+      }
+
+      // ILP FORWARDING: Forward packets destined for other addresses to next hop
+      // This enables multi-hop routing through connector chain
+      if (
+        packet.type === PacketType.PREPARE &&
+        this._messagingBtpClient &&
+        this._messagingBtpClient.isConnected &&
+        !packet.destination.startsWith(this.config.ilpAddress)
+      ) {
+        try {
+          // Calculate connector fee (default 1% or configured percentage)
+          const feePercentage = 0.01; // 1% fee
+          const connectorFee = BigInt(Math.ceil(Number(packet.amount) * feePercentage));
+          const forwardAmount = packet.amount - connectorFee;
+
+          this.logger.info(
+            {
+              peerId,
+              destination: packet.destination,
+              originalAmount: packet.amount.toString(),
+              connectorFee: connectorFee.toString(),
+              forwardAmount: forwardAmount.toString(),
+            },
+            'Forwarding ILP packet to next hop'
+          );
+
+          // Emit telemetry for packet forwarding
+          this.telemetryEmitter.emit({
+            type: 'PACKET_FORWARDED',
+            timestamp: new Date().toISOString(),
+            agentId: this.config.agentId,
+            data: {
+              source: peerId,
+              destination: packet.destination,
+              amount: packet.amount.toString(),
+              forwardAmount: forwardAmount.toString(),
+              connectorFee: connectorFee.toString(),
+            },
+          });
+
+          // Create forwarded packet with reduced amount and adjusted expiry
+          const forwardPacket: ILPPreparePacket = {
+            type: PacketType.PREPARE,
+            amount: forwardAmount,
+            destination: packet.destination,
+            executionCondition: packet.executionCondition,
+            expiresAt: new Date(packet.expiresAt.getTime() - 1000), // Reduce expiry by 1 second
+            data: packet.data,
+          };
+
+          // Forward to next hop via BTP client
+          const response = await this._messagingBtpClient.sendPacket(forwardPacket);
+
+          this.logger.info(
+            {
+              peerId,
+              destination: packet.destination,
+              responseType: response.type === PacketType.FULFILL ? 'FULFILL' : 'REJECT',
+            },
+            'Received response from next hop'
+          );
+
+          // Log response for observability (telemetry is already emitted via PACKET_FORWARDED)
+          this.logger.debug(
+            {
+              destination: packet.destination,
+              responseType: response.type === PacketType.FULFILL ? 'FULFILL' : 'REJECT',
+            },
+            'ILP forwarding response'
+          );
+
+          // Send response back to upstream peer
+          const responseBuffer = this.serializeBtpResponse(response);
+          ws.send(responseBuffer);
+          return;
+        } catch (error) {
+          this.logger.error({ peerId, err: error }, 'Failed to forward ILP packet');
+
+          // Return reject packet on forwarding failure
+          const rejectPacket: ILPRejectPacket = {
+            type: PacketType.REJECT,
+            code: ILPErrorCode.T01_PEER_UNREACHABLE,
+            message: 'Failed to forward to next hop',
+            triggeredBy: this.config.ilpAddress,
+            data: Buffer.alloc(0),
+          };
+          const responseBuffer = this.serializeBtpResponse(rejectPacket);
+          ws.send(responseBuffer);
+          return;
+        }
+      }
 
       if (packet.type === PacketType.PREPARE) {
-        const response = await this.agentNode.processIncomingPacket(packet, peerId);
-
         // Decode the Nostr event from the packet data
         let decodedEvent: NostrEvent | undefined;
         try {
@@ -1179,6 +1745,79 @@ export class AgentServer {
             'Could not decode Nostr event from packet'
           );
         }
+
+        // CLAIM INTEGRATION: Detect and process claim events
+        let originalEvent = decodedEvent;
+        let signedResponses: SignedClaim[] = [];
+
+        if (this.config.claimExchangeEnabled && this.claimManager && decodedEvent) {
+          try {
+            const claimEventParser = new ClaimEventParser(this.logger);
+            if (claimEventParser.isClaimEvent(decodedEvent)) {
+              this.logger.info({ peerId, kind: decodedEvent.kind }, 'Received claim event');
+
+              // Get peer wallet addresses for verification
+              const peer = this.peers.get(peerId);
+              const peerAddresses: WalletAddresses = {
+                evm: peer?.evmAddress,
+                xrp: peer?.xrpAddress,
+                aptos: peer?.aptosAddress,
+              };
+
+              // Process received claim event
+              const result = await this.claimManager.processReceivedClaimEvent(
+                peerId,
+                decodedEvent,
+                peerAddresses
+              );
+
+              // Log results
+              this.logger.info(
+                {
+                  peerId,
+                  storedClaims: result.signedClaims.length,
+                  unsignedRequests: result.unsignedRequests.length,
+                  signedResponses: result.signedResponses.length,
+                  errors: result.errors.length,
+                },
+                'Processed claim event'
+              );
+
+              // Log errors for debugging (graceful degradation)
+              if (result.errors.length > 0) {
+                this.logger.warn({ peerId, errors: result.errors }, 'Claim processing errors');
+              }
+
+              // Store signed responses to include in FULFILL
+              signedResponses = result.signedResponses;
+
+              // Extract original event content (unwrapped from claim event)
+              const contentStr = claimEventParser.extractContent(decodedEvent);
+              if (contentStr) {
+                try {
+                  originalEvent = JSON.parse(contentStr);
+                } catch {
+                  this.logger.warn(
+                    { peerId },
+                    'Failed to parse wrapped event content - using claim event as-is'
+                  );
+                }
+              }
+            }
+          } catch (error) {
+            this.logger.warn(
+              { peerId, err: error },
+              'Failed to process claim event - continuing with packet processing'
+            );
+            // Graceful degradation: continue with original event
+          }
+        }
+
+        // Process originalEvent (either unwrapped from claim event or original event)
+        const response = await this.agentNode.processIncomingPacket(packet, peerId);
+
+        // Use originalEvent for telemetry (unwrapped if it was a claim event)
+        decodedEvent = originalEvent;
 
         if (response.type === PacketType.FULFILL) {
           this.eventsReceived++;
@@ -1259,6 +1898,32 @@ export class AgentServer {
           });
         }
 
+        // CLAIM INTEGRATION: Include signed responses in FULFILL
+        if (signedResponses.length > 0 && response.type === PacketType.FULFILL) {
+          try {
+            // Wrap FULFILL data with signed response claims
+            const claimEvent = await this.claimManager!.generateClaimEventForPeer(
+              peerId,
+              '', // Empty content (FULFILL has no content)
+              signedResponses,
+              [] // No new requests in FULFILL
+            );
+            if (claimEvent) {
+              response.data = this.toonCodec.encode(claimEvent);
+              this.logger.info(
+                { peerId, responseCount: signedResponses.length },
+                'Included signed responses in FULFILL'
+              );
+            }
+          } catch (error) {
+            this.logger.warn(
+              { peerId, err: error },
+              'Failed to wrap FULFILL with signed responses - sending without claims'
+            );
+            // Graceful degradation: send original FULFILL response
+          }
+        }
+
         // Send response - cast to union type for serialization
         const responseData = this.serializeBtpResponse(
           response as ILPFulfillPacket | ILPRejectPacket
@@ -1320,6 +1985,64 @@ export class AgentServer {
       const response = this.parseBtpResponse(data);
       this.logger.debug({ peerId, responseType: response.type }, 'Received peer response');
 
+      // CLAIM INTEGRATION: Extract claims from FULFILL response
+      if (
+        this.config.claimExchangeEnabled &&
+        this.claimManager &&
+        response.type === PacketType.FULFILL
+      ) {
+        try {
+          const fulfillResponse = response as ILPFulfillPacket;
+          if (fulfillResponse.data.length > 0) {
+            const decodedEvent = this.toonCodec.decode(fulfillResponse.data);
+            if (decodedEvent) {
+              const claimEventParser = new ClaimEventParser(this.logger);
+              if (claimEventParser.isClaimEvent(decodedEvent)) {
+                this.logger.info(
+                  { peerId, kind: decodedEvent.kind },
+                  'Received claim event in FULFILL'
+                );
+
+                // Get peer wallet addresses for verification
+                const peer = this.peers.get(peerId);
+                const peerAddresses: WalletAddresses = {
+                  evm: peer?.evmAddress,
+                  xrp: peer?.xrpAddress,
+                  aptos: peer?.aptosAddress,
+                };
+
+                // Process received claim event
+                this.claimManager
+                  .processReceivedClaimEvent(peerId, decodedEvent, peerAddresses)
+                  .then((result) => {
+                    this.logger.info(
+                      {
+                        peerId,
+                        storedClaims: result.signedClaims.length,
+                        errors: result.errors.length,
+                      },
+                      'Processed claims from FULFILL'
+                    );
+
+                    if (result.errors.length > 0) {
+                      this.logger.warn(
+                        { peerId, errors: result.errors },
+                        'Claim processing errors in FULFILL'
+                      );
+                    }
+                  });
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.warn(
+            { peerId, err: error },
+            'Failed to process claims from FULFILL - continuing normally'
+          );
+          // Graceful degradation: continue with response processing
+        }
+      }
+
       // Get pending packet info for correlation
       const pendingPacket = this.pendingPackets.get(peerId);
       if (pendingPacket) {
@@ -1369,17 +2092,122 @@ export class AgentServer {
     // Create Nostr event
     const event = this.createNostrEvent(request.kind, request.content, request.tags);
 
+    // CLAIM INTEGRATION: Wrap event in claim event if enabled
+    let finalEvent = event;
+    if (this.config.claimExchangeEnabled && this.claimManager) {
+      try {
+        // Generate claims for all channels with this peer
+        const claimsToSend: SignedClaim[] = [];
+        const requestsForPeer: ClaimRequest[] = [];
+
+        // Generate EVM claim if channel exists
+        if (peer.evmAddress) {
+          const evmChannel = this.findEVMChannel(peer.evmAddress);
+          if (evmChannel) {
+            const evmClaim = await this.claimManager.generateClaimForPeer(
+              request.targetPeerId,
+              'evm',
+              evmChannel.channelId,
+              evmChannel.transferredAmount,
+              evmChannel.nonce
+            );
+            if (evmClaim) claimsToSend.push(evmClaim);
+
+            // Request peer to sign claim for what they owe us
+            // TODO: Calculate expected amount from inbound channel state
+            requestsForPeer.push({
+              chain: 'evm',
+              channelId: evmChannel.channelId,
+              amount: 0n, // Placeholder - need inbound channel tracking
+              nonce: 0, // Placeholder - need inbound channel tracking
+            });
+          }
+        }
+
+        // Generate XRP claim if channel exists
+        if (peer.xrpAddress) {
+          const xrpChannel = this.findXRPChannel(peer.xrpAddress);
+          if (xrpChannel) {
+            const xrpClaim = await this.claimManager.generateClaimForPeer(
+              request.targetPeerId,
+              'xrp',
+              xrpChannel.channelId,
+              BigInt(xrpChannel.balance)
+            );
+            if (xrpClaim) claimsToSend.push(xrpClaim);
+
+            // Request peer to sign claim for what they owe us
+            requestsForPeer.push({
+              chain: 'xrp',
+              channelId: xrpChannel.channelId,
+              amount: 0n, // Placeholder - need inbound channel tracking
+            });
+          }
+        }
+
+        // Generate Aptos claim if channel exists
+        if (peer.aptosAddress) {
+          const aptosChannel = this.findAptosChannel(peer.aptosAddress);
+          if (aptosChannel) {
+            const aptosClaim = await this.claimManager.generateClaimForPeer(
+              request.targetPeerId,
+              'aptos',
+              aptosChannel.channelOwner,
+              BigInt(aptosChannel.claimed),
+              aptosChannel.nonce
+            );
+            if (aptosClaim) claimsToSend.push(aptosClaim);
+
+            // Request peer to sign claim for what they owe us
+            requestsForPeer.push({
+              chain: 'aptos',
+              channelOwner: aptosChannel.channelOwner,
+              amount: 0n, // Placeholder - need inbound channel tracking
+              nonce: 0, // Placeholder - need inbound channel tracking
+            });
+          }
+        }
+
+        // Wrap content in claim event if we have claims to send
+        if (claimsToSend.length > 0) {
+          const claimEvent = await this.claimManager.generateClaimEventForPeer(
+            request.targetPeerId,
+            JSON.stringify(event), // Wrap original event as content
+            claimsToSend,
+            requestsForPeer
+          );
+          if (claimEvent) {
+            finalEvent = claimEvent;
+            this.logger.info(
+              {
+                peerId: request.targetPeerId,
+                claimCount: claimsToSend.length,
+                requestCount: requestsForPeer.length,
+              },
+              'Wrapped event in claim event'
+            );
+          }
+        }
+      } catch (error) {
+        this.logger.warn(
+          { peerId: request.targetPeerId, err: error },
+          'Failed to wrap event in claim event - sending without claims'
+        );
+        // Graceful degradation: continue with original event
+      }
+    }
+
     // Define packet amount (in token units for EVM, drops for XRP)
     const packetAmount = 100n;
 
-    // Create ILP Prepare packet
+    // Create ILP Prepare packet with final event (may be claim-wrapped)
     const packet: ILPPreparePacket = {
       type: PacketType.PREPARE,
       amount: packetAmount,
       destination: peer.ilpAddress,
       executionCondition: AgentNode.AGENT_CONDITION,
       expiresAt: new Date(Date.now() + 30000),
-      data: this.toonCodec.encode(event),
+      data: this.toonCodec.encode(finalEvent), // Use claim-wrapped event
     };
 
     // Find payment channel for this peer and update balance
@@ -1459,6 +2287,36 @@ export class AgentServer {
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
+  }
+
+  /**
+   * Helper methods for finding payment channels by peer address
+   */
+  private findEVMChannel(peerAddress: string): PaymentChannel | null {
+    for (const channel of this.paymentChannels.values()) {
+      if (channel.peerAddress === peerAddress && channel.status === 'opened') {
+        return channel;
+      }
+    }
+    return null;
+  }
+
+  private findXRPChannel(destination: string): XRPPaymentChannel | null {
+    for (const channel of this.xrpChannels.values()) {
+      if (channel.destination === destination && channel.status === 'open') {
+        return channel;
+      }
+    }
+    return null;
+  }
+
+  private findAptosChannel(destination: string): AptosPaymentChannel | null {
+    for (const channel of this.aptosChannels.values()) {
+      if (channel.destination === destination && channel.status === 'open') {
+        return channel;
+      }
+    }
+    return null;
   }
 
   /**
@@ -1618,10 +2476,23 @@ export class AgentServer {
   }
 
   /**
-   * Perform on-chain settlement for a payment channel
-   * Note: This requires signed balance proofs from the counterparty.
-   * Currently, balance proofs are not exchanged via BTP, so settlement
-   * may require manual intervention or cooperative signing.
+   * Perform on-chain settlement for a payment channel using stored claims.
+   *
+   * This method retrieves the latest stored claim from ClaimStore for the peer/chain,
+   * then executes chain-specific settlement:
+   * - EVM: Calls cooperativeSettle() with both parties' signed balance proofs
+   * - XRP: Submits PaymentChannelClaim transaction with peer's signature
+   * - Aptos: Submits claim via AptosChannelSDK with peer's signature
+   *
+   * Graceful degradation: Missing claims or settlement failures are logged and
+   * emit CLAIM_SETTLEMENT_FAILED telemetry but do not break packet processing.
+   *
+   * Settlement success emits CLAIM_SETTLEMENT_SUCCESS with transaction hash.
+   *
+   * @param chain - Blockchain chain ('evm', 'xrp', or 'aptos')
+   * @param channelId - Channel identifier (format depends on chain)
+   * @param peerId - Nostr public key of peer
+   * @param amount - Amount to settle (in smallest unit: wei, drops, octas)
    */
   private async performSettlement(
     chain: 'evm' | 'xrp' | 'aptos',
@@ -1638,18 +2509,120 @@ export class AgentServer {
       switch (chain) {
         case 'evm': {
           // EVM requires cooperative settlement with both parties' signatures
-          // or unilateral close with dispute period
           const channel = this.paymentChannels.get(channelId);
           if (!channel) {
             this.logger.warn({ channelId }, 'EVM channel not found for settlement');
+            this.telemetryEmitter.emit({
+              type: 'CLAIM_SETTLEMENT_FAILED',
+              nodeId: this.config.agentId,
+              chain: 'evm',
+              channelId,
+              peerId,
+              error: 'EVM channel not found',
+              attemptedAmount: amount.toString(),
+              timestamp: new Date().toISOString(),
+            });
             return;
           }
-          // TODO: Implement EVM cooperative settlement
-          // This requires exchanging balance proofs with the peer
+
+          // Retrieve latest claim from ClaimStore for the channel/peer
+          const storedClaims = await this.claimStore?.getClaimsForSettlement(peerId, 'evm');
+          if (!storedClaims || storedClaims.length === 0) {
+            this.logger.warn({ channelId, peerId }, 'No stored EVM claim available for settlement');
+            this.telemetryEmitter.emit({
+              type: 'CLAIM_SETTLEMENT_FAILED',
+              nodeId: this.config.agentId,
+              chain: 'evm',
+              channelId,
+              peerId,
+              error: 'No stored claim available',
+              attemptedAmount: amount.toString(),
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const storedClaim = storedClaims[0] as any; // Type assertion for discriminated union
+
+          // Extract balance proof data from stored claim
+          const peerBalanceProof = {
+            channelId: storedClaim.channelId,
+            nonce: storedClaim.nonce,
+            transferredAmount: storedClaim.transferredAmount,
+            lockedAmount: storedClaim.lockedAmount || 0n,
+            locksRoot: storedClaim.locksRoot || ethers.ZeroHash,
+          };
+
           this.logger.info(
-            { channelId, balance: amount.toString() },
-            'EVM settlement requires cooperative signing - balance proof exchange not yet implemented in BTP'
+            { channelId, peerBalanceProof },
+            'Retrieved peer balance proof from stored claim'
           );
+
+          // Generate our own balance proof and signature
+          const ourBalanceProof = {
+            channelId,
+            nonce: channel.nonce,
+            transferredAmount: channel.transferredAmount,
+            lockedAmount: 0n,
+            locksRoot: ethers.ZeroHash,
+          };
+
+          const ourSignature = await this.paymentChannelSDK!.signBalanceProof(
+            channelId,
+            channel.nonce,
+            channel.transferredAmount,
+            0n, // lockedAmount
+            ethers.ZeroHash // locksRoot
+          );
+
+          this.logger.info({ channelId, ourBalanceProof }, 'Generated our balance proof');
+
+          // Emit settlement initiated telemetry
+          this.telemetryEmitter.emit({
+            type: 'CLAIM_SETTLEMENT_INITIATED',
+            nodeId: this.config.agentId,
+            chain: 'evm',
+            channelId,
+            amount: amount.toString(),
+            peerId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Call cooperativeSettle() with both parties' balance proofs
+          await this.paymentChannelSDK!.cooperativeSettle(
+            channelId,
+            this.config.agentTokenAddress!, // Token address
+            ourBalanceProof, // Our proof
+            ourSignature, // Our signature
+            peerBalanceProof, // Peer's proof
+            storedClaim.signature // Peer's signature from stored claim
+          );
+
+          this.logger.info(
+            {
+              channelId,
+              settlementAmount: amount.toString(),
+            },
+            'EVM cooperative settlement completed'
+          );
+
+          // Emit settlement success telemetry
+          this.telemetryEmitter.emit({
+            type: 'CLAIM_SETTLEMENT_SUCCESS',
+            nodeId: this.config.agentId,
+            chain: 'evm',
+            channelId,
+            txHash: 'evm-settlement-' + channelId, // Use channel ID as placeholder since cooperativeSettle doesn't return tx hash
+            settledAmount: amount.toString(),
+            peerId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Update channel state after successful settlement
+          channel.status = 'settled';
+          this.paymentChannels.set(channelId, channel);
+
           break;
         }
 
@@ -1658,14 +2631,95 @@ export class AgentServer {
           const xrpChannel = this.xrpChannels.get(channelId);
           if (!xrpChannel) {
             this.logger.warn({ channelId }, 'XRP channel not found for settlement');
+            this.telemetryEmitter.emit({
+              type: 'CLAIM_SETTLEMENT_FAILED',
+              nodeId: this.config.agentId,
+              chain: 'xrp',
+              channelId,
+              peerId,
+              error: 'XRP channel not found',
+              attemptedAmount: amount.toString(),
+              timestamp: new Date().toISOString(),
+            });
             return;
           }
-          // TODO: Implement XRP payment channel claim
-          // This requires the channel owner's signature for the claim amount
+
+          // Retrieve latest claim from ClaimStore
+          const storedClaims = await this.claimStore?.getClaimsForSettlement(peerId, 'xrp');
+          if (!storedClaims || storedClaims.length === 0) {
+            this.logger.warn({ channelId, peerId }, 'No stored XRP claim available for settlement');
+            this.telemetryEmitter.emit({
+              type: 'CLAIM_SETTLEMENT_FAILED',
+              nodeId: this.config.agentId,
+              chain: 'xrp',
+              channelId,
+              peerId,
+              error: 'No stored claim available',
+              attemptedAmount: amount.toString(),
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const storedClaim = storedClaims[0] as any; // Type assertion for discriminated union
+
+          // Construct PaymentChannelClaim transaction
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const claimTx: any = {
+            TransactionType: 'PaymentChannelClaim',
+            Account: this.config.xrpAccountAddress!, // Claimer's XRP address
+            Channel: channelId, // 64-char hex channel ID
+            Balance: storedClaim.amount.toString(), // Drops as string (cumulative)
+            Signature: storedClaim.signature, // 128 hex char ed25519 signature
+            PublicKey: storedClaim.signer, // 66 hex char ed25519 public key (ED prefix)
+          };
+
+          this.logger.info({ channelId, claimTx }, 'Constructed PaymentChannelClaim transaction');
+
+          // Emit settlement initiated telemetry
+          this.telemetryEmitter.emit({
+            type: 'CLAIM_SETTLEMENT_INITIATED',
+            nodeId: this.config.agentId,
+            chain: 'xrp',
+            channelId,
+            amount: amount.toString(),
+            peerId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Submit claim transaction using xrplClient
+          const result = await this.xrplClient!.submitAndWait(claimTx, {
+            wallet: this.xrplWallet!,
+          });
+
           this.logger.info(
-            { channelId, balance: xrpChannel.balance },
-            'XRP settlement requires owner signature - balance proof exchange not yet implemented in BTP'
+            {
+              channelId,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              txHash: (result.result as any).hash,
+              validated: result.result.validated,
+            },
+            'XRP PaymentChannelClaim submitted'
           );
+
+          // Emit settlement success telemetry
+          this.telemetryEmitter.emit({
+            type: 'CLAIM_SETTLEMENT_SUCCESS',
+            nodeId: this.config.agentId,
+            chain: 'xrp',
+            channelId,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            txHash: (result.result as any).hash,
+            settledAmount: storedClaim.amount.toString(),
+            peerId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Update channel state after successful settlement
+          xrpChannel.balance = storedClaim.amount.toString();
+          this.xrpChannels.set(channelId, xrpChannel);
+
           break;
         }
 
@@ -1673,36 +2727,112 @@ export class AgentServer {
           // Aptos channel claim requires a signature from the channel owner
           const aptosChannel = this.aptosChannels.get(channelId);
           if (!aptosChannel) {
-            this.logger.warn({ channelId }, 'Aptos channel not found for settlement');
+            this.logger.warn({ channelOwner: channelId }, 'Aptos channel not found for settlement');
+            this.telemetryEmitter.emit({
+              type: 'CLAIM_SETTLEMENT_FAILED',
+              nodeId: this.config.agentId,
+              chain: 'aptos',
+              channelId,
+              peerId,
+              error: 'Aptos channel not found',
+              attemptedAmount: amount.toString(),
+              timestamp: new Date().toISOString(),
+            });
             return;
           }
-          // TODO: Implement Aptos claim submission
-          // This requires the channel owner's signature for the claim
+
+          // Retrieve latest claim from ClaimStore
+          const storedClaims = await this.claimStore?.getClaimsForSettlement(peerId, 'aptos');
+          if (!storedClaims || storedClaims.length === 0) {
+            this.logger.warn(
+              { channelOwner: channelId, peerId },
+              'No stored Aptos claim available for settlement'
+            );
+            this.telemetryEmitter.emit({
+              type: 'CLAIM_SETTLEMENT_FAILED',
+              nodeId: this.config.agentId,
+              chain: 'aptos',
+              channelId,
+              peerId,
+              error: 'No stored claim available',
+              attemptedAmount: amount.toString(),
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const storedClaim = storedClaims[0] as any; // Type assertion for discriminated union
+
           this.logger.info(
-            { channelOwner: channelId, claimed: aptosChannel.claimed },
-            'Aptos settlement requires owner signature - balance proof exchange not yet implemented in BTP'
+            { channelOwner: channelId, storedClaim },
+            'Retrieved Aptos claim from store'
           );
+
+          // Emit settlement initiated telemetry
+          this.telemetryEmitter.emit({
+            type: 'CLAIM_SETTLEMENT_INITIATED',
+            nodeId: this.config.agentId,
+            chain: 'aptos',
+            channelId,
+            amount: amount.toString(),
+            peerId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Submit claim via AptosChannelSDK
+          const aptosClaim = {
+            channelOwner: channelId,
+            amount: storedClaim.amount,
+            nonce: storedClaim.nonce,
+            signature: storedClaim.signature,
+            publicKey: storedClaim.signer,
+            createdAt: Date.now(),
+          };
+
+          await this.aptosChannelSDK!.submitClaim(aptosClaim);
+
+          this.logger.info({ channelOwner: channelId }, 'Aptos claim submitted');
+
+          // Emit settlement success telemetry
+          this.telemetryEmitter.emit({
+            type: 'CLAIM_SETTLEMENT_SUCCESS',
+            nodeId: this.config.agentId,
+            chain: 'aptos',
+            channelId,
+            txHash: 'aptos-tx-hash', // TODO: Get actual txHash from submitClaim result
+            settledAmount: storedClaim.amount.toString(),
+            peerId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Update channel state after successful settlement
+          aptosChannel.claimed = storedClaim.amount.toString();
+          aptosChannel.nonce = storedClaim.nonce;
+          this.aptosChannels.set(channelId, aptosChannel);
+
           break;
         }
       }
-
-      this.telemetryEmitter.emit({
-        type: 'SETTLEMENT_TRIGGERED',
-        nodeId: this.config.agentId,
-        peerId,
-        tokenId: chain,
-        currentBalance: amount.toString(),
-        threshold: this.config.settlementThreshold?.toString() || '0',
-        exceedsBy: '0',
-        triggerReason: 'SETTLEMENT_ATTEMPTED',
-        timestamp: new Date().toISOString(),
-      });
     } catch (error) {
       this.logger.error(
         { err: error, chain, channelId, peerId },
-        'Error during settlement attempt'
+        'Error during settlement execution'
       );
-      throw error;
+
+      // Emit settlement failure telemetry
+      this.telemetryEmitter.emit({
+        type: 'CLAIM_SETTLEMENT_FAILED',
+        nodeId: this.config.agentId,
+        chain,
+        channelId,
+        peerId,
+        error: error instanceof Error ? error.message : String(error),
+        attemptedAmount: amount.toString(),
+        timestamp: new Date().toISOString(),
+      });
+
+      // Don't rethrow - settlement failures should not break packet processing
     }
   }
 

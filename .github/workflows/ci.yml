@@ -455,6 +455,91 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # Integration Tests - Private Messaging (Epic 32)
+  integration-tests-messaging:
+    name: Integration Tests - Private Messaging
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, test, build]
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'
+          cache: 'npm'
+
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: npm ci --verbose
+
+      - name: Build all packages
+        run: |
+          echo "Building all packages for integration tests..."
+          npm run build
+
+      - name: Start Docker infrastructure
+        run: |
+          echo "Starting messaging demo infrastructure..."
+          docker compose -f docker-compose-messaging-demo.yml up -d
+          echo "✓ Docker Compose started"
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for all services to be healthy..."
+          ./scripts/wait-for-healthy.sh 120 docker-compose-messaging-demo.yml
+
+      - name: Run integration tests
+        env:
+          MESSAGING_TESTS: 'true'
+        run: |
+          echo "Running private messaging integration tests..."
+          npm test --workspace=packages/connector -- private-messaging.test.ts --testTimeout=60000
+        timeout-minutes: 5
+
+      - name: Display container logs on failure
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "Container Logs (Last 100 lines each)"
+          echo "=========================================="
+          docker compose -f docker-compose-messaging-demo.yml logs --tail=100
+
+      - name: Stop Docker infrastructure
+        if: always()
+        run: |
+          echo "Stopping messaging demo infrastructure..."
+          docker compose -f docker-compose-messaging-demo.yml down -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-messaging-${{ github.sha }}
+          path: |
+            packages/connector/coverage/
+            packages/connector/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload container logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: messaging-container-logs-${{ github.sha }}
+          path: |
+            /tmp/*.log
+            packages/connector/test/integration/logs/*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
   # Build and push Docker image to GitHub Container Registry
   docker-build-push:
     name: Build and Push Docker Image
@@ -570,7 +655,7 @@ jobs:
   ci-status:
     name: CI Status Summary
     runs-on: ubuntu-latest
-    needs: [lint-and-format, test, build, type-check, contracts-coverage, aptos-move-tests, security, rfc-links, docker-build-push, container-scan, performance-benchmark]
+    needs: [lint-and-format, test, build, type-check, contracts-coverage, aptos-move-tests, security, rfc-links, integration-tests-messaging, docker-build-push, container-scan, performance-benchmark]
     if: always()
 
     steps:
@@ -589,6 +674,7 @@ jobs:
           echo "  Aptos Contracts: ${{ needs.aptos-move-tests.result }}"
           echo "  Security: ${{ needs.security.result }}"
           echo "  RFC Links: ${{ needs.rfc-links.result }}"
+          echo "  Integration Tests (Messaging): ${{ needs.integration-tests-messaging.result }}"
           echo "  Docker Build: ${{ needs.docker-build-push.result }}"
           echo "  Container Scan: ${{ needs.container-scan.result }}"
           echo "  Performance: ${{ needs.performance-benchmark.result }}"

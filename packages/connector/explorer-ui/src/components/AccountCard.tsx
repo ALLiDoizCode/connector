@@ -20,7 +20,7 @@ export interface AccountCardProps {
   settlementState: SettlementState;
   balanceHistory: BalanceHistoryEntry[];
   hasActiveChannel?: boolean;
-  channelType?: 'evm' | 'xrp';
+  channelType?: 'evm' | 'xrp' | 'aptos';
 }
 
 /**
@@ -108,10 +108,16 @@ export const AccountCard = React.memo(function AccountCard({
             {hasActiveChannel && (
               <Badge
                 variant="outline"
-                className={`text-xs ${channelType === 'evm' ? 'border-emerald-500 text-emerald-500' : 'border-orange-500 text-orange-500'}`}
+                className={`text-xs ${
+                  channelType === 'evm'
+                    ? 'border-emerald-500 text-emerald-500'
+                    : channelType === 'aptos'
+                      ? 'border-green-500 text-green-500'
+                      : 'border-orange-500 text-orange-500'
+                }`}
               >
                 <Link2 className="h-3 w-3 mr-1" />
-                {channelType === 'evm' ? 'EVM' : 'XRP'}
+                {channelType === 'evm' ? 'EVM' : channelType === 'aptos' ? 'Aptos' : 'XRP'}
               </Badge>
             )}
             <Badge variant="outline" className="text-xs">

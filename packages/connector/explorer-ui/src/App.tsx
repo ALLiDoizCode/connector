@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useEventFilters } from './hooks/useEventFilters';
 import { useEvents, EventMode } from './hooks/useEvents';
 import { EventTable } from './components/EventTable';
@@ -10,7 +11,9 @@ import { TelemetryEvent, StoredEvent } from './lib/event-types';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KeyboardHelpDialog } from './components/KeyboardHelpDialog';
-import { Radio, History, Wallet, ListTree, Network } from 'lucide-react';
+import { KeyManager } from './components/KeyManager';
+import { Radio, History, Wallet, ListTree, Network, Key, MessageSquare } from 'lucide-react';
+import PrivateMessenger from './pages/PrivateMessenger';
 
 const FilterBar = lazy(() =>
   import('./components/FilterBar').then((m) => ({ default: m.FilterBar }))
@@ -20,9 +23,41 @@ const EventDetailPanel = lazy(() =>
 );
 
 /** Tab view types */
-type TabView = 'events' | 'accounts' | 'peers';
+type TabView = 'events' | 'accounts' | 'peers' | 'keys';
 
-function App() {
+/** Navigation bar component */
+function NavBar() {
+  const location = useLocation();
+  const isMessenger = location.pathname === '/messenger';
+
+  return (
+    <nav className="border-b border-border px-4 py-2">
+      <div className="flex items-center gap-4">
+        <Link
+          to="/"
+          className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+            !isMessenger ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/50'
+          }`}
+        >
+          <ListTree className="h-4 w-4" />
+          Explorer
+        </Link>
+        <Link
+          to="/messenger"
+          className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+            isMessenger ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/50'
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" />
+          Private Messenger
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
+/** Explorer view component (existing functionality) */
+function ExplorerView() {
   // Filter state management
   const { filters, setFilters, resetFilters, hasActiveFilters, activeFilterCount } =
     useEventFilters();
@@ -85,6 +120,9 @@ function App() {
         case '3':
           setActiveTab('peers');
           break;
+        case '4':
+          setActiveTab('keys');
+          break;
         case '/': {
           e.preventDefault();
           const searchInput = document.getElementById('explorer-search-input');
@@ -123,7 +161,7 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground dark">
+    <div className="dark">
       <Header
         status={connectionStatus}
         eventCount={events.length}
@@ -190,6 +228,10 @@ function App() {
               <Network className="h-4 w-4" />
               Peers
             </TabsTrigger>
+            <TabsTrigger value="keys" className="gap-2">
+              <Key className="h-4 w-4" />
+              Keys
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -228,8 +270,12 @@ function App() {
           />
         ) : activeTab === 'accounts' ? (
           <AccountsView />
-        ) : (
+        ) : activeTab === 'peers' ? (
           <PeersView />
+        ) : (
+          <div className="max-w-2xl mx-auto">
+            <KeyManager />
+          </div>
         )}
       </main>
 
@@ -254,6 +300,20 @@ function App() {
       {/* Keyboard shortcuts help dialog (Story 15.3) */}
       <KeyboardHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-background text-foreground">
+        <NavBar />
+        <Routes>
+          <Route path="/" element={<ExplorerView />} />
+          <Route path="/messenger" element={<PrivateMessenger />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 

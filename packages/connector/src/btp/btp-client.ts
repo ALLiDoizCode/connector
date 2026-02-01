@@ -401,6 +401,53 @@ export class BTPClient extends EventEmitter {
    * @private
    */
   private async _handleMessage(data: Buffer): Promise<void> {
+    // Try to parse as JSON first (simplified format from agent-server)
+    // This handles backward compatibility with agent-server's JSON responses
+    try {
+      const jsonStr = data.toString('utf8');
+      if (jsonStr.startsWith('{')) {
+        const json = JSON.parse(jsonStr);
+        if (json.type === 'FULFILL' || json.type === 'REJECT') {
+          this._logger.debug(
+            { event: 'btp_json_response', type: json.type },
+            'Received JSON response'
+          );
+          // Find pending request and resolve it
+          // Since JSON responses don't include requestId, resolve the most recent pending request
+          const pendingEntries = Array.from(this._pendingRequests.entries());
+          const firstEntry = pendingEntries[0];
+          if (firstEntry) {
+            const [requestId, pending] = firstEntry;
+            clearTimeout(pending.timeoutId);
+            this._pendingRequests.delete(requestId);
+
+            if (json.type === 'FULFILL') {
+              const fulfillPacket: ILPFulfillPacket = {
+                type: PacketType.FULFILL,
+                fulfillment: json.fulfillment
+                  ? Buffer.from(json.fulfillment, 'base64')
+                  : Buffer.alloc(32),
+                data: json.data ? Buffer.from(json.data, 'base64') : Buffer.alloc(0),
+              };
+              pending.resolve(fulfillPacket);
+            } else {
+              const rejectPacket: ILPRejectPacket = {
+                type: PacketType.REJECT,
+                code: json.code || 'F00',
+                message: json.message || 'Unknown error',
+                triggeredBy: json.triggeredBy || '',
+                data: json.data ? Buffer.from(json.data, 'base64') : Buffer.alloc(0),
+              };
+              pending.resolve(rejectPacket);
+            }
+          }
+          return;
+        }
+      }
+    } catch {
+      // Not JSON, continue to BTP parsing
+    }
+
     try {
       const message = parseBTPMessage(data);
 

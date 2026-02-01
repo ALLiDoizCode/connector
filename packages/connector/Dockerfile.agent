@@ -15,8 +15,14 @@ COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/connector/package.json packages/connector/tsconfig.json ./packages/connector/
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 
+# Install build tools for native modules
+RUN apk add --no-cache python3 make g++
+
 # Install dependencies (ignore-scripts to skip husky prepare)
 RUN npm ci --workspaces --ignore-scripts
+
+# Rebuild better-sqlite3 for the target platform
+RUN npm rebuild better-sqlite3
 
 # Copy source code
 COPY packages/connector/src ./packages/connector/src
