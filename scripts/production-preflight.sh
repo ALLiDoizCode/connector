@@ -62,12 +62,18 @@ cd "$(dirname "$0")/.."
 # ----------------------------------------
 log_info "Checking environment..."
 
-# Check Node.js version
+# Check Node.js version (require v20+)
 NODE_VERSION=$(node --version 2>/dev/null || echo "not found")
-if [[ "$NODE_VERSION" == *"v20"* ]] || [[ "$NODE_VERSION" == *"v22"* ]]; then
-    log_pass "Node.js version: $NODE_VERSION"
+if [[ "$NODE_VERSION" == "not found" ]]; then
+    log_fail "Node.js not found"
 else
-    log_fail "Node.js version must be 20.x or higher (found: $NODE_VERSION)"
+    # Extract major version number (e.g., "v22.11.0" -> "22")
+    NODE_MAJOR_VERSION=$(echo "$NODE_VERSION" | sed -E 's/v([0-9]+)\..*/\1/')
+    if [[ "$NODE_MAJOR_VERSION" -ge 20 ]]; then
+        log_pass "Node.js version: $NODE_VERSION"
+    else
+        log_fail "Node.js version must be 20.x or higher (found: $NODE_VERSION)"
+    fi
 fi
 
 # Check npm version
@@ -132,6 +138,24 @@ for var in "${SENSITIVE_ENV_VARS[@]}"; do
         log_warn "Sensitive variable $var is not set (should be in secure config)"
     fi
 done
+
+# Story 16.2: Validate KEY_BACKEND is not 'env' in production
+if [[ "${KEY_BACKEND}" == "env" ]]; then
+    log_fail "KEY_BACKEND=env is INSECURE for production (use aws-kms, gcp-kms, or azure-keyvault)"
+elif [[ -z "${KEY_BACKEND}" ]]; then
+    log_warn "KEY_BACKEND not set (defaults to 'env' which is INSECURE for production)"
+else
+    log_pass "KEY_BACKEND=${KEY_BACKEND} (secure backend configured)"
+fi
+
+# Story 16.2: Validate GRAFANA_PASSWORD is not default 'admin'
+if [[ "${GRAFANA_PASSWORD}" == "admin" ]]; then
+    log_fail "GRAFANA_PASSWORD is default 'admin' - CRITICAL SECURITY RISK in production"
+elif [[ -z "${GRAFANA_PASSWORD}" ]]; then
+    log_warn "GRAFANA_PASSWORD not set (will default to 'admin' which is INSECURE)"
+else
+    log_pass "GRAFANA_PASSWORD configured (not default)"
+fi
 
 # ----------------------------------------
 # 4. Test Verification

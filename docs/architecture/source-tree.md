@@ -47,7 +47,7 @@ m2m/                                  # Monorepo root
 │   │   │   │   │   │   └── get-agent-info-skill.ts # Agent introspection skill
 │   │   │   │   │   └── __tests__/               # AI module tests
 │   │   │   │   └── index.ts               # Agent module exports
-│   │   │   ├── explorer/                  # Packet/Event Explorer (Epic 14)
+│   │   │   ├── explorer/                  # Packet/Event Explorer (Epic 11)
 │   │   │   │   ├── event-store.ts         # libSQL telemetry event storage
 │   │   │   │   ├── event-store.test.ts    # EventStore unit tests
 │   │   │   │   └── index.ts               # Explorer module exports
@@ -65,7 +65,7 @@ m2m/                                  # Monorepo root
 │   │   │   ├── utils/
 │   │   │   │   └── logger.ts              # Pino logger configuration
 │   │   │   └── index.ts                   # Connector entry point
-│   │   ├── explorer-ui/                   # Explorer UI Frontend (Epic 14)
+│   │   ├── explorer-ui/                   # Explorer UI Frontend (Epic 11)
 │   │   │   ├── src/
 │   │   │   │   ├── App.tsx                # Main application component
 │   │   │   │   ├── main.tsx               # React entry point
@@ -93,7 +93,7 @@ m2m/                                  # Monorepo root
 │   │   │   └── integration/
 │   │   │       ├── multi-node-forwarding.test.ts
 │   │   │       ├── agent-channel-integration.test.ts
-│   │   │       └── telemetry-event-store.test.ts  # EventStore integration (Epic 14)
+│   │   │       └── telemetry-event-store.test.ts  # EventStore integration (Epic 11)
 │   │   ├── Dockerfile                     # Connector container build
 │   │   ├── package.json
 │   │   └── tsconfig.json

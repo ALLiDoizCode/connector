@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { useEventFilters } from './hooks/useEventFilters';
 import { useEvents, EventMode } from './hooks/useEvents';
 import { EventTable } from './components/EventTable';
@@ -12,8 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KeyboardHelpDialog } from './components/KeyboardHelpDialog';
 import { KeyManager } from './components/KeyManager';
-import { Radio, History, Wallet, ListTree, Network, Key, MessageSquare } from 'lucide-react';
-import PrivateMessenger from './pages/PrivateMessenger';
+import { Radio, History, Wallet, ListTree, Network, Key } from 'lucide-react';
 
 const FilterBar = lazy(() =>
   import('./components/FilterBar').then((m) => ({ default: m.FilterBar }))
@@ -27,29 +26,15 @@ type TabView = 'events' | 'accounts' | 'peers' | 'keys';
 
 /** Navigation bar component */
 function NavBar() {
-  const location = useLocation();
-  const isMessenger = location.pathname === '/messenger';
-
   return (
     <nav className="border-b border-border px-4 py-2">
       <div className="flex items-center gap-4">
         <Link
           to="/"
-          className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-            !isMessenger ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/50'
-          }`}
+          className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors bg-secondary text-secondary-foreground"
         >
           <ListTree className="h-4 w-4" />
           Explorer
-        </Link>
-        <Link
-          to="/messenger"
-          className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-            isMessenger ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/50'
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          Private Messenger
         </Link>
       </div>
     </nav>
@@ -310,7 +295,6 @@ function App() {
         <NavBar />
         <Routes>
           <Route path="/" element={<ExplorerView />} />
-          <Route path="/messenger" element={<PrivateMessenger />} />
         </Routes>
       </div>
     </BrowserRouter>

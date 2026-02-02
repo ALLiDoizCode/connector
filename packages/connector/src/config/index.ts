@@ -1,29 +1,13 @@
 /**
  * Configuration Module Exports
  *
- * Re-exports configuration loading utilities for ILP connector
- * and Agent Society Protocol configuration.
+ * Re-exports configuration loading utilities for ILP connector.
  *
  * @packageDocumentation
  */
 
-// Connector Configuration (existing)
+// Connector Configuration
 export { ConfigLoader, ConfigurationError } from './config-loader';
 
 // Aptos Environment Validation (Story 28.5)
 export { validateAptosEnvironment, type AptosEnvValidation } from './aptos-env-validator';
-
-// Agent Configuration (Story 13.7)
-export {
-  AgentConfigLoader,
-  AgentConfigurationError,
-  // Type exports
-  type AgentYamlConfig,
-  type AgentIdentityConfig,
-  type AgentDatabaseConfig,
-  type AgentPricingConfig,
-  type AgentFollowConfig,
-  type AgentHandlersConfig,
-  type AgentSubscriptionsConfig,
-  type ParsedPricing,
-} from './agent-config';

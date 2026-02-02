@@ -833,7 +833,7 @@ so that I can develop and test payment channel Move modules without testnet rate
 ```yaml
 # docker-compose.yml (add to existing services)
 services:
-  # Aptos Local Testnet - Payment Channel Settlement (Epic 27)
+  # Aptos Local Testnet - Payment Channel Settlement (Epic 13)
   #
   # Provides local Aptos blockchain for Move module development and testing.
   # Part of tri-chain settlement infrastructure alongside Anvil (EVM) and rippled (XRP).
@@ -1103,7 +1103,7 @@ await aptos.fundAccount({
 - **Offline development:** After initial image pull, works without internet
 - **Move testing:** Full Move VM for contract development
 - **Tri-chain parity:** Matches Anvil and rippled local development experience
-- **Epic 27 integration:** Test payment channel SDK locally before testnet deployment
+- **Epic 13 integration:** Test payment channel SDK locally before testnet deployment
 
 ---
 
@@ -1130,14 +1130,14 @@ await aptos.fundAccount({
 - **Epic 8:** EVM Payment Channels (Base L2) - Local Anvil for contract development and testing
 - **Epic 9:** XRP Payment Channels - Local rippled for PayChan development and testing
 - **Epic 10:** Multi-Chain Settlement - Local environment for cross-chain testing
-- **Epic 27:** Aptos Payment Channels - Local Aptos testnet for Move module development and testing
+- **Epic 13:** Aptos Payment Channels - Local Aptos testnet for Move module development and testing
 
 **Integrates With:**
 
 - **Epic 6:** Settlement Foundation - TigerBeetle added to dev compose file
 - **Epic 2:** BTP Protocol - Connectors start with blockchain dependencies healthy
 - **Epic 3:** Dashboard - Optional dashboard service for development visualization
-- **Epic 27:** Aptos Payment Channels - AptosClient, AptosChannelSDK, AptosClaimSigner integration
+- **Epic 13:** Aptos Payment Channels - AptosClient, AptosChannelSDK, AptosClaimSigner integration
 
 ---
 
@@ -1311,11 +1311,11 @@ Connector → Aptos Mainnet (https://fullnode.mainnet.aptoslabs.com) → Live bl
 
 **Story 7.6 Dependencies:**
 
-- Requires Epic 27 (Aptos Payment Channels) for Move module and SDK integration
-- Can run in parallel with Epic 27 development (local testnet enables faster iteration)
+- Requires Epic 13 (Aptos Payment Channels) for Move module and SDK integration
+- Can run in parallel with Epic 13 development (local testnet enables faster iteration)
 
 **Can be parallelized with Epic 6** - Local blockchain infrastructure doesn't depend on TigerBeetle settlement.
 
 **Must complete before Epic 8/9** - Payment channel development requires local blockchain nodes.
 
-**Story 7.6 timing:** Can be implemented after Epic 27 is complete, or during Epic 27 to accelerate Move module development.
+**Story 7.6 timing:** Can be implemented after Epic 13 is complete, or during Epic 13 to accelerate Move module development.

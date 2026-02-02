@@ -2588,7 +2588,7 @@ Aptos local testnet is a self-contained Aptos blockchain running in Docker, prov
 
 **Purpose in M2M Project:**
 
-Aptos local testnet completes the tri-chain development infrastructure for Epic 27 (Aptos Payment Channels). Developers can deploy and test payment_channel Move modules locally alongside existing Anvil (EVM) and rippled (XRP) services.
+Aptos local testnet completes the tri-chain development infrastructure for Epic 13 (Aptos Payment Channels). Developers can deploy and test payment_channel Move modules locally alongside existing Anvil (EVM) and rippled (XRP) services.
 
 ### Aptos Configuration
 

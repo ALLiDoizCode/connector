@@ -1,0 +1,241 @@
+# Docker Compose configuration for 5-peer multi-hop ILP network
+# Topology: Peer1 → Peer2 → Peer3 → Peer4 → Peer5
+#
+# This configuration deploys a linear chain of 5 production ILP connectors
+# with unique ILP addresses for multi-hop packet routing verification.
+#
+# Each peer is funded from the base treasury wallet using m2m token signing and verification.
+#
+# Usage:
+#   Start: docker-compose -f docker-compose-5-peer-multihop.yml up -d --build
+#   Logs:  docker-compose -f docker-compose-5-peer-multihop.yml logs -f
+#   Stop:  docker-compose -f docker-compose-5-peer-multihop.yml down
+#
+# Or use the deployment script:
+#   ./scripts/deploy-5-peer-multihop.sh
+
+version: '3.8'
+
+services:
+  # Peer 1 - Entry node (receives external packets)
+  peer1:
+    image: ilp-connector
+    container_name: peer1
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: peer1
+      ILP_ADDRESS: g.peer1
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+      # BTP peer authentication secrets
+      BTP_PEER_PEER2_SECRET: secret-peer1-to-peer2
+      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
+      # Settlement configuration
+      SETTLEMENT_PREFERENCE: evm
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
+      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      # Peer Ethereum addresses for payment channels
+      PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
+      PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
+      PEER3_EVM_ADDRESS: ${PEER3_EVM_ADDRESS}
+      PEER4_EVM_ADDRESS: ${PEER4_EVM_ADDRESS}
+      PEER5_EVM_ADDRESS: ${PEER5_EVM_ADDRESS}
+    volumes:
+      - ./examples/multihop-peer1.yaml:/app/config.yaml:ro
+    ports:
+      - "3000:3000"  # BTP server port
+      - "9080:8080"  # Health check HTTP port
+    networks:
+      - ilp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Peer 2 - Transit node 1
+  peer2:
+    image: ilp-connector
+    container_name: peer2
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: peer2
+      ILP_ADDRESS: g.peer2
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+      # BTP peer authentication secrets
+      BTP_PEER_PEER1_SECRET: secret-peer1-to-peer2
+      BTP_PEER_PEER3_SECRET: secret-peer2-to-peer3
+      # Settlement configuration
+      SETTLEMENT_PREFERENCE: evm
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
+      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      # Peer Ethereum addresses for payment channels
+      PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
+      PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
+      PEER3_EVM_ADDRESS: ${PEER3_EVM_ADDRESS}
+      PEER4_EVM_ADDRESS: ${PEER4_EVM_ADDRESS}
+      PEER5_EVM_ADDRESS: ${PEER5_EVM_ADDRESS}
+    volumes:
+      - ./examples/multihop-peer2.yaml:/app/config.yaml:ro
+    ports:
+      - "3001:3001"  # BTP server port
+      - "9081:8080"  # Health check HTTP port
+    networks:
+      - ilp-network
+    depends_on:
+      - peer1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Peer 3 - Transit node 2 (middle)
+  peer3:
+    image: ilp-connector
+    container_name: peer3
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: peer3
+      ILP_ADDRESS: g.peer3
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+      # BTP peer authentication secrets
+      BTP_PEER_PEER2_SECRET: secret-peer2-to-peer3
+      BTP_PEER_PEER4_SECRET: secret-peer3-to-peer4
+      # Settlement configuration
+      SETTLEMENT_PREFERENCE: evm
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
+      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      # Peer Ethereum addresses for payment channels
+      PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
+      PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
+      PEER3_EVM_ADDRESS: ${PEER3_EVM_ADDRESS}
+      PEER4_EVM_ADDRESS: ${PEER4_EVM_ADDRESS}
+      PEER5_EVM_ADDRESS: ${PEER5_EVM_ADDRESS}
+    volumes:
+      - ./examples/multihop-peer3.yaml:/app/config.yaml:ro
+    ports:
+      - "3002:3002"  # BTP server port
+      - "9082:8080"  # Health check HTTP port
+    networks:
+      - ilp-network
+    depends_on:
+      - peer2
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Peer 4 - Transit node 3
+  peer4:
+    image: ilp-connector
+    container_name: peer4
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: peer4
+      ILP_ADDRESS: g.peer4
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+      # BTP peer authentication secrets
+      BTP_PEER_PEER3_SECRET: secret-peer3-to-peer4
+      BTP_PEER_PEER5_SECRET: secret-peer4-to-peer5
+      # Settlement configuration
+      SETTLEMENT_PREFERENCE: evm
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
+      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      # Peer Ethereum addresses for payment channels
+      PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
+      PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
+      PEER3_EVM_ADDRESS: ${PEER3_EVM_ADDRESS}
+      PEER4_EVM_ADDRESS: ${PEER4_EVM_ADDRESS}
+      PEER5_EVM_ADDRESS: ${PEER5_EVM_ADDRESS}
+    volumes:
+      - ./examples/multihop-peer4.yaml:/app/config.yaml:ro
+    ports:
+      - "3003:3003"  # BTP server port
+      - "9083:8080"  # Health check HTTP port
+    networks:
+      - ilp-network
+    depends_on:
+      - peer3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Peer 5 - Exit node (destination)
+  peer5:
+    image: ilp-connector
+    container_name: peer5
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: peer5
+      ILP_ADDRESS: g.peer5
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+      # BTP peer authentication secrets
+      BTP_PEER_PEER4_SECRET: secret-peer4-to-peer5
+      # Settlement configuration
+      SETTLEMENT_PREFERENCE: evm
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
+      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      # Peer Ethereum addresses for payment channels
+      PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
+      PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
+      PEER3_EVM_ADDRESS: ${PEER3_EVM_ADDRESS}
+      PEER4_EVM_ADDRESS: ${PEER4_EVM_ADDRESS}
+      PEER5_EVM_ADDRESS: ${PEER5_EVM_ADDRESS}
+    volumes:
+      - ./examples/multihop-peer5.yaml:/app/config.yaml:ro
+    ports:
+      - "3004:3004"  # BTP server port
+      - "9084:8080"  # Health check HTTP port
+    networks:
+      - ilp-network
+    depends_on:
+      - peer4
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Anvil - Local Base L2 node for payment channels (optional)
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: anvil
+    command: >
+      anvil
+      --host 0.0.0.0
+      --port 8545
+      --chain-id 31337
+      --block-time 1
+    ports:
+      - "8545:8545"
+    networks:
+      - ilp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' http://localhost:8545 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  ilp-network:
+    driver: bridge

@@ -11,12 +11,12 @@ global:
 rule_files:
   - 'alerts/*.yml'
 
-# Alertmanager configuration (optional - configure based on deployment)
+# Alertmanager configuration
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          # - alertmanager:9093
+          - alertmanager:9093
 
 # Scrape configurations
 scrape_configs:

@@ -5,15 +5,16 @@ This guide provides comprehensive security hardening procedures for production M
 ## Table of Contents
 
 1. [Security Overview](#security-overview)
-2. [Network Security](#network-security)
-3. [TLS/HTTPS Configuration](#tlshttps-configuration)
-4. [Key Management (HSM/KMS)](#key-management-hsmkms)
-5. [Secrets Management](#secrets-management)
-6. [Authentication and Authorization](#authentication-and-authorization)
-7. [Audit Logging](#audit-logging)
-8. [Security Monitoring and Alerting](#security-monitoring-and-alerting)
-9. [Container Security](#container-security)
-10. [Production Security Audit Checklist](#production-security-audit-checklist)
+2. [CI/CD Security Pipeline](#cicd-security-pipeline)
+3. [Network Security](#network-security)
+4. [TLS/HTTPS Configuration](#tlshttps-configuration)
+5. [Key Management (HSM/KMS)](#key-management-hsmkms)
+6. [Secrets Management](#secrets-management)
+7. [Authentication and Authorization](#authentication-and-authorization)
+8. [Audit Logging](#audit-logging)
+9. [Security Monitoring and Alerting](#security-monitoring-and-alerting)
+10. [Container Security](#container-security)
+11. [Production Security Audit Checklist](#production-security-audit-checklist)
 
 ---
 
@@ -56,6 +57,462 @@ The M2M Connector employs multiple layers of security:
 3. **Fail Secure**: Default to deny access
 4. **Audit Everything**: Log all security-relevant events
 5. **Encrypt at Rest and Transit**: Protect data everywhere
+
+---
+
+## CI/CD Security Pipeline
+
+**Story 16.2: Security Pipeline Hardening**
+
+The M2M project enforces security best practices through automated CI/CD gates that block vulnerable code from reaching production. This section documents the security scanning infrastructure, vulnerability response procedures, and production deployment validation.
+
+### Automated Security Scanning
+
+The CI pipeline includes blocking security scans that prevent merging code with known vulnerabilities:
+
+```yaml
+# .github/workflows/ci.yml (Security Job)
+security:
+  name: Security Audit
+  runs-on: ubuntu-latest
+  steps:
+    - name: Run npm audit
+      run: npm audit --audit-level=high
+      # BLOCKING: Fails CI on high/critical vulnerabilities
+
+    - name: Run Snyk security scan
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+      # BLOCKING: Fails CI on high/critical findings
+```
+
+**Key Configuration:**
+
+| Tool      | Severity Threshold          | Behavior                     | Scope                |
+| --------- | --------------------------- | ---------------------------- | -------------------- |
+| npm audit | `--audit-level=high`        | Blocks on high/critical CVEs | Production deps only |
+| Snyk      | `--severity-threshold=high` | Blocks on high/critical      | All dependencies     |
+
+**CI Status Gate:**
+
+The `ci-status` job validates all security checks before allowing PR merge:
+
+```yaml
+ci-status:
+  needs: [lint-and-format, test, build, security, ...]
+  steps:
+    - name: Check job results
+      run: |
+        if [[ "${{ needs.security.result }}" != "success" ]]; then
+          echo "Security job failed - blocking merge"
+          exit 1
+        fi
+```
+
+### Dependency Vulnerability Response
+
+When the CI pipeline detects vulnerabilities, follow these procedures:
+
+#### Step 1: Assess Vulnerability
+
+```bash
+# View detailed vulnerability report
+npm audit --audit-level=high
+
+# Example output:
+# lodash  <4.17.21
+# Severity: high
+# Prototype Pollution
+# Fix available via `npm audit fix`
+```
+
+#### Step 2: Attempt Automatic Fix
+
+```bash
+# Try automatic fix (safe version bumps)
+npm audit fix --audit-level=high
+
+# For breaking changes, use force (review changes carefully!)
+npm audit fix --force --audit-level=high
+
+# Verify changes
+git diff package.json package-lock.json
+npm test
+```
+
+#### Step 3: Manual Remediation
+
+If automatic fix is not available:
+
+```bash
+# 1. Update specific package
+npm update lodash@latest
+
+# 2. If transitive dependency, update parent
+npm update --depth 2
+
+# 3. Override with package.json resolutions (npm 8.3+)
+{
+  "overrides": {
+    "lodash": "^4.17.21"
+  }
+}
+
+# 4. Run tests to verify compatibility
+npm test
+```
+
+#### Step 4: Document Accepted Risks
+
+For vulnerabilities without available fixes:
+
+1. **Create GitHub issue** documenting:
+   - CVE identifier and severity
+   - Affected package and version
+   - Why fix is not available (no patch, breaking change)
+   - Mitigation measures (if any)
+   - Target remediation date
+
+2. **Add to security-exceptions.md** (create if doesn't exist):
+
+```markdown
+## Accepted Security Exceptions
+
+### CVE-2023-12345 (lodash@4.17.20)
+
+- **Severity**: High
+- **Status**: Accepted (temporary)
+- **Reason**: No patch available, breaking change in v5
+- **Mitigation**: Input validation prevents exploitation
+- **Review Date**: 2026-03-01
+- **Issue**: #1234
+```
+
+3. **Optional: Use npm audit exceptions** (npm 10+):
+
+```bash
+# Suppress specific vulnerability (use sparingly!)
+npm audit fix --audit-level=high --ignore-vulnerability CVE-2023-12345
+```
+
+### Production Deployment Validation
+
+Before deploying to production, run the preflight validation script:
+
+```bash
+./scripts/production-preflight.sh
+```
+
+**Security Validations Performed:**
+
+1. **KEY_BACKEND Validation**
+
+```bash
+# BLOCKS deployment if KEY_BACKEND=env (insecure)
+if [[ "${KEY_BACKEND}" == "env" ]]; then
+  echo "❌ SECURITY ERROR: KEY_BACKEND=env not allowed in production"
+  exit 1
+fi
+
+# Valid production options:
+# - aws-kms
+# - gcp-kms
+# - azure-keyvault
+```
+
+2. **GRAFANA_PASSWORD Validation**
+
+```bash
+# BLOCKS deployment if default password detected
+if [[ "${GRAFANA_PASSWORD}" == "admin" ]]; then
+  echo "❌ SECURITY ERROR: Default Grafana password detected"
+  exit 1
+fi
+```
+
+3. **Dependency Audit**
+
+```bash
+# Checks for critical/high vulnerabilities
+npm audit --audit-level=high --production
+
+# Exit code 0 = No vulnerabilities
+# Exit code 1 = Vulnerabilities found (blocks deployment)
+```
+
+**Preflight Script Usage:**
+
+```bash
+# Test configuration before deployment
+KEY_BACKEND=aws-kms \
+GRAFANA_PASSWORD=secure-password-here \
+./scripts/production-preflight.sh
+
+# Expected output on success:
+# ✅ All production configuration checks passed
+# Exit code: 0
+
+# Expected output on failure:
+# ❌ Production configuration validation FAILED
+# Exit code: 1
+```
+
+### Security Scanning Tools
+
+#### npm audit
+
+**Built-in npm security scanner:**
+
+```bash
+# Scan all dependencies
+npm audit
+
+# Scan production dependencies only
+npm audit --production
+
+# Show JSON output for automation
+npm audit --json
+
+# Fix vulnerabilities automatically
+npm audit fix
+
+# Audit levels:
+# - low: Minor issues, may not need immediate fix
+# - moderate: Should fix in next release
+# - high: Fix ASAP (blocks CI)
+# - critical: Fix immediately (blocks CI)
+```
+
+**npm audit Exit Codes:**
+
+| Exit Code | Meaning               | CI Action |
+| --------- | --------------------- | --------- |
+| 0         | No vulnerabilities    | Pass ✓    |
+| 1         | Vulnerabilities found | Fail ✗    |
+
+#### Snyk
+
+**Advanced security platform (optional):**
+
+```bash
+# Setup (requires Snyk account)
+npm install -g snyk
+snyk auth
+
+# Test for vulnerabilities
+snyk test
+
+# Monitor project (continuous monitoring)
+snyk monitor
+
+# Test with severity threshold
+snyk test --severity-threshold=high
+
+# Ignore specific vulnerability
+snyk ignore --id=SNYK-JS-LODASH-12345
+```
+
+**Snyk Features:**
+
+- Dependency vulnerability scanning
+- License compliance checks
+- Container vulnerability scanning
+- Infrastructure as Code scanning
+- Fix PRs (automatic vulnerability fixes)
+
+**GitHub Integration:**
+
+1. Add `SNYK_TOKEN` to GitHub Secrets
+2. Snyk automatically creates PRs for vulnerabilities
+3. Security tab shows vulnerability dashboard
+
+### Security Update Procedures
+
+#### Monthly Dependency Updates
+
+```bash
+# Check for outdated packages
+npm outdated
+
+# Update minor/patch versions
+npm update
+
+# Update major versions (review breaking changes!)
+npm install package@latest
+
+# Run full test suite
+npm test
+
+# Create PR with dependency updates
+git checkout -b chore/monthly-dependency-updates
+git add package.json package-lock.json
+git commit -m "chore: monthly dependency updates"
+git push origin chore/monthly-dependency-updates
+```
+
+#### Critical Security Patch Response (48-Hour SLA)
+
+When a critical vulnerability is announced:
+
+1. **Hour 0-2: Assessment**
+
+   ```bash
+   # Check if project is affected
+   npm audit
+   snyk test
+
+   # Review CVE details
+   # - Exploitability
+   # - Attack vector
+   # - Impact on M2M
+   ```
+
+2. **Hour 2-8: Fix Development**
+
+   ```bash
+   # Create hotfix branch
+   git checkout -b hotfix/cve-2023-12345
+
+   # Apply fix
+   npm audit fix
+
+   # Run tests
+   npm test
+   ```
+
+3. **Hour 8-24: Testing & Review**
+
+   ```bash
+   # Integration tests
+   npm run test:integration
+
+   # Manual QA in staging
+   # Security review
+   # Peer code review
+   ```
+
+4. **Hour 24-48: Deployment**
+
+   ```bash
+   # Merge to main
+   git merge hotfix/cve-2023-12345
+
+   # Deploy to production
+   ./scripts/production-deploy.sh
+
+   # Monitor for issues
+   # Post-deployment verification
+   ```
+
+### Dependabot Configuration
+
+Enable automated dependency updates:
+
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    reviewers:
+      - 'security-team'
+    labels:
+      - 'dependencies'
+      - 'security'
+    # Auto-merge patch updates
+    allow:
+      - dependency-type: 'all'
+    # Group minor updates
+    groups:
+      minor-updates:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+```
+
+**Dependabot Auto-Merge Policy:**
+
+| Update Type | Auto-Merge | Review Required |
+| ----------- | ---------- | --------------- |
+| Patch       | Yes        | No              |
+| Minor       | No         | Yes             |
+| Major       | No         | Yes (thorough)  |
+| Security    | Fast-track | Expedited       |
+
+### Security Code Review Checklist
+
+When reviewing PRs, verify:
+
+- [ ] No hardcoded secrets (API keys, passwords, private keys)
+- [ ] No sensitive data in logs (`logger.info(password)` ❌)
+- [ ] Input validation on all external data
+- [ ] SQL/NoSQL injection prevention (parameterized queries)
+- [ ] XSS prevention (output encoding)
+- [ ] CSRF protection on state-changing operations
+- [ ] Rate limiting on public endpoints
+- [ ] Authentication/authorization checks
+- [ ] Secure random generation (`crypto.randomBytes`, not `Math.random()`)
+- [ ] TLS/SSL certificate validation (no `rejectUnauthorized: false`)
+
+### Secret Scanning
+
+**Pre-Commit Hook (git-secrets):**
+
+```bash
+# Install git-secrets
+brew install git-secrets  # macOS
+apt install git-secrets   # Ubuntu
+
+# Configure for repository
+cd /path/to/m2m
+git secrets --install
+git secrets --register-aws
+git secrets --add 'PRIVATE_KEY='
+git secrets --add 'SECRET_KEY='
+git secrets --add '[0-9a-f]{64}'  # 256-bit hex keys
+
+# Scan repository history
+git secrets --scan-history
+```
+
+**GitHub Secret Scanning:**
+
+GitHub automatically scans commits for known secret patterns:
+
+- API keys (AWS, GCP, Azure, GitHub)
+- Private keys (RSA, ECDSA, Ed25519)
+- Database connection strings
+- OAuth tokens
+
+If secrets are detected:
+
+1. Secret is automatically revoked (if supported)
+2. Repository admin is notified
+3. Commit should be removed from history
+
+**Remove Secrets from Git History:**
+
+```bash
+# Use BFG Repo-Cleaner (safer than git filter-branch)
+brew install bfg
+
+# Remove secrets
+bfg --replace-text secrets.txt repo.git
+cd repo.git
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+
+# Force push (coordinate with team!)
+git push --force
+```
 
 ---
 
@@ -799,6 +1256,17 @@ trivy image --exit-code 1 --severity CRITICAL m2m/connector:v1.2.0
 
 Complete this checklist before production deployment:
 
+### CI/CD Security ✓ (Story 16.2)
+
+- [ ] **npm audit blocking** - CI fails on high/critical vulnerabilities
+- [ ] **Snyk scan blocking** - CI fails on high/critical findings
+- [ ] **ci-status validates security** - Security job checked in CI gate
+- [ ] **No critical CVEs** - All dependencies scanned and clean
+- [ ] **Dependabot enabled** - Automated dependency updates configured
+- [ ] **Production preflight validated** - KEY_BACKEND and GRAFANA_PASSWORD checked
+- [ ] **Security exceptions documented** - Any accepted risks in writing
+- [ ] **Patch response plan** - Critical vulnerability SLA defined (48h)
+
 ### Network Security ✓
 
 - [ ] **Firewall configured** - Only required ports open
@@ -896,6 +1364,10 @@ See [incident-response-runbook.md](./incident-response-runbook.md) for detailed 
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-01-23
-**Author**: Dev Agent James (Story 12.9)
+**Document Version**: 1.1
+**Last Updated**: 2026-02-02
+**Authors**: Dev Agent James (Story 12.9, Story 16.2)
+**Changelog**:
+
+- v1.1 (2026-02-02): Added CI/CD Security Pipeline section (Story 16.2)
+- v1.0 (2026-01-23): Initial version (Story 12.9)

@@ -4,7 +4,7 @@
 
 ## Core Standards
 
-- **Languages & Runtimes:** TypeScript 5.3.3 (strict mode), Node.js 20.11.0 LTS
+- **Languages & Runtimes:** TypeScript 5.3.3 (strict mode), Node.js 22.11.0 LTS
 - **Style & Linting:** ESLint (@typescript-eslint/recommended), Prettier (line length 100, single quotes)
 - **Test Organization:** Co-located tests (`*.test.ts` next to `*.ts`), `__mocks__` for shared mocks
 

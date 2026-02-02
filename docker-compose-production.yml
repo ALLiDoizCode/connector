@@ -61,6 +61,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    mem_limit: 512m
+    cpus: '0.5'
 
   # ===========================================================================
   # M2M ILP Connector - Core Payment Processing
@@ -156,6 +158,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    mem_limit: 1g
+    cpus: '1.0'
 
   # ===========================================================================
   # Prometheus - Metrics Collection and Alerting
@@ -186,6 +190,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    mem_limit: 512m
+    cpus: '0.5'
 
   # ===========================================================================
   # Grafana - Metrics Visualization and Dashboards
@@ -212,13 +218,45 @@ services:
     networks:
       - ilp-production-network
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    mem_limit: 256m
+    cpus: '0.25'
+
+  # ===========================================================================
+  # Alertmanager - Alert Routing and Notifications
+  # ===========================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: m2m-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - ilp-production-network
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    mem_limit: 128m
+    cpus: '0.1'
 
   # ===========================================================================
   # Jaeger - Distributed Tracing (Optional)
@@ -245,6 +283,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    mem_limit: 512m
+    cpus: '0.5'
 
 # =============================================================================
 # Volumes - Persistent Data Storage
@@ -273,6 +313,11 @@ volumes:
   # Grafana configuration and state
   # Contains: dashboards, user preferences, alerts
   grafana-data:
+    driver: local
+
+  # Alertmanager notification state
+  # Contains: silences, notification history
+  alertmanager-data:
     driver: local
 
 # =============================================================================

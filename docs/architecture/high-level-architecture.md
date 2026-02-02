@@ -37,7 +37,7 @@ The system employs a **microservices architecture deployed via Docker containers
    - **Push-based telemetry:** Connectors emit events to structured logging (not pull-based polling)
    - **Docker-first deployment:** Container orchestration via Docker Compose
    - **WebSocket-centric communication:** BTP uses WebSocket (RFC-0023), telemetry emitted to stdout
-   - **Tri-chain settlement:** EVM payment channels (Epic 8), XRP payment channels (Epic 9), and Aptos payment channels (Epic 27)
+   - **Tri-chain settlement:** EVM payment channels (Epic 8), XRP payment channels (Epic 9), and Aptos payment channels (Epic 13)
    - **Dashboard deferred:** Visualization tooling deferred to focus on core payment functionality
 
 ## High Level Project Diagram

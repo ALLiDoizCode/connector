@@ -968,9 +968,9 @@ private getNetworkFromUrl(url: string): Network {
 
 ## Next Steps
 
-- **Epic 27 Story 27.1 (Complete):** AptosClient integration
-- **Epic 27 Story 27.2 (Complete):** Move payment channel module
-- **Epic 27 Story 27.3 (Complete):** Off-chain claim signing
-- **Epic 27 Story 27.4 (Complete):** AptosChannelSDK
-- **Epic 27 Story 27.5 (Complete):** Tri-chain settlement integration
-- **Epic 27 Story 27.6 (Current):** Testing and documentation
+- **Epic 13 Story 27.1 (Complete):** AptosClient integration
+- **Epic 13 Story 27.2 (Complete):** Move payment channel module
+- **Epic 13 Story 27.3 (Complete):** Off-chain claim signing
+- **Epic 13 Story 27.4 (Complete):** AptosChannelSDK
+- **Epic 13 Story 27.5 (Complete):** Tri-chain settlement integration
+- **Epic 13 Story 27.6 (Current):** Testing and documentation
