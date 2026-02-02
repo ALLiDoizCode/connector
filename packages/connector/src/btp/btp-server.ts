@@ -593,9 +593,22 @@ export class BTPServer {
 
       const messageData = message.data as BTPData;
 
-      // Validate required fields
-      if (!messageData.ilpPacket) {
-        throw new BTPError('F00', 'Missing ILP packet in BTP MESSAGE');
+      // Check if this is a protocol-data-only message (no ILP packet)
+      const hasILPPacket = messageData.ilpPacket && messageData.ilpPacket.length > 0;
+
+      if (!hasILPPacket) {
+        // Protocol-data-only message (e.g., payment channel claims)
+        // No ILP packet processing needed, just notify callback
+        childLogger.debug(
+          {
+            event: 'btp_protocol_data_received',
+            peerId: peerConn.peerId,
+            requestId: message.requestId,
+            protocols: messageData.protocolData.map((pd) => pd.protocolName),
+          },
+          'Processing BTP protocol-data-only message'
+        );
+        return; // onMessageCallback will be called after this function returns
       }
 
       childLogger.debug(
@@ -608,8 +621,8 @@ export class BTPServer {
         'Processing BTP MESSAGE with ILP packet'
       );
 
-      // Decode ILP packet from buffer
-      const ilpPacket = deserializePacket(messageData.ilpPacket);
+      // Decode ILP packet from buffer (we know it exists due to check above)
+      const ilpPacket = deserializePacket(messageData.ilpPacket!);
 
       // Validate packet type (must be PREPARE)
       if (ilpPacket.type !== PacketType.PREPARE) {
