@@ -96,10 +96,11 @@ const ALL_EVENT_TYPES: TelemetryEventType[] = [
 
 /**
  * Event type categories for grouped display
+ * Updated to use ILP terminology for packet events
  */
 const EVENT_TYPE_CATEGORIES: Record<string, TelemetryEventType[]> = {
   Node: ['NODE_STATUS'],
-  Packets: ['PACKET_RECEIVED', 'PACKET_FORWARDED'],
+  'ILP Packets': ['PACKET_RECEIVED', 'PACKET_FORWARDED', 'AGENT_CHANNEL_PAYMENT_SENT'],
   Account: ['ACCOUNT_BALANCE', 'SETTLEMENT_TRIGGERED', 'SETTLEMENT_COMPLETED'],
   'Agent Wallet': [
     'AGENT_BALANCE_CHANGED',
@@ -115,7 +116,7 @@ const EVENT_TYPE_CATEGORIES: Record<string, TelemetryEventType[]> = {
     'PAYMENT_CHANNEL_SETTLED',
   ],
   'XRP Channels': ['XRP_CHANNEL_OPENED', 'XRP_CHANNEL_CLAIMED', 'XRP_CHANNEL_CLOSED'],
-  'Agent Channels': ['AGENT_CHANNEL_OPENED', 'AGENT_CHANNEL_PAYMENT_SENT', 'AGENT_CHANNEL_CLOSED'],
+  'Agent Channels': ['AGENT_CHANNEL_OPENED', 'AGENT_CHANNEL_CLOSED'],
   'Claim Exchange': ['CLAIM_SENT', 'CLAIM_RECEIVED', 'CLAIM_REDEEMED'],
   Security: ['WALLET_BALANCE_MISMATCH', 'SUSPICIOUS_ACTIVITY_DETECTED', 'RATE_LIMIT_EXCEEDED'],
 };

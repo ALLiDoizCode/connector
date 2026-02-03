@@ -51,16 +51,19 @@ Remediate infrastructure review findings including Node version alignment (Docke
 **Epic 17: BTP Off-Chain Claim Exchange Protocol**
 Implement standardized off-chain payment channel claim exchange via BTP protocolData for all three settlement chains (XRP, EVM/Base L2, and Aptos). Enable connectors to send cryptographically signed settlement claims to peers over the existing BTP WebSocket connection without requiring separate communication channels. Build unified claim encoding/decoding infrastructure, implement claim verification workflows, add claim persistence for dispute resolution, automatic claim redemption service, and provide comprehensive telemetry for monitoring claim exchange health across all blockchain types.
 
+**Epic 18: Explorer UI — Network Operations Center Redesign**
+Transform the Connector Explorer into a distinctive, production-grade Network Operations Center (NOC) dashboard using the frontend-design skill and Playwright MCP verification. Deliver a modern, visually striking interface with a Dashboard-first approach that emphasizes real-time ILP packet routing metrics, live packet flow visualization, and comprehensive observability across all five tabs (Dashboard, Packets, Accounts, Peers, Keys) with seamless live and historical data integration. Features deep space color palette, neon ILP packet type indicators (cyan/emerald/rose), monospace technical typography, and custom animations for a professional monitoring experience.
+
 ---
 
 ## Project Status
 
-Epics 1-16 are **completed** or **in progress**. Epic 17 completes the settlement loop. The connector is feature-complete with:
+Epics 1-17 are **completed** or **in progress**. Epic 18 enhances the user experience with professional UI design. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering
 - Tri-chain settlement (EVM, XRP, Aptos)
 - TigerBeetle double-entry accounting
-- Explorer UI for real-time observability
+- Explorer UI with NOC aesthetic for professional observability
 - Public testnet support for all three chains
 - Off-chain claim exchange for all settlement methods

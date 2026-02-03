@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { useEventFilters } from './hooks/useEventFilters';
 import { useEvents, EventMode } from './hooks/useEvents';
 import { EventTable } from './components/EventTable';
+import { Dashboard } from './components/Dashboard';
 import { Header } from './components/Header';
 import { JumpToLive } from './components/JumpToLive';
 import { AccountsView } from './components/AccountsView';
@@ -12,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KeyboardHelpDialog } from './components/KeyboardHelpDialog';
 import { KeyManager } from './components/KeyManager';
-import { Radio, History, Wallet, ListTree, Network, Key } from 'lucide-react';
+import { Radio, History, Wallet, ListTree, Network, Key, LayoutDashboard } from 'lucide-react';
 
 const FilterBar = lazy(() =>
   import('./components/FilterBar').then((m) => ({ default: m.FilterBar }))
@@ -22,7 +23,7 @@ const EventDetailPanel = lazy(() =>
 );
 
 /** Tab view types */
-type TabView = 'events' | 'accounts' | 'peers' | 'keys';
+type TabView = 'dashboard' | 'events' | 'accounts' | 'peers' | 'keys';
 
 /** Navigation bar component */
 function NavBar() {
@@ -68,8 +69,8 @@ function ExplorerView() {
   // Selected event for detail panel (Story 14.5)
   const [selectedEvent, setSelectedEvent] = useState<TelemetryEvent | StoredEvent | null>(null);
 
-  // Tab view state (Story 14.6)
-  const [activeTab, setActiveTab] = useState<TabView>('events');
+  // Tab view state (Story 14.6) - Default to dashboard
+  const [activeTab, setActiveTab] = useState<TabView>('dashboard');
 
   // Help dialog state (Task 3)
   const [helpOpen, setHelpOpen] = useState(false);
@@ -97,15 +98,18 @@ function ExplorerView() {
 
       switch (e.key) {
         case '1':
-          setActiveTab('events');
+          setActiveTab('dashboard');
           break;
         case '2':
-          setActiveTab('accounts');
+          setActiveTab('events');
           break;
         case '3':
-          setActiveTab('peers');
+          setActiveTab('accounts');
           break;
         case '4':
+          setActiveTab('peers');
+          break;
+        case '5':
           setActiveTab('keys');
           break;
         case '/': {
@@ -198,12 +202,16 @@ function ExplorerView() {
       </div>
 
       {/* Tab navigation (Story 14.6) */}
-      <div className="px-4 md:px-6 py-2 border-b border-border">
+      <div className="px-4 md:px-6 py-2 border-b border-border bg-card/30">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabView)}>
           <TabsList>
+            <TabsTrigger value="dashboard" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
             <TabsTrigger value="events" className="gap-2">
               <ListTree className="h-4 w-4" />
-              Events
+              Packets
             </TabsTrigger>
             <TabsTrigger value="accounts" className="gap-2">
               <Wallet className="h-4 w-4" />
@@ -240,7 +248,9 @@ function ExplorerView() {
           </div>
         )}
 
-        {activeTab === 'events' ? (
+        {activeTab === 'dashboard' ? (
+          <Dashboard events={events} connectionStatus={connectionStatus} />
+        ) : activeTab === 'events' ? (
           <EventTable
             events={events}
             onEventClick={handleEventClick}

@@ -12,6 +12,7 @@ import {
   getClaimMessageId,
   formatClaimAmount,
   getBlockchainBadgeColor,
+  getIlpPacketType,
 } from '../lib/event-types';
 import { Badge } from '@/components/ui/badge';
 import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
@@ -34,13 +35,6 @@ interface EventTableProps {
 const ROW_HEIGHT = 48;
 
 /**
- * Check if event is a packet event with ILP semantics
- */
-function isPacketEvent(event: TelemetryEvent): boolean {
-  return event.type === 'AGENT_CHANNEL_PAYMENT_SENT' && 'packetType' in event;
-}
-
-/**
  * Check if event is a claim event (Story 17.6)
  */
 function isClaimEvent(event: TelemetryEvent): boolean {
@@ -52,21 +46,45 @@ function isClaimEvent(event: TelemetryEvent): boolean {
 }
 
 /**
- * Get display type - packet type for packet events, event type otherwise
+ * Get display type - ILP packet type (prepare/fulfill/reject) for ILP events, event type otherwise
+ * For ILP packet events, prominently displays the packet type using ILP terminology
  */
-function getDisplayType(event: TelemetryEvent): { label: string; colorClass: string } {
-  if (isPacketEvent(event)) {
-    const packetType = (event as { packetType?: string }).packetType;
-    if (packetType) {
-      const label = packetType.charAt(0).toUpperCase() + packetType.slice(1);
-      const colorClass = PACKET_TYPE_COLORS[packetType] || 'bg-gray-500';
-      return { label, colorClass };
+function getDisplayType(event: TelemetryEvent): {
+  label: string;
+  colorClass: string;
+  isIlpPacket: boolean;
+  secondaryLabel?: string;
+} {
+  // Check if this is an ILP packet event
+  const ilpPacketType = getIlpPacketType(event);
+
+  if (ilpPacketType) {
+    // Display ILP packet type prominently (prepare/fulfill/reject)
+    const colorClass = PACKET_TYPE_COLORS[ilpPacketType] || 'bg-gray-500';
+
+    // Generate secondary label from event type
+    let secondaryLabel: string | undefined;
+    if (event.type === 'PACKET_RECEIVED') {
+      secondaryLabel = 'received';
+    } else if (event.type === 'PACKET_FORWARDED') {
+      secondaryLabel = 'forwarded';
+    } else if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
+      secondaryLabel = 'sent';
     }
+
+    return {
+      label: ilpPacketType,
+      colorClass,
+      isIlpPacket: true,
+      secondaryLabel,
+    };
   }
-  // Fallback to event type
+
+  // Fallback to event type for non-ILP events
   return {
     label: event.type.replace(/_/g, ' '),
     colorClass: EVENT_TYPE_COLORS[event.type] || 'bg-gray-500',
+    isIlpPacket: false,
   };
 }
 
@@ -218,16 +236,16 @@ function buildPacketStatusMap(events: TelemetryEvent[]): Map<string, 'success' |
   const statusMap = new Map<string, 'success' | 'failure'>();
 
   for (const event of events) {
-    if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT' && 'packetType' in event) {
-      const packetEvent = event as { packetType?: string; packetId?: string };
-      const packetId = packetEvent.packetId;
-      if (!packetId) continue;
+    const ilpPacketType = getIlpPacketType(event);
+    if (!ilpPacketType) continue;
 
-      if (packetEvent.packetType === 'fulfill') {
-        statusMap.set(packetId, 'success');
-      } else if (packetEvent.packetType === 'reject') {
-        statusMap.set(packetId, 'failure');
-      }
+    const packetId = getPacketId(event);
+    if (!packetId) continue;
+
+    if (ilpPacketType === 'fulfill') {
+      statusMap.set(packetId, 'success');
+    } else if (ilpPacketType === 'reject') {
+      statusMap.set(packetId, 'failure');
     }
   }
 
@@ -250,13 +268,13 @@ function getEventStatus(
 ): EventStatus {
   const type = event.type;
 
-  // For packet events, status is based on packet type
-  if (type === 'AGENT_CHANNEL_PAYMENT_SENT' && 'packetType' in event) {
-    const packetType = (event as { packetType?: string }).packetType;
-    if (packetType === 'fulfill') return 'success';
-    if (packetType === 'reject') return 'failure';
+  // For ILP packet events, status is based on packet type
+  const ilpPacketType = getIlpPacketType(event);
+  if (ilpPacketType) {
+    if (ilpPacketType === 'fulfill') return 'success';
+    if (ilpPacketType === 'reject') return 'failure';
     // For PREPARE packets, use the resolved status if available
-    if (packetType === 'prepare') {
+    if (ilpPacketType === 'prepare') {
       return resolvedStatus || 'pending';
     }
   }
@@ -399,24 +417,40 @@ const EventRow = React.memo(function EventRow({
       <div className="w-[12%] min-w-[80px] px-3 font-mono text-sm text-muted-foreground truncate">
         {formatRelativeTime(timestamp)}
       </div>
-      <div className="w-[14%] min-w-[100px] px-3 flex items-center gap-1">
-        <Badge
-          variant="secondary"
-          className={`${displayType.colorClass} text-white text-xs max-w-full truncate`}
-          title={displayType.label}
-        >
-          {displayType.label}
-        </Badge>
-        {/* Blockchain badge for claim events */}
-        {isClaim && claimBlockchain && (
-          <Badge
-            variant="outline"
-            className={`text-xs border ${getBlockchainBadgeColor(claimBlockchain)}`}
-            title={`Blockchain: ${claimBlockchain.toUpperCase()}`}
-          >
-            {claimBlockchain.toUpperCase()}
-          </Badge>
-        )}
+      <div className="w-[14%] min-w-[100px] px-3">
+        <div className="flex flex-col gap-0.5">
+          {/* Primary badge - ILP packet type or event type */}
+          <div className="flex items-center gap-1">
+            <Badge
+              variant="secondary"
+              className={`${displayType.colorClass} text-white text-xs truncate`}
+              title={
+                displayType.isIlpPacket ? `ILP ${displayType.label} packet` : displayType.label
+              }
+            >
+              {displayType.label}
+            </Badge>
+            {/* Blockchain badge for claim events */}
+            {isClaim && claimBlockchain && (
+              <Badge
+                variant="outline"
+                className={`text-xs border ${getBlockchainBadgeColor(claimBlockchain)}`}
+                title={`Blockchain: ${claimBlockchain.toUpperCase()}`}
+              >
+                {claimBlockchain.toUpperCase()}
+              </Badge>
+            )}
+          </div>
+          {/* Secondary label - event action for ILP packets */}
+          {displayType.isIlpPacket && displayType.secondaryLabel && (
+            <span
+              className="text-xs text-muted-foreground"
+              title={`Event: ${displayType.secondaryLabel}`}
+            >
+              {displayType.secondaryLabel}
+            </span>
+          )}
+        </div>
       </div>
       <div className="w-[16%] min-w-[100px] px-3 font-mono text-sm truncate">
         <PeerLink peerId={from} />

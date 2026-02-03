@@ -83,13 +83,51 @@ export interface StoredEvent {
 export type IlpPacketType = 'prepare' | 'fulfill' | 'reject';
 
 /**
- * Packet type color mapping
+ * Packet type color mapping for ILP packet types
+ * Uses ILP terminology: prepare (blue), fulfill (green), reject (red)
  */
 export const PACKET_TYPE_COLORS: Record<string, string> = {
   prepare: 'bg-blue-500',
   fulfill: 'bg-green-500',
   reject: 'bg-red-500',
 };
+
+/**
+ * Get ILP packet type display name from event
+ * Returns 'prepare', 'fulfill', or 'reject' for ILP packet events
+ */
+export function getIlpPacketType(event: TelemetryEvent | StoredEvent): IlpPacketType | null {
+  // Check StoredEvent with packet_type field (from database)
+  if ('packet_type' in event && typeof event.packet_type === 'string' && event.packet_type) {
+    const type = event.packet_type.toLowerCase();
+    if (type === 'prepare' || type === 'fulfill' || type === 'reject') {
+      return type as IlpPacketType;
+    }
+  }
+
+  // Check TelemetryEvent with packetType field (from live events)
+  if ('packetType' in event && typeof event.packetType === 'string') {
+    const type = event.packetType.toLowerCase();
+    if (type === 'prepare' || type === 'fulfill' || type === 'reject') {
+      return type as IlpPacketType;
+    }
+  }
+
+  // PACKET_RECEIVED and PACKET_FORWARDED are always 'prepare' packets
+  const eventType = 'type' in event ? event.type : 'event_type' in event ? event.event_type : null;
+  if (eventType === 'PACKET_RECEIVED' || eventType === 'PACKET_FORWARDED') {
+    return 'prepare';
+  }
+
+  return null;
+}
+
+/**
+ * Check if event is an ILP packet event (prepare/fulfill/reject)
+ */
+export function isIlpPacketEvent(event: TelemetryEvent | StoredEvent): boolean {
+  return getIlpPacketType(event) !== null;
+}
 
 /**
  * Response from GET /api/events
