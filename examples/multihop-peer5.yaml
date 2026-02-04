@@ -55,8 +55,17 @@ routes:
     priority: 0
 
 # Settlement Configuration (Payment Channels)
+# Peer5 uses EVM only (Base Sepolia) for Peer4 connection
 settlement:
   connectorFeePercentage: 0.1
   enableSettlement: true
   settlementThreshold: 1000000
   initialDepositMultiplier: 10
+
+  # TigerBeetle Configuration
+  tigerBeetleClusterId: 0
+  tigerBeetleReplicas:
+    - tigerbeetle-5peer:3000
+
+# Settlement preference: EVM only
+settlementPreference: evm

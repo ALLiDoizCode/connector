@@ -128,14 +128,18 @@ services:
       # BTP peer authentication secrets
       BTP_PEER_PEER1_SECRET: secret-peer1-to-peer2
       BTP_PEER_PEER3_SECRET: secret-peer2-to-peer3
-      # Settlement configuration
-      SETTLEMENT_PREFERENCE: evm
+      # Settlement configuration - Peer2 uses both EVM and XRP
+      SETTLEMENT_PREFERENCE: both
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      # EVM (Base Sepolia) - for Peer1 connection
       BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
       TREASURY_EVM_PRIVATE_KEY: ${PEER2_PRIVATE_KEY}
       TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
       M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
+      # XRP Ledger - for Peer3 connection
+      XRPL_WSS_URL: ${XRPL_WSS_URL:-wss://s.altnet.rippletest.net:51233}
+      XRP_SEED: ${XRP_SEED}
       # Peer Ethereum addresses for payment channels
       PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
       PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
@@ -183,20 +187,24 @@ services:
       # BTP peer authentication secrets
       BTP_PEER_PEER2_SECRET: secret-peer2-to-peer3
       BTP_PEER_PEER4_SECRET: secret-peer3-to-peer4
-      # Settlement configuration
-      SETTLEMENT_PREFERENCE: evm
+      # Settlement configuration - Peer3 uses both XRP and Aptos
+      SETTLEMENT_PREFERENCE: both
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      # XRP Ledger - for Peer2 connection
+      XRPL_WSS_URL: ${XRPL_WSS_URL:-wss://s.altnet.rippletest.net:51233}
+      XRP_SEED: ${PEER3_XRP_SEED}
+      XRP_ADDRESS: ${PEER3_XRP_ADDRESS}
+      # Aptos - for Peer4 connection
+      APTOS_NODE_URL: ${APTOS_NODE_URL:-https://fullnode.testnet.aptoslabs.com/v1}
+      APTOS_PRIVATE_KEY: ${PEER3_APTOS_PRIVATE_KEY}
+      APTOS_ADDRESS: ${PEER3_APTOS_ADDRESS}
+      APTOS_MODULE_ADDRESS: ${APTOS_MODULE_ADDRESS}
+      # EVM required for initialization (even though Peer3 uses XRP/Aptos)
       BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
       TREASURY_EVM_PRIVATE_KEY: ${PEER3_PRIVATE_KEY}
       TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
       M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
-      # Peer Ethereum addresses for payment channels
-      PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
-      PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
-      PEER3_EVM_ADDRESS: ${PEER3_EVM_ADDRESS}
-      PEER4_EVM_ADDRESS: ${PEER4_EVM_ADDRESS}
-      PEER5_EVM_ADDRESS: ${PEER5_EVM_ADDRESS}
     volumes:
       - ./examples/multihop-peer3.yaml:/app/config.yaml:ro
     ports:
@@ -238,10 +246,16 @@ services:
       # BTP peer authentication secrets
       BTP_PEER_PEER3_SECRET: secret-peer3-to-peer4
       BTP_PEER_PEER5_SECRET: secret-peer4-to-peer5
-      # Settlement configuration
-      SETTLEMENT_PREFERENCE: evm
+      # Settlement configuration - Peer4 uses both Aptos and EVM
+      SETTLEMENT_PREFERENCE: both
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      # Aptos - for Peer3 connection
+      APTOS_NODE_URL: ${APTOS_NODE_URL:-https://fullnode.testnet.aptoslabs.com/v1}
+      APTOS_PRIVATE_KEY: ${PEER4_APTOS_PRIVATE_KEY}
+      APTOS_ADDRESS: ${PEER4_APTOS_ADDRESS}
+      APTOS_MODULE_ADDRESS: ${APTOS_MODULE_ADDRESS}
+      # EVM (Base Sepolia) - for Peer5 connection
       BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
       TREASURY_EVM_PRIVATE_KEY: ${PEER4_PRIVATE_KEY}
       TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
