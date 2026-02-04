@@ -11,16 +11,22 @@ resources:
 nameSuffix: -staging
 
 # Staging ConfigMap patches
-configMapGenerator:
-  - name: connector-config
-    behavior: merge
-    literals:
-      - LOG_LEVEL=debug
-      - SETTLEMENT_ENABLED=true
-      - BASE_RPC_URL=https://sepolia.base.org
-      - BASE_L2_RPC_URL=https://sepolia.base.org
-      - XRPL_WSS_URL=wss://s.altnet.rippletest.net:51233
-      - APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+patches:
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: connector-config
+      data:
+        LOG_LEVEL: "debug"
+        SETTLEMENT_ENABLED: "true"
+        BASE_RPC_URL: "https://sepolia.base.org"
+        BASE_L2_RPC_URL: "https://sepolia.base.org"
+        XRPL_WSS_URL: "wss://s.altnet.rippletest.net:51233"
+        APTOS_NODE_URL: "https://fullnode.testnet.aptoslabs.com/v1"
+    target:
+      kind: ConfigMap
+      name: connector-config
 
 # Staging image
 images:

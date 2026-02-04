@@ -56,7 +56,7 @@ describe('UnifiedSettlementExecutor', () => {
 
     // Create fresh mock instances (Anti-Pattern 3 solution)
     mockEVMChannelSDK = {
-      openChannel: jest.fn().mockResolvedValue('0xabc123'),
+      openChannel: jest.fn().mockResolvedValue({ channelId: '0xabc123', txHash: '0xMockTxHash' }),
       signBalanceProof: jest.fn().mockResolvedValue('0xsignature'),
       getSignerAddress: jest.fn().mockResolvedValue('0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'),
       getChannelState: jest.fn(),

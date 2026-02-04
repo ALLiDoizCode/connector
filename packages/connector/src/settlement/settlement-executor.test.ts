@@ -92,7 +92,9 @@ describe('SettlementExecutor', () => {
       settlementTimeout: 86400,
       openedAt: Math.floor(Date.now() / 1000),
     } as ChannelState);
-    mockPaymentChannelSDK.openChannel = jest.fn().mockResolvedValue(testChannelId);
+    mockPaymentChannelSDK.openChannel = jest
+      .fn()
+      .mockResolvedValue({ channelId: testChannelId, txHash: '0xMockTxHash' });
     mockPaymentChannelSDK.deposit = jest.fn().mockResolvedValue(undefined);
     mockPaymentChannelSDK.signBalanceProof = jest.fn().mockResolvedValue('0xsignature');
     mockPaymentChannelSDK.cooperativeSettle = jest.fn().mockResolvedValue(undefined);
@@ -431,7 +433,7 @@ describe('SettlementExecutor', () => {
       mockPaymentChannelSDK.openChannel
         .mockRejectedValueOnce(new Error('Network timeout'))
         .mockRejectedValueOnce(new Error('Network timeout'))
-        .mockResolvedValueOnce(testChannelId);
+        .mockResolvedValueOnce({ channelId: testChannelId, txHash: '0xMockTxHash' });
 
       // Mock: No existing channel
       mockPaymentChannelSDK.getMyChannels.mockResolvedValue([]);

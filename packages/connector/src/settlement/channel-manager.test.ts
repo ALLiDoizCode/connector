@@ -90,7 +90,10 @@ describe('ChannelManager', () => {
   describe('ensureChannelExists', () => {
     it('should create new channel when none exists', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       const channelId = await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -111,7 +114,10 @@ describe('ChannelManager', () => {
 
     it('should reuse existing channel', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       // First call creates channel
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
@@ -127,7 +133,10 @@ describe('ChannelManager', () => {
   describe('getChannelById', () => {
     it('should return channel metadata when found', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -145,7 +154,10 @@ describe('ChannelManager', () => {
   describe('getChannelForPeer', () => {
     it('should return channel metadata for peer and token', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -165,7 +177,10 @@ describe('ChannelManager', () => {
   describe('markChannelActivity', () => {
     it('should update lastActivityAt timestamp', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -187,7 +202,10 @@ describe('ChannelManager', () => {
   describe('isChannelIdle', () => {
     it('should detect idle channel', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -206,7 +224,10 @@ describe('ChannelManager', () => {
 
     it('should not detect active channel as idle', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -234,7 +255,10 @@ describe('ChannelManager', () => {
   describe('cooperative close', () => {
     it('should close idle channel cooperatively', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       const mockChannelState: ChannelState = {
         channelId: mockChannelId,
@@ -281,7 +305,10 @@ describe('ChannelManager', () => {
   describe('unilateral close', () => {
     it('should close channel unilaterally when cooperative fails', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       const mockChannelState: ChannelState = {
         channelId: mockChannelId,
@@ -326,7 +353,10 @@ describe('ChannelManager', () => {
   describe('telemetry emission', () => {
     it('should emit legacy CHANNEL_OPENED telemetry', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 
@@ -357,7 +387,10 @@ describe('ChannelManager', () => {
         openedAt: Date.now(),
       };
 
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
       mockPaymentChannelSDK.getChannelState.mockResolvedValue(mockChannelState);
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
@@ -397,7 +430,10 @@ describe('ChannelManager', () => {
         openedAt: Date.now(),
       };
 
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
       mockPaymentChannelSDK.getChannelState.mockResolvedValue(mockChannelState);
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
@@ -426,7 +462,10 @@ describe('ChannelManager', () => {
   describe('settlement activity tracking', () => {
     it('should update channel activity when settlement occurs', async () => {
       const mockChannelId = '0xChannelId123';
-      mockPaymentChannelSDK.openChannel.mockResolvedValue(mockChannelId);
+      mockPaymentChannelSDK.openChannel.mockResolvedValue({
+        channelId: mockChannelId,
+        txHash: '0xMockTxHash',
+      });
 
       await channelManager.ensureChannelExists('peer-a', 'TEST_TOKEN');
 

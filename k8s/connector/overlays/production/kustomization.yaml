@@ -33,14 +33,19 @@ patches:
       kind: Deployment
       name: connector
 
-# Production ConfigMap patches
-configMapGenerator:
-  - name: connector-config
-    behavior: merge
-    literals:
-      - LOG_LEVEL=info
-      - SETTLEMENT_ENABLED=true
-      - PROMETHEUS_ENABLED=true
+  # Production ConfigMap patches
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: connector-config
+      data:
+        LOG_LEVEL: "info"
+        SETTLEMENT_ENABLED: "true"
+        PROMETHEUS_ENABLED: "true"
+    target:
+      kind: ConfigMap
+      name: connector-config
 
 # Production image
 images:

@@ -7,7 +7,17 @@
 import { ConnectorNode } from './core/connector-node';
 import { ConfigurationError } from './config/config-loader';
 import { createLogger } from './utils/logger';
+import { RoutingTable } from './routing/routing-table';
+import { PacketHandler } from './core/packet-handler';
+import { BTPServer } from './btp/btp-server';
+import { BTPClient } from './btp/btp-client';
 import type { Logger } from 'pino';
+
+// Export public API
+export { ConnectorNode, RoutingTable, PacketHandler, BTPServer, BTPClient, createLogger };
+
+// Export main function for testing
+export { main };
 
 /**
  * Main entry point
@@ -117,5 +127,9 @@ async function startConnectorMode(configFile: string, logger: Logger): Promise<v
   }
 }
 
-// Run main entry point
-void main();
+// Run main entry point only when executed directly (not imported)
+// Check if this file is the entry point (running as main script)
+const isMainModule = require.main === module || process.argv[1]?.includes('connector');
+if (isMainModule) {
+  void main();
+}

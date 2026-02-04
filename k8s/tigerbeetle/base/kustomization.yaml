@@ -1,0 +1,19 @@
+# Base TigerBeetle Kubernetes resources
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tigerbeetle
+
+resources:
+  - namespace.yaml
+  - headless-service.yaml
+  - service.yaml
+  - statefulset.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: m2m
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false

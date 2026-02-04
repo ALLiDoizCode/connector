@@ -216,9 +216,10 @@ describe('PaymentChannelSDK', () => {
 
   describe('openChannel', () => {
     it('should open a channel and return channelId', async () => {
-      const channelId = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, 0n);
+      const result = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, 0n);
 
-      expect(channelId).toBe(mockChannelId);
+      expect(result.channelId).toBe(mockChannelId);
+      expect(result.txHash).toBeDefined();
       expect(mockTokenNetworkContract.openChannel).toHaveBeenCalledWith(mockPeerAddress, 3600);
       expect(mockLogger.info).toHaveBeenCalledWith('Opening payment channel', expect.any(Object));
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -229,20 +230,15 @@ describe('PaymentChannelSDK', () => {
 
     it('should deposit initial amount if specified', async () => {
       const initialDeposit = 1000000n;
-      const channelId = await sdk.openChannel(
-        mockPeerAddress,
-        mockTokenAddress,
-        3600,
-        initialDeposit
-      );
+      const result = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, initialDeposit);
 
-      expect(channelId).toBe(mockChannelId);
+      expect(result.channelId).toBe(mockChannelId);
       // Should call setTotalDeposit for initial deposit
       expect(mockTokenNetworkContract.setTotalDeposit).toHaveBeenCalled();
     });
 
     it('should cache channel state after opening', async () => {
-      const channelId = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, 0n);
+      const { channelId } = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, 0n);
 
       // Verify channel state was cached
       const state = await sdk.getChannelState(channelId, mockTokenAddress);
@@ -256,7 +252,7 @@ describe('PaymentChannelSDK', () => {
       const depositAmount = 500000n;
 
       // First open channel to populate cache
-      const channelId = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, 0n);
+      const { channelId } = await sdk.openChannel(mockPeerAddress, mockTokenAddress, 3600, 0n);
 
       // Mock getChannelState to return existing state
       mockTokenNetworkContract.participants?.mockResolvedValueOnce({
