@@ -51,31 +51,25 @@ explorerPort: 5173
 # =============================================================================
 # Settlement Configuration
 # =============================================================================
+settlement:
+  # Enable settlement (environment variables will override these defaults)
+  enableSettlement: true
+  settlementThreshold: 1000000
+  connectorFeePercentage: 0.1
+  initialDepositMultiplier: 10
+
+  # TigerBeetle Configuration
+  tigerBeetleClusterId: 0
+  tigerBeetleReplicas:
+    - tigerbeetle:3000
+
 # Settlement preference: 'evm' | 'xrp' | 'aptos' | 'both'
 # Override with SETTLEMENT_PREFERENCE environment variable.
 settlementPreference: both
 
-# Enable automatic settlement when balance threshold is reached
-# Override with SETTLEMENT_ENABLED environment variable.
-settlementEnabled: true
-
-# Balance threshold that triggers automatic settlement (in base units)
-# Override with SETTLEMENT_THRESHOLD environment variable.
-settlementThreshold: 1000000
-
-# M2M Token contract address (required for EVM settlement)
-# Override with M2M_TOKEN_ADDRESS environment variable.
-# m2mTokenAddress: 0x...
-
-# Token Network Registry contract address (Raiden-style payment channels)
-# Override with TOKEN_NETWORK_REGISTRY environment variable.
-# tokenNetworkRegistry: 0x...
-
 # Blockchain RPC endpoints
 # Override with BASE_RPC_URL, BASE_L2_RPC_URL, XRPL_WSS_URL, APTOS_NODE_URL
-# evmRpcUrl: https://mainnet.base.org
-# xrplWssUrl: wss://xrplcluster.com
-# aptosNodeUrl: https://fullnode.mainnet.aptoslabs.com/v1
+# All loaded from environment variables
 
 # =============================================================================
 # Logging Configuration
