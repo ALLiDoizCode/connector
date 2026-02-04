@@ -20,6 +20,7 @@ g.peer1          g.peer2          g.peer3          g.peer4          g.peer5
 - Peers are funded from the base treasury wallet using EVM transactions
 - Payment channels are established between consecutive peers for settlement
 - Packets can traverse all 5 hops from Peer1 to Peer5
+- **TigerBeetle**: High-performance accounting database tracks peer balances in real-time
 
 ## Prerequisites
 
@@ -372,11 +373,28 @@ Peer1 ↔ Peer2 ↔ Peer3 ↔ Peer4 ↔ Peer5
 - Settlement timeout: 24 hours
 - Automatic refunding when balance drops below threshold
 
-## Claims and Settlement
+## Claims and Settlement (Epic 17)
+
+### BTP Off-Chain Claim Exchange Protocol
+
+The network uses **BTP (Bilateral Transfer Protocol) claim exchange** to send cryptographic settlement proofs between peers without requiring on-chain transactions for every settlement. This is implemented via Epic 17 components:
+
+**Key Components:**
+
+- **ClaimSender** - Signs and sends claims to peers via BTP
+- **ClaimReceiver** - Receives and verifies claims from peers
+- **ClaimRedemptionService** - Automatically redeems profitable claims on-chain
+- **BTP `payment-channel-claim` sub-protocol** - Transports claims over existing WebSocket connections
+
+**Supported Blockchains:**
+
+- XRP Ledger (ed25519 signatures)
+- EVM/Base L2 (secp256k1 signatures)
+- Aptos (Ed25519 signatures)
 
 ### Off-Chain Claims (m2m token)
 
-The m2m token uses cryptographic claims for off-chain settlement:
+The system uses cryptographic claims for off-chain settlement:
 
 1. **Claim Structure**
 
@@ -407,6 +425,118 @@ The m2m token uses cryptographic claims for off-chain settlement:
 - **Per-packet settlement** (if enabled): Record transfers for each forwarded packet
 - **Batch settlement**: Accumulate balance proofs and settle periodically
 - **Channel closure**: Final settlement when channel is cooperatively or unilaterally closed
+
+## TigerBeetle Accounting
+
+### Overview
+
+The 5-peer deployment includes **TigerBeetle**, a high-performance accounting database designed for financial workloads. TigerBeetle tracks peer account balances and settlement state in real-time with ACID guarantees.
+
+**Key Benefits:**
+
+- High-performance: Handles millions of transactions per second
+- ACID-compliant: Ensures data integrity for financial operations
+- Memory-efficient: Uses minimal resources (~512MB limit)
+- Persistent: Balances survive container restarts
+
+### Architecture
+
+```
+┌──────────────┐
+│  TigerBeetle │
+│   (port 3000)│
+└──────┬───────┘
+       │ Binary Protocol (TCP)
+       ▼
+┌──────┴──────┐
+│   Peer1-5   │
+│ (Connectors)│
+└─────────────┘
+```
+
+TigerBeetle runs as a single-replica cluster and is accessible to all peers via Docker networking.
+
+### Configuration
+
+Each peer is configured with TigerBeetle environment variables:
+
+```yaml
+environment:
+  # TigerBeetle accounting configuration
+  TIGERBEETLE_CLUSTER_ID: '0'
+  TIGERBEETLE_REPLICAS: tigerbeetle-5peer:3000
+```
+
+| Variable                 | Description                            | Value                    |
+| ------------------------ | -------------------------------------- | ------------------------ |
+| `TIGERBEETLE_CLUSTER_ID` | TigerBeetle cluster identifier         | `"0"`                    |
+| `TIGERBEETLE_REPLICAS`   | TigerBeetle server address (host:port) | `tigerbeetle-5peer:3000` |
+
+### Initialization
+
+TigerBeetle requires a one-time initialization before first use. The deployment script handles this automatically:
+
+```bash
+# Manual initialization (if needed)
+docker volume create tigerbeetle-5peer-data
+docker run --rm -v tigerbeetle-5peer-data:/data tigerbeetle/tigerbeetle:latest \
+  format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
+```
+
+**Important:** The cluster ID (0) and replica settings are immutable after initialization.
+
+### Health Check
+
+TigerBeetle uses a TCP socket check (no HTTP endpoint):
+
+```yaml
+healthcheck:
+  test: ['CMD-SHELL', 'nc -z localhost 3000 || exit 1']
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 10s
+```
+
+Check TigerBeetle health manually:
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' tigerbeetle-5peer
+```
+
+### Data Persistence
+
+TigerBeetle data is stored in a Docker volume:
+
+- **Volume Name:** `tigerbeetle-5peer-data`
+- **Mount Path:** `/data` inside container
+- **Data File:** `0_0.tigerbeetle`
+
+**Persistence behavior:**
+
+- Balances persist across container restarts
+- Data is removed with `docker-compose down -v`
+- Volume can be backed up with `docker run --rm -v tigerbeetle-5peer-data:/data -v $(pwd):/backup alpine tar -czvf /backup/tigerbeetle-backup.tar.gz /data`
+
+### Troubleshooting TigerBeetle
+
+**TigerBeetle not starting:**
+
+1. Check if volume exists: `docker volume inspect tigerbeetle-5peer-data`
+2. Check if data file is initialized: `docker run --rm -v tigerbeetle-5peer-data:/data alpine ls -la /data/`
+3. Re-initialize if needed (see Initialization section above)
+
+**Peers cannot connect to TigerBeetle:**
+
+1. Verify TigerBeetle is healthy: `docker inspect --format='{{.State.Health.Status}}' tigerbeetle-5peer`
+2. Test connectivity: `docker exec peer1 nc -zv tigerbeetle-5peer 3000`
+3. Check Docker network: `docker network inspect docker-compose-5-peer-multihop_ilp-network`
+
+**Data corruption or reset:**
+
+1. Stop all containers: `docker-compose -f docker-compose-5-peer-multihop.yml down`
+2. Remove volume: `docker volume rm tigerbeetle-5peer-data`
+3. Re-deploy: `./scripts/deploy-5-peer-multihop.sh`
 
 ## Troubleshooting
 
@@ -519,14 +649,21 @@ And update routing tables accordingly.
 
 ### Port Mappings
 
-| Peer  | BTP Port | Health Port | Container |
-| ----- | -------- | ----------- | --------- |
-| Peer1 | 3000     | 9080        | peer1     |
-| Peer2 | 3001     | 9081        | peer2     |
-| Peer3 | 3002     | 9082        | peer3     |
-| Peer4 | 3003     | 9083        | peer4     |
-| Peer5 | 3004     | 9084        | peer5     |
-| Anvil | 8545     | -           | anvil     |
+| Service     | Port | Protocol | Container         | Description                    |
+| ----------- | ---- | -------- | ----------------- | ------------------------------ |
+| TigerBeetle | 3000 | TCP      | tigerbeetle-5peer | Accounting database (internal) |
+| Peer1       | 3000 | WS       | peer1             | BTP server                     |
+| Peer1       | 9080 | HTTP     | peer1             | Health check                   |
+| Peer2       | 3001 | WS       | peer2             | BTP server                     |
+| Peer2       | 9081 | HTTP     | peer2             | Health check                   |
+| Peer3       | 3002 | WS       | peer3             | BTP server                     |
+| Peer3       | 9082 | HTTP     | peer3             | Health check                   |
+| Peer4       | 3003 | WS       | peer4             | BTP server                     |
+| Peer4       | 9083 | HTTP     | peer4             | Health check                   |
+| Peer5       | 3004 | WS       | peer5             | BTP server                     |
+| Peer5       | 9084 | HTTP     | peer5             | Health check                   |
+
+**Note:** TigerBeetle port (3000) is internal only and not exposed to the host.
 
 ## Next Steps
 

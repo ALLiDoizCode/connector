@@ -146,6 +146,42 @@ function extractIndexedFields(event: TelemetryEvent): ExtractedFields {
 
   // Extract fields based on event type
   switch (event.type) {
+    case 'PACKET_RECEIVED':
+      base.direction = 'received';
+      base.packet_id = event.packetId;
+      base.destination = event.destination;
+      base.amount = event.amount;
+      base.from_address = event.from;
+      base.packet_type = 'prepare'; // PACKET_RECEIVED events are always ILP Prepare packets
+      break;
+
+    case 'PACKET_FORWARDED':
+      base.direction = 'sent';
+      base.packet_id = event.packetId;
+      base.destination = event.destination;
+      base.amount = event.amount;
+      base.to_address = event.to;
+      base.packet_type = 'prepare'; // PACKET_FORWARDED events are always ILP Prepare packets
+      break;
+
+    case 'PACKET_FULFILLED':
+      base.direction = 'received';
+      base.packet_id = event.packetId;
+      base.destination = event.destination;
+      base.amount = event.amount;
+      base.from_address = event.from;
+      base.packet_type = 'fulfill';
+      break;
+
+    case 'PACKET_REJECTED':
+      base.direction = 'received';
+      base.packet_id = event.packetId;
+      base.destination = event.destination;
+      base.amount = event.amount;
+      base.from_address = event.from;
+      base.packet_type = 'reject';
+      break;
+
     case 'ACCOUNT_BALANCE':
       base.peer_id = event.peerId;
       base.amount = event.netBalance;

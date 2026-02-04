@@ -5,7 +5,8 @@
   "description": "Multi-node Interledger Connector with BTP Protocol",
   "workspaces": [
     "packages/*",
-    "tools/send-packet"
+    "tools/send-packet",
+    "tools/fund-peers"
   ],
   "scripts": {
     "build": "npm run build --workspace=packages/shared && npm run build --workspaces --if-present",
@@ -18,6 +19,11 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
     "send-packet": "npm run --workspace=tools/send-packet start",
     "benchmark": "npm run benchmark --workspace=packages/connector",
+    "tigerbeetle:install": "./scripts/install-tigerbeetle-macos.sh",
+    "tigerbeetle:start": "./scripts/start-tigerbeetle-dev.sh",
+    "tigerbeetle:stop": "./scripts/stop-tigerbeetle-dev.sh",
+    "dev": "npm run tigerbeetle:start && npm run --workspace=packages/connector dev",
+    "dev:stop": "npm run tigerbeetle:stop",
     "prepare": "husky"
   },
   "devDependencies": {

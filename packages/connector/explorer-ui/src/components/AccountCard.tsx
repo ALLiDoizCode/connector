@@ -43,16 +43,16 @@ function formatBalance(value: bigint): string {
 }
 
 /**
- * Get CSS class for balance color coding
+ * Get CSS class for balance color coding (NOC aesthetic: emerald/rose)
  */
 function getBalanceColor(value: bigint): string {
-  if (value > 0n) return 'text-green-500';
-  if (value < 0n) return 'text-red-400';
+  if (value > 0n) return 'text-emerald-500';
+  if (value < 0n) return 'text-rose-500';
   return 'text-muted-foreground';
 }
 
 /**
- * Get settlement state badge variant and label
+ * Get settlement state badge variant and label (NOC aesthetic: cyan for in-progress)
  */
 function getSettlementStateBadge(state: SettlementState): {
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
@@ -65,7 +65,7 @@ function getSettlementStateBadge(state: SettlementState): {
     case 'SETTLEMENT_PENDING':
       return { variant: 'default', label: 'Pending', className: 'bg-yellow-500' };
     case 'SETTLEMENT_IN_PROGRESS':
-      return { variant: 'default', label: 'In Progress', className: 'bg-blue-500 animate-pulse' };
+      return { variant: 'default', label: 'In Progress', className: 'bg-cyan-500 animate-pulse' };
   }
 }
 
@@ -98,10 +98,10 @@ export const AccountCard = React.memo(function AccountCard({
   const stateBadge = getSettlementStateBadge(settlementState);
 
   return (
-    <Card className="py-4 hover:border-primary/50 transition-colors">
+    <Card className="py-4 bg-card/80 border-border/50 hover:border-cyan-500/30 hover-elevate">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium truncate" title={peerId}>
+          <CardTitle className="text-sm font-mono font-medium truncate" title={peerId}>
             {peerId}
           </CardTitle>
           <div className="flex items-center gap-1.5">
@@ -131,24 +131,26 @@ export const AccountCard = React.memo(function AccountCard({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Balance Display */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        {/* Net Balance - Prominent Display (NOC aesthetic) */}
+        <div className="text-center mb-4">
+          <div
+            className={`text-3xl font-bold font-mono tabular-nums ${getBalanceColor(netBalance)}`}
+          >
+            {formatBalance(netBalance)}
+          </div>
+          <div className="text-xs text-muted-foreground">Net Balance</div>
+        </div>
+
+        {/* Debit/Credit Breakdown */}
+        <div className="grid grid-cols-2 gap-4 text-xs">
           <div className="text-center">
-            <div className="text-muted-foreground">We Owe</div>
-            <div className={`font-mono font-medium ${getBalanceColor(-debitBalance)}`}>
-              {formatBalance(debitBalance)}
-            </div>
+            <div className="text-muted-foreground">We Owe (Debit)</div>
+            <div className="font-mono font-medium text-rose-400">{formatBalance(debitBalance)}</div>
           </div>
           <div className="text-center">
-            <div className="text-muted-foreground">They Owe</div>
-            <div className={`font-mono font-medium ${getBalanceColor(creditBalance)}`}>
+            <div className="text-muted-foreground">They Owe (Credit)</div>
+            <div className="font-mono font-medium text-emerald-400">
               {formatBalance(creditBalance)}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-muted-foreground">Net</div>
-            <div className={`font-mono font-medium ${getBalanceColor(netBalance)}`}>
-              {formatBalance(netBalance)}
             </div>
           </div>
         </div>
@@ -161,13 +163,13 @@ export const AccountCard = React.memo(function AccountCard({
                 <Zap className="h-3 w-3" />
                 Settlement Threshold
               </span>
-              <span className="font-mono">{settlementProgress.toFixed(0)}%</span>
+              <span className="font-mono tabular-nums">{settlementProgress.toFixed(0)}%</span>
             </div>
             <Progress
               value={settlementProgress}
-              className={`h-1.5 ${settlementProgress >= 90 ? '[&>div]:bg-red-500' : settlementProgress >= 70 ? '[&>div]:bg-yellow-500' : ''}`}
+              className={`h-1.5 ${settlementProgress >= 90 ? '[&>div]:bg-rose-500' : settlementProgress >= 70 ? '[&>div]:bg-yellow-500' : ''}`}
             />
-            <div className="text-xs text-muted-foreground text-right font-mono">
+            <div className="text-xs text-muted-foreground text-right font-mono tabular-nums">
               {formatBalance(creditBalance)} / {formatBalance(settlementThreshold)}
             </div>
           </div>

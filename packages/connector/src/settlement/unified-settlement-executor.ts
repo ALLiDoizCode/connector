@@ -279,7 +279,7 @@ export class UnifiedSettlementExecutor {
       'Opening new EVM payment channel for settlement...'
     );
 
-    const channelId = await this.evmChannelSDK.openChannel(
+    const { channelId } = await this.evmChannelSDK.openChannel(
       config.evmAddress,
       tokenAddress,
       settlementTimeout,

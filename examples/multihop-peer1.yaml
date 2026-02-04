@@ -12,14 +12,18 @@
 nodeId: peer1
 ilpAddress: g.peer1
 btpServerPort: 3000
+explorerPort: 5173
 logLevel: info
 
 # Optional Configuration
 healthCheckPort: 8080
 
 # Peer Connections
-# Peer1 has no outgoing BTP connections - it only accepts incoming connections from Peer2
-peers: []
+# Peer1 connects to Peer2 for bidirectional packet forwarding
+peers:
+  - id: peer2
+    url: ws://peer2:3001
+    authToken: secret-peer1-to-peer2
 
 # Routing Table
 # All downstream traffic is sent to peer2
@@ -48,3 +52,10 @@ routes:
   - prefix: g.peer5
     nextHop: peer2
     priority: 0
+
+# Settlement Configuration (Payment Channels)
+settlement:
+  connectorFeePercentage: 0.1
+  enableSettlement: true
+  settlementThreshold: 1000000
+  initialDepositMultiplier: 10

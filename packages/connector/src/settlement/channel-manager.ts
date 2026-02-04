@@ -194,12 +194,14 @@ export class ChannelManager extends EventEmitter {
     const initialDeposit = defaultInitialDeposit * BigInt(this.config.initialDepositMultiplier);
 
     // Open channel on-chain
-    const channelId = await this.paymentChannelSDK.openChannel(
+    const { channelId, txHash } = await this.paymentChannelSDK.openChannel(
       peerAddress,
       tokenAddress,
       this.config.defaultSettlementTimeout,
       initialDeposit
     );
+
+    this.logger.info('Channel opened with transaction', { channelId, txHash });
 
     // Get my address from SDK
     const channelState = await this.paymentChannelSDK.getChannelState(channelId, tokenAddress);

@@ -27,6 +27,8 @@ import { generateAccountId } from './account-id-generator';
 import { encodeAccountMetadata } from './account-metadata';
 import { CreditLimitConfig, CreditLimitViolation } from '../config/types';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
+import { EventStore } from '../explorer/event-store';
+import { EventBroadcaster } from '../explorer/event-broadcaster';
 import {
   AccountType,
   PeerAccountMetadata,
@@ -129,6 +131,10 @@ export class AccountManager {
   private readonly _settlementThresholds: Map<string, string> | undefined;
   private readonly _batchWriter: TigerBeetleBatchWriter | undefined;
 
+  // Standalone mode support (Story 19.3)
+  private _eventStore: EventStore | null = null;
+  private _eventBroadcaster: EventBroadcaster | null = null;
+
   constructor(
     config: AccountManagerConfig,
     private readonly _tigerBeetleClient: TigerBeetleClient,
@@ -185,6 +191,35 @@ export class AccountManager {
         'AccountManager initialized (credit limits disabled - unlimited exposure)'
       );
     }
+  }
+
+  /**
+   * Set EventStore reference for direct event emission in standalone mode (Story 19.3)
+   * @param eventStore - EventStore instance for storing account balance events
+   * @remarks
+   * Called by ConnectorNode when running in standalone mode (telemetryEmitter is null).
+   * Allows AccountManager to emit ACCOUNT_BALANCE events directly to EventStore.
+   */
+  setEventStore(eventStore: EventStore | null): void {
+    this._eventStore = eventStore;
+    this._logger.info(
+      { hasEventStore: eventStore !== null },
+      'AccountManager EventStore reference set for standalone event emission'
+    );
+  }
+
+  /**
+   * Set EventBroadcaster reference for real-time event streaming (Story 19.3)
+   * @param broadcaster - EventBroadcaster instance for live event streaming
+   * @remarks
+   * Called by ConnectorNode in standalone mode to enable real-time ACCOUNT_BALANCE broadcasting.
+   */
+  setEventBroadcaster(broadcaster: EventBroadcaster | null): void {
+    this._eventBroadcaster = broadcaster;
+    this._logger.info(
+      { hasBroadcaster: broadcaster !== null },
+      'AccountManager EventBroadcaster reference set for live event streaming'
+    );
   }
 
   /**
@@ -391,6 +426,34 @@ export class AccountManager {
   }
 
   /**
+   * Ensure peer accounts exist in TigerBeetle
+   *
+   * Creates accounts if they don't exist (idempotent operation).
+   * Uses cache to avoid unnecessary TigerBeetle calls for existing accounts.
+   *
+   * @param peerId - Peer connector ID
+   * @param tokenId - Token identifier
+   * @returns Account pair with debit and credit account IDs
+   */
+  async ensurePeerAccounts(peerId: string, tokenId: string): Promise<PeerAccountPair> {
+    const cacheKey = this._getCacheKey(peerId, tokenId);
+
+    // If account pair is in cache, accounts should already exist in TigerBeetle
+    const cached = this._accountCache.get(cacheKey);
+    if (cached) {
+      this._logger.debug({ peerId, tokenId, source: 'cache' }, 'Account pair exists in cache');
+      return cached;
+    }
+
+    // Account not in cache - create in TigerBeetle
+    this._logger.debug(
+      { peerId, tokenId },
+      'Account pair not in cache, ensuring accounts exist in TigerBeetle'
+    );
+    return await this.createPeerAccounts(peerId, tokenId);
+  }
+
+  /**
    * Query account balance for a peer-token combination
    *
    * Queries TigerBeetle for current balances of both debit and credit accounts,
@@ -520,8 +583,10 @@ export class AccountManager {
     ledger: number,
     code: number
   ): Promise<void> {
-    const fromPeerAccounts = this.getPeerAccountPair(fromPeerId, tokenId);
-    const toPeerAccounts = this.getPeerAccountPair(toPeerId, tokenId);
+    // Ensure accounts exist before recording transfers
+    // createPeerAccounts is idempotent - safe to call multiple times
+    const fromPeerAccounts = await this.ensurePeerAccounts(fromPeerId, tokenId);
+    const toPeerAccounts = await this.ensurePeerAccounts(toPeerId, tokenId);
 
     this._logger.debug(
       {
@@ -1067,8 +1132,8 @@ export class AccountManager {
    * @private
    */
   private async _emitAccountBalanceTelemetry(peerId: string, tokenId: string): Promise<void> {
-    // Skip if no telemetry emitter configured
-    if (!this._telemetryEmitter) {
+    // Skip if no emission mechanism configured (Story 19.3)
+    if (!this._telemetryEmitter && !this._eventStore && !this._eventBroadcaster) {
       return;
     }
 
@@ -1084,9 +1149,9 @@ export class AccountManager {
       const thresholdKey = this._getCacheKey(peerId, tokenId);
       const settlementThreshold = this._settlementThresholds?.get(thresholdKey);
 
-      // Emit ACCOUNT_BALANCE telemetry event
-      this._telemetryEmitter.emit({
-        type: 'ACCOUNT_BALANCE',
+      // Build ACCOUNT_BALANCE event
+      const accountBalanceEvent = {
+        type: 'ACCOUNT_BALANCE' as const,
         nodeId: this._config.nodeId,
         peerId,
         tokenId,
@@ -1097,7 +1162,22 @@ export class AccountManager {
         settlementThreshold,
         settlementState: SettlementState.IDLE, // AccountManager doesn't track settlement state
         timestamp: new Date().toISOString(),
-      });
+      };
+
+      // Emit via TelemetryEmitter if configured
+      if (this._telemetryEmitter) {
+        this._telemetryEmitter.emit(accountBalanceEvent);
+      }
+
+      // Store in EventStore if configured (standalone mode - Story 19.3)
+      if (this._eventStore) {
+        await this._eventStore.storeEvent(accountBalanceEvent);
+      }
+
+      // Broadcast to WebSocket clients if configured (standalone mode - Story 19.3)
+      if (this._eventBroadcaster) {
+        this._eventBroadcaster.broadcast(accountBalanceEvent);
+      }
 
       this._logger.debug(
         {
@@ -1105,6 +1185,11 @@ export class AccountManager {
           tokenId,
           debitBalance: balance.debitBalance.toString(),
           creditBalance: balance.creditBalance.toString(),
+          emissionMode: this._telemetryEmitter
+            ? 'dashboard'
+            : this._eventStore
+              ? 'standalone'
+              : 'none',
         },
         'Account balance telemetry emitted'
       );

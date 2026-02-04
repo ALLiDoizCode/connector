@@ -13,6 +13,7 @@
 nodeId: peer2
 ilpAddress: g.peer2
 btpServerPort: 3001
+explorerPort: 5174
 logLevel: info
 
 # Optional Configuration
@@ -56,3 +57,10 @@ routes:
   - prefix: g.peer5
     nextHop: peer3
     priority: 0
+
+# Settlement Configuration (Payment Channels)
+settlement:
+  connectorFeePercentage: 0.1
+  enableSettlement: true
+  settlementThreshold: 1000000
+  initialDepositMultiplier: 10

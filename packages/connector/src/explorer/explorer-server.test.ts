@@ -168,6 +168,50 @@ describe('ExplorerServer', () => {
 
       expect(eventReceived).toBe(true);
     });
+
+    it('should work in standalone mode without telemetry emitter', async () => {
+      // Create server without telemetryEmitter (standalone mode)
+      server = new ExplorerServer(
+        {
+          port: 0,
+          nodeId: 'test-node-standalone',
+          staticPath: tempDir,
+        },
+        eventStore,
+        null, // No telemetry emitter
+        mockLogger
+      );
+      await server.start();
+
+      const port = server.getPort();
+      expect(port).toBeGreaterThan(0);
+
+      // Verify health endpoint works
+      const healthResponse = await fetchJson(`http://localhost:${port}/api/health`);
+      expect(healthResponse.status).toBe(200);
+      expect(healthResponse.body).toMatchObject({
+        status: 'healthy',
+        nodeId: 'test-node-standalone',
+      });
+
+      // Verify events endpoint works (should return empty list)
+      const eventsResponse = await fetchJson(`http://localhost:${port}/api/events`);
+      expect(eventsResponse.status).toBe(200);
+      expect(eventsResponse.body).toMatchObject({
+        events: [],
+        total: 0,
+      });
+
+      // Verify WebSocket connection works (but no live events)
+      const client = new WebSocket(`ws://localhost:${port}/ws`);
+      await new Promise<void>((resolve, reject) => {
+        client.on('open', () => {
+          client.close();
+          resolve();
+        });
+        client.on('error', reject);
+      });
+    });
   });
 
   describe('static file serving', () => {

@@ -210,7 +210,9 @@ Peer5 → Peer4 → Peer3 → Peer2 → Peer1 → Client
    - Initial deposit: settlementThreshold × 10
    - Automatic refunding when balance low
 
-### Claim-Based Settlement
+### Claim-Based Settlement (Epic 17)
+
+The network uses **BTP Off-Chain Claim Exchange Protocol** to exchange cryptographic settlement proofs between peers without on-chain transactions until channel closure. This dramatically reduces gas costs and increases settlement throughput.
 
 **Off-Chain Balance Proofs:**
 
@@ -224,19 +226,43 @@ interface BalanceProof {
 }
 ```
 
-**Signing Process:**
+**Signing Process (via ClaimSender):**
 
 1. Create claim message from balance proof
 2. Sign with KeyManager (supports HSM/KMS)
-3. Exchange signatures off-chain
-4. Submit to blockchain only on dispute or channel closure
+3. Send claim to peer via BTP `payment-channel-claim` sub-protocol
+4. Peer verifies claim signature via ClaimReceiver
+5. Submit to blockchain only on dispute or channel closure
+
+**Claim Exchange Flow:**
+
+```
+Connector A                     Connector B
+───────────                     ───────────
+Settlement threshold reached
+    ↓
+Sign claim (XRP/EVM/Aptos)
+    ↓
+ClaimSender.send()
+    ↓
+BTP WebSocket ─────────────→ ClaimReceiver.handle()
+                                    ↓
+                             Verify signature
+                                    ↓
+                             Store in database
+                                    ↓
+                             ClaimRedemptionService (polls)
+                                    ↓
+                             Submit to blockchain (if profitable)
+```
 
 **Verification:**
 
-- Each peer verifies received balance proofs
-- Checks signature validity
-- Ensures monotonic nonce increase
+- Each peer verifies received balance proofs via ClaimReceiver
+- Checks signature validity (ed25519 for XRP, secp256k1 for EVM/Aptos)
+- Ensures monotonic nonce increase (prevents replay attacks)
 - Validates transferred amount ≤ channel capacity
+- Automatic redemption via ClaimRedemptionService when gas costs favorable
 
 ## Deployment Steps
 
@@ -338,21 +364,29 @@ Each peer logs key events:
 - Auto-generates peer wallets if needed
 - Parallel transaction processing
 
-### 3. Multi-Hop Routing Verification
+### 3. BTP Off-Chain Claim Exchange (Epic 17)
+
+- Cryptographic settlement proofs exchanged via BTP
+- ClaimSender/ClaimReceiver automatically integrated
+- Supports XRP (ed25519), EVM (secp256k1), and Aptos signatures
+- Automatic claim redemption when gas costs favorable
+- Telemetry and monitoring for claim exchange health
+
+### 4. Multi-Hop Routing Verification
 
 - Automated packet flow testing
 - Log analysis for each hop
 - Verification of PREPARE forwarding
 - Verification of FULFILL propagation
 
-### 4. Comprehensive Documentation
+### 5. Comprehensive Documentation
 
 - Quick start for rapid deployment
 - Detailed guide for understanding internals
 - Troubleshooting section
 - Reference documentation
 
-### 5. Developer-Friendly Tools
+### 6. Developer-Friendly Tools
 
 - Color-coded console output
 - Detailed logging with pino-pretty

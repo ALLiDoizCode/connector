@@ -333,7 +333,8 @@ describeIfEnabled('Production Acceptance Tests', () => {
     });
   });
 
-  describe('Epic 10-11: Agent Wallet', () => {
+  // REMOVED: Epic 16 (AI Agent Infrastructure) was deferred
+  describe.skip('Epic 10-11: Agent Wallet', () => {
     describe('Wallet Derivation', () => {
       it('should export AgentWalletDerivation class', async () => {
         const { AgentWalletDerivation } = await import('../../src/wallet/agent-wallet-derivation');

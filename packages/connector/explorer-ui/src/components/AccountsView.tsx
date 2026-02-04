@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Wallet, AlertTriangle, Link2, Users } from 'lucide-react';
+import { Wallet, AlertTriangle, Link2, Users, WifiOff } from 'lucide-react';
 import { useAccountBalances } from '@/hooks/useAccountBalances';
 import { usePaymentChannels } from '@/hooks/usePaymentChannels';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
@@ -101,18 +101,28 @@ export const AccountsView = React.memo(function AccountsView() {
       );
     }
 
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-        <Wallet className="h-12 w-12 mb-4 opacity-50" />
-        <p className="text-lg font-medium">No peer accounts yet</p>
-        <p className="text-sm mt-1">
-          Balance events will appear as packets flow through the connector.
-        </p>
-        {accountsStatus === 'error' && (
-          <p className="text-xs mt-4 text-destructive">
+    // Error state with WifiOff icon
+    if (accountsStatus === 'error') {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <WifiOff className="h-12 w-12 text-rose-500 mb-4" />
+          <p className="text-lg font-medium">Connection Lost</p>
+          <p className="text-sm mt-1">
             Failed to connect to event stream. Please check the connector is running.
           </p>
-        )}
+        </div>
+      );
+    }
+
+    // Empty state with NOC aesthetic (cyan pulse icon)
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+        <Wallet className="h-12 w-12 text-cyan-500 mb-4 animate-pulse" />
+        <p className="text-lg font-medium">No peer accounts yet</p>
+        <p className="text-sm mt-1 max-w-md text-center">
+          Balance events will appear as packets flow through the connector. Send ILP packets to see
+          account balances update in real-time.
+        </p>
       </div>
     );
   }

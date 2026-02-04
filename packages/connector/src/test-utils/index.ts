@@ -33,10 +33,11 @@ export {
   TEST_AGENT_ID,
   TEST_PASSWORD,
   // Individual mock factories
-  createMockWalletDerivation,
-  createMockBalanceTracker,
-  createMockWalletLifecycle,
-  createMockWalletFunder,
+  // REMOVED: Epic 16 (AI Agent Infrastructure) was deferred - agent wallet mocks commented out
+  // createMockWalletDerivation,
+  // createMockBalanceTracker,
+  // createMockWalletLifecycle,
+  // createMockWalletFunder,
   createMockTreasuryWallet,
   createMockTelemetryEmitter,
   createMockFraudDetector,
@@ -44,11 +45,13 @@ export {
   createMockXrplClient,
   createMockLogger,
   // Composite helper
-  createWalletMocks,
+  // REMOVED: Epic 16 (AI Agent Infrastructure) was deferred
+  // createWalletMocks,
   // Option types
-  type MockWalletDerivationOptions,
-  type MockBalanceTrackerOptions,
-  type MockWalletLifecycleOptions,
+  // REMOVED: Epic 16 (AI Agent Infrastructure) was deferred - agent wallet option types commented out
+  // type MockWalletDerivationOptions,
+  // type MockBalanceTrackerOptions,
+  // type MockWalletLifecycleOptions,
   type MockFraudDetectorOptions,
   type MockEvmProviderOptions,
   type MockXrplClientOptions,

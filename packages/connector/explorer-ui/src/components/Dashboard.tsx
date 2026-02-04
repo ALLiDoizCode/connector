@@ -30,6 +30,7 @@ interface MetricCardProps {
   };
   pulse?: boolean;
   variant?: 'default' | 'success' | 'warning' | 'error';
+  staggerClass?: string;
 }
 
 interface PacketFlowItem {
@@ -50,19 +51,21 @@ function MetricCard({
   trend,
   pulse,
   variant = 'default',
+  staggerClass,
 }: MetricCardProps) {
   const variantStyles = {
-    default: 'border-border bg-card',
-    success: 'border-emerald-500/30 bg-emerald-950/20',
-    warning: 'border-yellow-500/30 bg-yellow-950/20',
-    error: 'border-rose-500/30 bg-rose-950/20',
+    default: 'border-border bg-card status-transition',
+    success: 'border-emerald-500/30 bg-emerald-950/20 status-transition',
+    warning: 'border-yellow-500/30 bg-yellow-950/20 status-transition',
+    error: 'border-rose-500/30 bg-rose-950/20 status-transition',
   };
 
   return (
     <Card
       className={cn(
-        'relative overflow-hidden transition-all duration-300 hover:shadow-lg',
-        variantStyles[variant]
+        'relative overflow-hidden hover-elevate fade-in-up',
+        variantStyles[variant],
+        staggerClass
       )}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-white/5 pointer-events-none" />
@@ -231,6 +234,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
 
   const packetFlow = useMemo(() => {
     const flow: PacketFlowItem[] = [];
+    let counter = 0;
 
     for (const event of events) {
       const packetType = getIlpPacketType(event);
@@ -249,7 +253,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
             : new Date(event.timestamp).getTime();
 
         flow.push({
-          id: `${timestamp}-${from}-${to}`,
+          id: `${timestamp}-${from}-${to}-${counter++}`,
           type: packetType,
           from,
           to,
@@ -309,6 +313,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
           subtitle="All-time routed"
           icon={<Activity className="h-4 w-4 text-muted-foreground" />}
           pulse={connectionStatus === 'connected'}
+          staggerClass="stagger-1"
         />
 
         <MetricCard
@@ -319,6 +324,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
           variant={
             metrics.successRate > 90 ? 'success' : metrics.successRate > 70 ? 'warning' : 'error'
           }
+          staggerClass="stagger-2"
         />
 
         <MetricCard
@@ -326,6 +332,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
           value={metrics.activeChannels}
           subtitle="Payment channels open"
           icon={<Wallet className="h-4 w-4 text-cyan-500" />}
+          staggerClass="stagger-3"
         />
 
         <MetricCard
@@ -335,6 +342,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
           icon={<Network className="h-4 w-4 text-muted-foreground" />}
           variant={connectionStatus === 'connected' ? 'success' : 'warning'}
           pulse={connectionStatus === 'connected'}
+          staggerClass="stagger-4"
         />
       </div>
 
@@ -356,7 +364,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-cyan-500 transition-all duration-500"
+                  className="h-full bg-cyan-500 progress-smooth"
                   style={{
                     width: `${metrics.totalPackets > 0 ? (metrics.prepareCount / metrics.totalPackets) * 100 : 0}%`,
                   }}
@@ -374,7 +382,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 transition-all duration-500"
+                  className="h-full bg-emerald-500 progress-smooth"
                   style={{
                     width: `${metrics.totalPackets > 0 ? (metrics.fulfillCount / metrics.totalPackets) * 100 : 0}%`,
                   }}
@@ -392,7 +400,7 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-rose-500 transition-all duration-500"
+                  className="h-full bg-rose-500 progress-smooth"
                   style={{
                     width: `${metrics.totalPackets > 0 ? (metrics.rejectCount / metrics.totalPackets) * 100 : 0}%`,
                   }}

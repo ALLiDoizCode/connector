@@ -1050,6 +1050,68 @@ export class PacketHandler {
       'Returning packet response'
     );
 
+    // Emit telemetry for packet response (FULFILL or REJECT)
+    // Use telemetryEmitter.emit() for connected mode, eventStore for standalone mode
+    const packetId = packet.executionCondition.toString('hex');
+    const fromAddress = sourcePeerId.startsWith('g.') ? sourcePeerId : `g.${sourcePeerId}`;
+
+    if (response.type === PacketType.FULFILL) {
+      const event = {
+        type: 'PACKET_FULFILLED' as const,
+        nodeId: this.nodeId,
+        packetId,
+        destination: packet.destination,
+        amount: packet.amount.toString(),
+        from: fromAddress,
+        fulfillment: response.fulfillment.toString('hex'),
+        timestamp: Date.now(),
+      };
+
+      // Emit via telemetryEmitter if available (connected mode)
+      if (this.telemetryEmitter) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.telemetryEmitter.emit(event as any);
+      } else if (this.eventStore) {
+        // Fallback to direct eventStore in standalone mode
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.eventStore.storeEvent(event as any).catch((err) => {
+          this.logger.warn(
+            { error: err.message, packetId },
+            'Failed to store PACKET_FULFILLED event'
+          );
+        });
+        this.eventBroadcaster?.broadcast(event);
+      }
+    } else if (response.type === PacketType.REJECT) {
+      const event = {
+        type: 'PACKET_REJECTED' as const,
+        nodeId: this.nodeId,
+        packetId,
+        destination: packet.destination,
+        amount: packet.amount.toString(),
+        from: fromAddress,
+        code: response.code,
+        message: response.message,
+        timestamp: Date.now(),
+      };
+
+      // Emit via telemetryEmitter if available (connected mode)
+      if (this.telemetryEmitter) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.telemetryEmitter.emit(event as any);
+      } else if (this.eventStore) {
+        // Fallback to direct eventStore in standalone mode
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.eventStore.storeEvent(event as any).catch((err) => {
+          this.logger.warn(
+            { error: err.message, packetId },
+            'Failed to store PACKET_REJECTED event'
+          );
+        });
+        this.eventBroadcaster?.broadcast(event);
+      }
+    }
+
     return response;
   }
 }

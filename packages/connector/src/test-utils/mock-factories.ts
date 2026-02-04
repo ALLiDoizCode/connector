@@ -20,11 +20,12 @@ import { ethers } from 'ethers';
 import { Client as XRPLClient } from 'xrpl';
 import type { Logger } from 'pino';
 
-import type { AgentWalletDerivation, AgentWallet } from '../wallet/agent-wallet-derivation';
-import type { AgentBalanceTracker, AgentBalance } from '../wallet/agent-balance-tracker';
-import type { AgentWalletLifecycle, WalletLifecycleRecord } from '../wallet/agent-wallet-lifecycle';
-import { WalletState } from '../wallet/agent-wallet-lifecycle';
-import type { AgentWalletFunder, FundingResult } from '../wallet/agent-wallet-funder';
+// Agent wallet imports removed - Epic 16 infrastructure deferred
+// import type { AgentWalletDerivation, AgentWallet } from '../wallet/agent-wallet-derivation';
+// import type { AgentBalanceTracker, AgentBalance } from '../wallet/agent-balance-tracker';
+// import type { AgentWalletLifecycle, WalletLifecycleRecord } from '../wallet/agent-wallet-lifecycle';
+// import { WalletState } from '../wallet/agent-wallet-lifecycle';
+// import type { AgentWalletFunder, FundingResult } from '../wallet/agent-wallet-funder';
 import type { TreasuryWallet } from '../wallet/treasury-wallet';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import type { FraudDetector, FraudCheckResult } from '../wallet/wallet-security';
@@ -48,7 +49,17 @@ export const TEST_PASSWORD = 'TestP@ssw0rd12345678';
 // ============================================================================
 // Wallet Derivation Mocks
 // ============================================================================
+// REMOVED: Epic 16 (AI Agent Infrastructure) was deferred and these modules were deleted
+// The following agent wallet functionality is no longer available:
+// - agent-wallet-derivation
+// - agent-balance-tracker
+// - agent-wallet-lifecycle
+// - agent-wallet-funder
+//
+// These mock factories are commented out to prevent TypeScript compilation errors.
+// If Epic 16 is resumed, these can be uncommented and the imports restored.
 
+/*
 export interface MockWalletDerivationOptions {
   agentId?: string;
   evmAddress?: string;
@@ -58,7 +69,7 @@ export interface MockWalletDerivationOptions {
 
 /**
  * Create a mock AgentWalletDerivation with all required methods
- */
+ *\/
 export function createMockWalletDerivation(
   options: MockWalletDerivationOptions = {},
   overrides?: Partial<jest.Mocked<AgentWalletDerivation>>
@@ -97,11 +108,14 @@ export function createMockWalletDerivation(
     ...overrides,
   } as unknown as jest.Mocked<AgentWalletDerivation>;
 }
+*/
 
 // ============================================================================
 // Balance Tracker Mocks
 // ============================================================================
+// REMOVED: Epic 16 (AI Agent Infrastructure) was deferred
 
+/*
 export interface MockBalanceTrackerOptions {
   defaultBalance?: bigint;
   balances?: AgentBalance[];
@@ -109,7 +123,7 @@ export interface MockBalanceTrackerOptions {
 
 /**
  * Create a mock AgentBalanceTracker with all required methods
- */
+ *\/
 export function createMockBalanceTracker(
   options: MockBalanceTrackerOptions = {},
   overrides?: Partial<jest.Mocked<AgentBalanceTracker>>
@@ -150,18 +164,21 @@ export function createMockBalanceTracker(
     ...overrides,
   } as unknown as jest.Mocked<AgentBalanceTracker>;
 }
+*/
 
 // ============================================================================
 // Wallet Lifecycle Mocks
 // ============================================================================
+// REMOVED: Epic 16 (AI Agent Infrastructure) was deferred
 
+/*
 export interface MockWalletLifecycleOptions {
   defaultState?: WalletState;
 }
 
 /**
  * Create a mock AgentWalletLifecycle with all required methods
- */
+ *\/
 export function createMockWalletLifecycle(
   options: MockWalletLifecycleOptions = {},
   overrides?: Partial<jest.Mocked<AgentWalletLifecycle>>
@@ -194,14 +211,17 @@ export function createMockWalletLifecycle(
     ...overrides,
   } as unknown as jest.Mocked<AgentWalletLifecycle>;
 }
+*/
 
 // ============================================================================
 // Wallet Funder Mocks
 // ============================================================================
+// REMOVED: Epic 16 (AI Agent Infrastructure) was deferred
 
+/*
 /**
  * Create a mock AgentWalletFunder with all required methods
- */
+ *\/
 export function createMockWalletFunder(
   overrides?: Partial<jest.Mocked<AgentWalletFunder>>
 ): jest.Mocked<AgentWalletFunder> {
@@ -217,6 +237,7 @@ export function createMockWalletFunder(
     ...overrides,
   } as unknown as jest.Mocked<AgentWalletFunder>;
 }
+*/
 
 // ============================================================================
 // Treasury Wallet Mocks
@@ -373,11 +394,15 @@ export function createMockLogger(): jest.Mocked<Logger> {
 // ============================================================================
 // Composite Mock Helpers
 // ============================================================================
+// REMOVED: Epic 16 (AI Agent Infrastructure) was deferred
+// The createWalletMocks composite helper has been removed because it depends on
+// the agent wallet infrastructure that was deleted.
 
+/*
 /**
  * Create a complete set of wallet-related mocks
  * Useful for tests that need the full wallet infrastructure
- */
+ *\/
 export function createWalletMocks(options?: {
   derivation?: MockWalletDerivationOptions;
   balanceTracker?: MockBalanceTrackerOptions;
@@ -410,3 +435,4 @@ export function createWalletMocks(options?: {
     logger: createMockLogger(),
   };
 }
+*/

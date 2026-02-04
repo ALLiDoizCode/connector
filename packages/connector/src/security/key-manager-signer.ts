@@ -84,6 +84,62 @@ export class KeyManagerSigner extends ethers.AbstractSigner {
   }
 
   /**
+   * Send a transaction to the network
+   * Populates EIP-1559 transaction fields and broadcasts to the network
+   */
+  async sendTransaction(transaction: TransactionRequest): Promise<ethers.TransactionResponse> {
+    // 1. Get provider (required for sending)
+    const provider = this.provider;
+    if (!provider) {
+      throw new Error('Provider required to send transaction');
+    }
+
+    // 2. Get signer address
+    const from = await this.getAddress();
+
+    // 3. Get network info for chainId
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+
+    // 4. Get fee data for EIP-1559
+    const feeData = await provider.getFeeData();
+    if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
+      throw new Error('Unable to retrieve EIP-1559 fee data from provider');
+    }
+
+    // 5. Populate transaction fields (excluding 'from' - derived from signature)
+    const populatedTx = await ethers.resolveProperties({
+      to: transaction.to,
+      // DO NOT include 'from' - ethers.Transaction.from() rejects unsigned tx with 'from'
+      nonce:
+        transaction.nonce !== undefined
+          ? transaction.nonce
+          : await provider.getTransactionCount(from, 'pending'),
+      gasLimit:
+        transaction.gasLimit !== undefined
+          ? transaction.gasLimit
+          : await provider.estimateGas({
+              ...transaction,
+              from: from,
+            }),
+      data: transaction.data ?? '0x',
+      value: transaction.value ?? 0,
+      chainId: transaction.chainId ?? chainId,
+      type: 2, // EIP-1559
+      maxFeePerGas: transaction.maxFeePerGas ?? feeData.maxFeePerGas,
+      maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ?? feeData.maxPriorityFeePerGas,
+    });
+
+    // 6. Sign transaction using KeyManager
+    const signedTx = await this.signTransaction(populatedTx);
+
+    // 7. Broadcast signed transaction to network
+    const txResponse = await provider.broadcastTransaction(signedTx);
+
+    return txResponse;
+  }
+
+  /**
    * Sign a message
    * Signs arbitrary data with KeyManager
    */

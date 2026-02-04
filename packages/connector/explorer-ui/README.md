@@ -2,6 +2,34 @@
 
 Real-time telemetry dashboard for ILP connector nodes. Displays streaming ILP packet events, peer account balances, settlement activity, payment channels, and on-chain wallet data.
 
+## Epic 18: NOC Redesign
+
+The Explorer UI was redesigned in **Epic 18** with a **Network Operations Center (NOC)** aesthetic, optimized for 24/7 monitoring of ILP connector infrastructure.
+
+### Key Features
+
+- **Dashboard-First Design**: The Dashboard is now the default landing page, providing at-a-glance metrics
+- **NOC Color Scheme**: Deep space background with cyan/emerald/rose accent colors
+- **Keyboard Navigation**: Press 1-5 to switch tabs, ? for help
+- **Live Packet Flow**: Real-time visualization of packets routing through the connector
+- **Metrics Grid**: Total Packets, Success Rate, Active Channels, Routing Status
+
+### Tabs Overview
+
+| Tab       | Key | Description                                         |
+| --------- | --- | --------------------------------------------------- |
+| Dashboard | 1   | Metrics grid and live packet flow                   |
+| Packets   | 2   | ILP packet table with filtering (formerly "Events") |
+| Accounts  | 3   | Peer account balances and settlement timeline       |
+| Peers     | 4   | Connected peers and routing entries                 |
+| Keys      | 5   | Cryptographic key display with copy functionality   |
+
+For detailed documentation, see:
+
+- [Redesign Guide](../../../docs/explorer/redesign-guide.md) - Design philosophy and color palette
+- [User Guide](../../../docs/explorer/user-guide.md) - Common workflows and troubleshooting
+- [Developer Guide](../../../docs/explorer/developer-guide.md) - Architecture and customization
+
 ## Quick Start
 
 ```bash
@@ -87,6 +115,34 @@ When connected to a running Docker agent, the Explorer should display:
 | `npm run lint`               | Run ESLint                                                    |
 | `npm run preview`            | Preview production build                                      |
 
+## Building for Production
+
+```bash
+# TypeScript check + Vite production build
+npm run build
+
+# Preview production build locally
+npm run preview
+```
+
+The production build outputs to `dist/` with minified assets and optimized bundles.
+
+## Testing with Playwright MCP
+
+The Explorer UI can be tested using Playwright MCP tools for browser automation. See the [Playwright MCP Test Guide](../../../docs/test-results/playwright-mcp-test-guide.md) for comprehensive testing instructions.
+
+### Quick Playwright Test
+
+```bash
+# Start the dev server
+npm run dev
+
+# In Claude Code, use Playwright MCP tools:
+# - mcp__playwright__browser_navigate to http://localhost:5173
+# - mcp__playwright__browser_snapshot to capture accessibility tree
+# - mcp__playwright__browser_click to interact with elements
+```
+
 ## Tech Stack
 
 - React 18 + TypeScript
@@ -94,3 +150,4 @@ When connected to a running Docker agent, the Explorer should display:
 - shadcn/ui v4 + Tailwind CSS (dark theme)
 - Vitest + React Testing Library
 - WebSocket for real-time event streaming
+- Playwright MCP for browser automation testing

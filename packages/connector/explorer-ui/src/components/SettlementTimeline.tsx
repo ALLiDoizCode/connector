@@ -56,7 +56,7 @@ function getSettlementTypeBadge(type: SettlementEntry['type']): string {
 }
 
 /**
- * Determine settlement status
+ * Determine settlement status (NOC aesthetic: emerald/rose/cyan)
  */
 function getSettlementStatus(entry: SettlementEntry): {
   label: string;
@@ -69,13 +69,13 @@ function getSettlementStatus(entry: SettlementEntry): {
       return {
         label: 'Completed',
         icon: CheckCircle2,
-        className: 'text-green-500',
+        className: 'text-emerald-500',
       };
     } else {
       return {
         label: 'Failed',
         icon: XCircle,
-        className: 'text-red-400',
+        className: 'text-rose-500',
       };
     }
   }
@@ -84,7 +84,7 @@ function getSettlementStatus(entry: SettlementEntry): {
     return {
       label: 'In Progress',
       icon: Clock,
-      className: 'text-blue-500',
+      className: 'text-cyan-500',
       animate: true,
     };
   }
@@ -191,7 +191,7 @@ export const SettlementTimeline = React.memo(function SettlementTimeline({
                   {settlement.triggeredAt && !settlement.completedAt && (
                     <>
                       <ArrowRight className="h-3 w-3" />
-                      <span className="text-blue-500 animate-pulse">
+                      <span className="text-cyan-500 animate-pulse">
                         In progress ({getElapsedTime(settlement.triggeredAt)})
                       </span>
                     </>
@@ -200,7 +200,7 @@ export const SettlementTimeline = React.memo(function SettlementTimeline({
                   {settlement.completedAt && (
                     <>
                       <ArrowRight className="h-3 w-3" />
-                      <span className={settlement.success ? 'text-green-500' : 'text-red-400'}>
+                      <span className={settlement.success ? 'text-emerald-500' : 'text-rose-500'}>
                         {settlement.success ? 'Completed' : 'Failed'}
                       </span>
                       <span className="text-xs">
@@ -212,7 +212,7 @@ export const SettlementTimeline = React.memo(function SettlementTimeline({
 
                 {/* Error message for failed settlements */}
                 {!settlement.success && settlement.errorMessage && (
-                  <div className="text-red-400 text-xs mt-1">Error: {settlement.errorMessage}</div>
+                  <div className="text-rose-400 text-xs mt-1">Error: {settlement.errorMessage}</div>
                 )}
               </div>
             </div>

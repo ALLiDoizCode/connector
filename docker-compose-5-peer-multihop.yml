@@ -4,7 +4,16 @@
 # This configuration deploys a linear chain of 5 production ILP connectors
 # with unique ILP addresses for multi-hop packet routing verification.
 #
+# Components:
+# - TigerBeetle: High-performance accounting database for balance tracking
+# - Peer1-5: ILP connectors with EVM settlement support
+#
 # Each peer is funded from the base treasury wallet using m2m token signing and verification.
+#
+# Prerequisites:
+# - Docker and Docker Compose installed
+# - Built connector image: docker build -t ilp-connector .
+# - TigerBeetle cluster is automatically initialized on first deployment
 #
 # Usage:
 #   Start: docker-compose -f docker-compose-5-peer-multihop.yml up -d --build
@@ -17,6 +26,38 @@
 version: '3.8'
 
 services:
+  # ===========================================================================
+  # TigerBeetle - High-Performance Accounting Database
+  # ===========================================================================
+  # Role: Tracks peer account balances and settlement state in real-time
+  # Protocol: Binary protocol over TCP (not HTTP)
+  # Initialization: Data file must be initialized before first start (see deployment script)
+  tigerbeetle-5peer:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
+    container_name: tigerbeetle-5peer
+    command: start --addresses=0.0.0.0:3000 /data/0_0.tigerbeetle
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - /tmp/m2m-tigerbeetle:/data
+    networks:
+      - ilp-network
+    restart: unless-stopped
+    # TigerBeetle healthcheck: The minimal image has no shell/nc, so we disable
+    # the healthcheck and rely on start_period + depends_on: service_started
+    # TigerBeetle logs "listening on 0.0.0.0:3000" when ready
+    healthcheck:
+      disable: true
+    # TigerBeetle allocates ~3GB during replica init, must have sufficient memory
+    mem_limit: 4g
+    cpus: '1.0'
+
   # Peer 1 - Entry node (receives external packets)
   peer1:
     image: ilp-connector
@@ -27,13 +68,21 @@ services:
       ILP_ADDRESS: g.peer1
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5173
+      # TigerBeetle accounting configuration
+      TIGERBEETLE_CLUSTER_ID: "0"
+      TIGERBEETLE_REPLICAS: tigerbeetle-5peer:3000
       # BTP peer authentication secrets
       BTP_PEER_PEER2_SECRET: secret-peer1-to-peer2
       BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
       # Settlement configuration
       SETTLEMENT_PREFERENCE: evm
-      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
-      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
+      TREASURY_EVM_PRIVATE_KEY: ${PEER1_PRIVATE_KEY}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
       # Peer Ethereum addresses for payment channels
       PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
       PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
@@ -45,9 +94,16 @@ services:
     ports:
       - "3000:3000"  # BTP server port
       - "9080:8080"  # Health check HTTP port
+      - "5173:5173"  # Explorer UI
     networks:
       - ilp-network
+    depends_on:
+      tigerbeetle-5peer:
+        condition: service_started
     restart: unless-stopped
+    # Enable io_uring for TigerBeetle client
+    security_opt:
+      - seccomp=unconfined
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -65,13 +121,21 @@ services:
       ILP_ADDRESS: g.peer2
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5174
+      # TigerBeetle accounting configuration
+      TIGERBEETLE_CLUSTER_ID: "0"
+      TIGERBEETLE_REPLICAS: tigerbeetle-5peer:3000
       # BTP peer authentication secrets
       BTP_PEER_PEER1_SECRET: secret-peer1-to-peer2
       BTP_PEER_PEER3_SECRET: secret-peer2-to-peer3
       # Settlement configuration
       SETTLEMENT_PREFERENCE: evm
-      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
-      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
+      TREASURY_EVM_PRIVATE_KEY: ${PEER2_PRIVATE_KEY}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
       # Peer Ethereum addresses for payment channels
       PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
       PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
@@ -83,11 +147,18 @@ services:
     ports:
       - "3001:3001"  # BTP server port
       - "9081:8080"  # Health check HTTP port
+      - "5174:5174"  # Explorer UI
     networks:
       - ilp-network
     depends_on:
-      - peer1
+      tigerbeetle-5peer:
+        condition: service_started
+      peer1:
+        condition: service_started
     restart: unless-stopped
+    # Enable io_uring for TigerBeetle client
+    security_opt:
+      - seccomp=unconfined
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -105,13 +176,21 @@ services:
       ILP_ADDRESS: g.peer3
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5175
+      # TigerBeetle accounting configuration
+      TIGERBEETLE_CLUSTER_ID: "0"
+      TIGERBEETLE_REPLICAS: tigerbeetle-5peer:3000
       # BTP peer authentication secrets
       BTP_PEER_PEER2_SECRET: secret-peer2-to-peer3
       BTP_PEER_PEER4_SECRET: secret-peer3-to-peer4
       # Settlement configuration
       SETTLEMENT_PREFERENCE: evm
-      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
-      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
+      TREASURY_EVM_PRIVATE_KEY: ${PEER3_PRIVATE_KEY}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
       # Peer Ethereum addresses for payment channels
       PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
       PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
@@ -123,11 +202,18 @@ services:
     ports:
       - "3002:3002"  # BTP server port
       - "9082:8080"  # Health check HTTP port
+      - "5175:5175"  # Explorer UI
     networks:
       - ilp-network
     depends_on:
-      - peer2
+      tigerbeetle-5peer:
+        condition: service_started
+      peer2:
+        condition: service_started
     restart: unless-stopped
+    # Enable io_uring for TigerBeetle client
+    security_opt:
+      - seccomp=unconfined
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -145,13 +231,21 @@ services:
       ILP_ADDRESS: g.peer4
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5176
+      # TigerBeetle accounting configuration
+      TIGERBEETLE_CLUSTER_ID: "0"
+      TIGERBEETLE_REPLICAS: tigerbeetle-5peer:3000
       # BTP peer authentication secrets
       BTP_PEER_PEER3_SECRET: secret-peer3-to-peer4
       BTP_PEER_PEER5_SECRET: secret-peer4-to-peer5
       # Settlement configuration
       SETTLEMENT_PREFERENCE: evm
-      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
-      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
+      TREASURY_EVM_PRIVATE_KEY: ${PEER4_PRIVATE_KEY}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
       # Peer Ethereum addresses for payment channels
       PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
       PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
@@ -163,11 +257,18 @@ services:
     ports:
       - "3003:3003"  # BTP server port
       - "9083:8080"  # Health check HTTP port
+      - "5176:5176"  # Explorer UI
     networks:
       - ilp-network
     depends_on:
-      - peer3
+      tigerbeetle-5peer:
+        condition: service_started
+      peer3:
+        condition: service_started
     restart: unless-stopped
+    # Enable io_uring for TigerBeetle client
+    security_opt:
+      - seccomp=unconfined
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -185,12 +286,20 @@ services:
       ILP_ADDRESS: g.peer5
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5177
+      # TigerBeetle accounting configuration
+      TIGERBEETLE_CLUSTER_ID: "0"
+      TIGERBEETLE_REPLICAS: tigerbeetle-5peer:3000
       # BTP peer authentication secrets
       BTP_PEER_PEER4_SECRET: secret-peer4-to-peer5
       # Settlement configuration
       SETTLEMENT_PREFERENCE: evm
-      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-http://anvil:8545}
-      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://sepolia.base.org}
+      TREASURY_EVM_PRIVATE_KEY: ${PEER5_PRIVATE_KEY}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY}
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS}
       # Peer Ethereum addresses for payment channels
       PEER1_EVM_ADDRESS: ${PEER1_EVM_ADDRESS}
       PEER2_EVM_ADDRESS: ${PEER2_EVM_ADDRESS}
@@ -202,11 +311,18 @@ services:
     ports:
       - "3004:3004"  # BTP server port
       - "9084:8080"  # Health check HTTP port
+      - "5177:5177"  # Explorer UI
     networks:
       - ilp-network
     depends_on:
-      - peer4
+      tigerbeetle-5peer:
+        condition: service_started
+      peer4:
+        condition: service_started
     restart: unless-stopped
+    # Enable io_uring for TigerBeetle client
+    security_opt:
+      - seccomp=unconfined
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 10s
@@ -214,28 +330,34 @@ services:
       retries: 3
       start_period: 10s
 
-  # Anvil - Local Base L2 node for payment channels (optional)
-  anvil:
-    image: ghcr.io/foundry-rs/foundry:latest
-    container_name: anvil
-    command: >
-      anvil
-      --host 0.0.0.0
-      --port 8545
-      --chain-id 31337
-      --block-time 1
-    ports:
-      - "8545:8545"
-    networks:
-      - ilp-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "sh", "-c", "curl -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' http://localhost:8545 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
+  # Anvil removed - using Base Sepolia public testnet
+  # To use local Anvil instead, uncomment and set BASE_L2_RPC_URL=http://anvil:8545
+  # anvil:
+  #   image: ghcr.io/foundry-rs/foundry:latest
+  #   container_name: anvil
+  #   command: anvil --host 0.0.0.0 --port 8545
+  #   ports:
+  #     - "8545:8545"
+  #   networks:
+  #     - ilp-network
 
 networks:
   ilp-network:
     driver: bridge
+
+# ===========================================================================
+# Volumes - Persistent Data Storage
+# ===========================================================================
+# Note: TigerBeetle now uses bind mount (./data/tigerbeetle) instead of named volume
+# for OrbStack compatibility on macOS (OrbStack's named volume implementation causes
+# fstatat syscall failures in TigerBeetle's open_data_file function)
+# volumes:
+#   tigerbeetle-5peer-data:
+#     driver: local
+
+# Note: All peers now have settlement enabled with payment channels
+# Configuration loaded from .env:
+# - TOKEN_NETWORK_REGISTRY
+# - M2M_TOKEN_ADDRESS
+# - SETTLEMENT_ENABLED=true
+# - SETTLEMENT_THRESHOLD=1000000

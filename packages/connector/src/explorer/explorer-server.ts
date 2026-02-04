@@ -107,13 +107,13 @@ export class ExplorerServer {
    *
    * @param config - ExplorerServer configuration
    * @param eventStore - EventStore instance for historical queries
-   * @param telemetryEmitter - TelemetryEmitter for live event subscription
+   * @param telemetryEmitter - TelemetryEmitter for live event subscription (optional for standalone mode)
    * @param logger - Pino logger instance
    */
   constructor(
     config: ExplorerServerConfig,
     eventStore: EventStore,
-    telemetryEmitter: TelemetryEmitter,
+    telemetryEmitter: TelemetryEmitter | null,
     logger: Logger
   ) {
     this._config = {
@@ -148,10 +148,12 @@ export class ExplorerServer {
     // Create EventBroadcaster
     this._broadcaster = new EventBroadcaster(this._wss, this._logger);
 
-    // Subscribe to TelemetryEmitter for live event broadcasting
-    this._unsubscribe = telemetryEmitter.onEvent((event) => {
-      this._broadcaster.broadcast(event);
-    });
+    // Subscribe to TelemetryEmitter for live event broadcasting (only if available)
+    if (telemetryEmitter) {
+      this._unsubscribe = telemetryEmitter.onEvent((event) => {
+        this._broadcaster.broadcast(event);
+      });
+    }
 
     // Setup routes
     this._setupRoutes();

@@ -54,11 +54,14 @@ Implement standardized off-chain payment channel claim exchange via BTP protocol
 **Epic 18: Explorer UI — Network Operations Center Redesign**
 Transform the Connector Explorer into a distinctive, production-grade Network Operations Center (NOC) dashboard using the frontend-design skill and Playwright MCP verification. Deliver a modern, visually striking interface with a Dashboard-first approach that emphasizes real-time ILP packet routing metrics, live packet flow visualization, and comprehensive observability across all five tabs (Dashboard, Packets, Accounts, Peers, Keys) with seamless live and historical data integration. Features deep space color palette, neon ILP packet type indicators (cyan/emerald/rose), monospace technical typography, and custom animations for a professional monitoring experience.
 
+**Epic 19: Production Deployment Parity**
+Enable TigerBeetle accounting infrastructure in the docker-compose-5-peer-multihop.yml deployment by adding the TigerBeetle service, wiring real AccountManager to replace mock implementation, and verifying that the Explorer UI Accounts tab displays real-time balance data. This epic bridges Epic 6 (backend accounting code - completed) with Epic 18 (frontend UI - completed) by activating accounting in the multi-peer test deployment.
+
 ---
 
 ## Project Status
 
-Epics 1-17 are **completed** or **in progress**. Epic 18 enhances the user experience with professional UI design. The connector is feature-complete with:
+Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering

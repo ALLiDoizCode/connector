@@ -65,7 +65,9 @@ describe('AccountsView', () => {
 
       expect(screen.getByText('No peer accounts yet')).toBeInTheDocument();
       expect(
-        screen.getByText('Balance events will appear as packets flow through the connector.')
+        screen.getByText(
+          'Balance events will appear as packets flow through the connector. Send ILP packets to see account balances update in real-time.'
+        )
       ).toBeInTheDocument();
     });
 
@@ -102,6 +104,8 @@ describe('AccountsView', () => {
 
       render(<AccountsView />);
 
+      // NOC aesthetic: error state now shows "Connection Lost" heading
+      expect(screen.getByText('Connection Lost')).toBeInTheDocument();
       expect(
         screen.getByText(
           'Failed to connect to event stream. Please check the connector is running.'

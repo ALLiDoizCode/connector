@@ -29,6 +29,8 @@ import { BalanceProof } from '@m2m/shared';
 import { AccountManager } from './account-manager';
 import { PaymentChannelSDK } from './payment-channel-sdk';
 import { SettlementMonitor } from './settlement-monitor';
+import { EventStore } from '../explorer/event-store';
+import { EventBroadcaster } from '../explorer/event-broadcaster';
 
 /**
  * Configuration interface for SettlementExecutor
@@ -100,6 +102,8 @@ export class SettlementExecutor extends EventEmitter {
   private readonly logger: Logger;
   private readonly telemetryEmitter?: TelemetryEmitter;
   private readonly boundHandleSettlement: (event: SettlementTriggerEvent) => Promise<void>;
+  private eventStore: EventStore | null = null;
+  private eventBroadcaster: EventBroadcaster | null = null;
 
   /**
    * Constructor
@@ -143,6 +147,30 @@ export class SettlementExecutor extends EventEmitter {
         defaultSettlementTimeout: config.defaultSettlementTimeout,
       },
       'Settlement executor initialized'
+    );
+  }
+
+  /**
+   * Set EventStore reference for direct event emission in standalone mode
+   * @param eventStore - EventStore instance for storing settlement events
+   */
+  setEventStore(eventStore: EventStore | null): void {
+    this.eventStore = eventStore;
+    this.logger.info(
+      { hasEventStore: eventStore !== null },
+      'EventStore reference set for settlement event emission'
+    );
+  }
+
+  /**
+   * Set EventBroadcaster reference for real-time event streaming
+   * @param broadcaster - EventBroadcaster instance for live settlement events
+   */
+  setEventBroadcaster(broadcaster: EventBroadcaster | null): void {
+    this.eventBroadcaster = broadcaster;
+    this.logger.info(
+      { hasBroadcaster: broadcaster !== null },
+      'EventBroadcaster reference set for settlement event streaming'
     );
   }
 
@@ -234,14 +262,23 @@ export class SettlementExecutor extends EventEmitter {
     } catch (error) {
       // Log error but do NOT call markSettlementCompleted
       // State remains IN_PROGRESS for manual intervention
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       this.logger.error(
-        { error, peerId: event.peerId, tokenId: event.tokenId },
+        {
+          errorMessage,
+          errorStack,
+          errorType: error?.constructor?.name,
+          peerId: event.peerId,
+          tokenId: event.tokenId,
+        },
         'Settlement failed'
       );
 
       // Emit telemetry: SETTLEMENT_FAILED
       this.emitSettlementTelemetry('SETTLEMENT_FAILED', event.peerId, event.tokenId, {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
         currentBalance: event.currentBalance.toString(),
       });
     }
@@ -263,13 +300,25 @@ export class SettlementExecutor extends EventEmitter {
   private async executeSettlement(event: SettlementTriggerEvent): Promise<void> {
     const { peerId, tokenId, currentBalance } = event;
 
+    this.logger.info(
+      { peerId, tokenId, currentBalance: currentBalance.toString() },
+      'Executing settlement'
+    );
+
     // Get token address from configuration
     const tokenAddress = this.config.tokenAddressMap.get(tokenId);
     if (!tokenAddress) {
+      this.logger.error(
+        { tokenId, availableTokens: Array.from(this.config.tokenAddressMap.keys()) },
+        'Token address not found'
+      );
       throw new Error(`Token address not found for tokenId: ${tokenId}`);
     }
 
+    this.logger.debug({ tokenId, tokenAddress }, 'Token address resolved');
+
     // Find existing channel for peer
+    this.logger.debug({ peerId, tokenAddress }, 'Searching for existing channel');
     const channelId = await this.findChannelForPeer(peerId, tokenAddress);
 
     if (!channelId) {
@@ -369,7 +418,7 @@ export class SettlementExecutor extends EventEmitter {
     );
 
     // Open channel with retry logic
-    const channelId = await this.retryWithBackoff(
+    const { channelId, txHash } = await this.retryWithBackoff(
       async () =>
         await this.paymentChannelSDK.openChannel(
           peerAddress,
@@ -387,6 +436,7 @@ export class SettlementExecutor extends EventEmitter {
         peerId,
         tokenId,
         initialDeposit: initialDeposit.toString(),
+        txHash,
       },
       'Channel opened for settlement'
     );
@@ -399,6 +449,15 @@ export class SettlementExecutor extends EventEmitter {
       { peerId, tokenId, amount: amount.toString() },
       'TigerBeetle balance updated after channel deposit'
     );
+
+    // Emit settlement completed event with transaction hash
+    this.emitSettlementTelemetry('SETTLEMENT_COMPLETED', peerId, tokenId, {
+      channelId,
+      transactionHash: txHash,
+      settledAmount: amount.toString(), // Use settledAmount to match extractIndexedFields expectations
+      initialDeposit: initialDeposit.toString(),
+      settlementType: 'channel_opened',
+    });
 
     // Emit CHANNEL_ACTIVITY event for ChannelManager
     this.emit('CHANNEL_ACTIVITY', { channelId });
@@ -662,7 +721,10 @@ export class SettlementExecutor extends EventEmitter {
       errorMessage.includes('timeout') ||
       errorMessage.includes('network') ||
       errorMessage.includes('gas price') ||
-      errorMessage.includes('nonce too low')
+      errorMessage.includes('nonce too low') ||
+      errorMessage.includes('replacement') || // Transaction replacement errors
+      errorMessage.includes('already known') || // Transaction already in mempool
+      errorMessage.includes('nonce has already been used') // Nonce conflict
     ) {
       return true;
     }
@@ -702,22 +764,53 @@ export class SettlementExecutor extends EventEmitter {
     tokenId: string,
     details: Record<string, unknown>
   ): void {
-    if (!this.telemetryEmitter) {
-      return; // No-op if telemetry not configured
+    const event = {
+      type: eventType,
+      nodeId: this.config.nodeId || 'unknown',
+      peerId: peerId || 'unknown',
+      tokenId: tokenId || 'unknown',
+      timestamp: new Date().toISOString(),
+      // Add all details, filtering out undefined values
+      ...Object.fromEntries(Object.entries(details).filter(([_, v]) => v !== undefined)),
+    };
+
+    // Emit via TelemetryEmitter if configured
+    if (this.telemetryEmitter) {
+      try {
+        this.telemetryEmitter.emit(event);
+      } catch (error) {
+        this.logger.error({ error }, 'Failed to emit settlement telemetry');
+      }
     }
 
-    try {
-      this.telemetryEmitter.emit({
-        type: eventType,
-        nodeId: this.config.nodeId,
-        peerId,
-        tokenId,
-        ...details,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      // Log error but do not re-throw (telemetry is non-blocking)
-      this.logger.error({ error }, 'Failed to emit settlement telemetry');
+    // Also emit to EventStore in standalone mode
+    if (this.eventStore) {
+      try {
+        // Log the event structure for debugging
+        this.logger.debug(
+          { event, eventKeys: Object.keys(event) },
+          'Attempting to store settlement event'
+        );
+
+        // Cast to any to bypass strict type checking - EventStore handles various event shapes
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.eventStore.storeEvent(event as any).catch((err: Error) => {
+          this.logger.warn(
+            {
+              error: err.message,
+              errorType: err.constructor.name,
+              eventType,
+              event: JSON.stringify(event),
+            },
+            'Failed to store settlement event'
+          );
+        });
+        // Broadcast to WebSocket clients for real-time updates
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.eventBroadcaster?.broadcast(event as any);
+      } catch (error) {
+        this.logger.error({ error, event }, 'Failed to store settlement event in EventStore');
+      }
     }
   }
 

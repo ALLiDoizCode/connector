@@ -32,6 +32,7 @@ g.peer1          g.peer2          g.peer3          g.peer4          g.peer5
 - ✓ Funded from treasury wallet with ETH and tokens
 - ✓ BTP connections to adjacent peers
 - ✓ Routing tables configured for multi-hop forwarding
+- ✓ BTP off-chain claim exchange enabled (Epic 17)
 
 ## Prerequisites
 

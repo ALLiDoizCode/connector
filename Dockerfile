@@ -93,8 +93,8 @@ RUN apk add --no-cache wget
 
 # Security hardening: Run as non-root user
 # Alpine's node image includes a 'node' user by default
-# Change ownership of application files to node user
-RUN chown -R node:node /app
+# Create data directory for Explorer UI SQLite databases and change ownership
+RUN mkdir -p /app/data && chown -R node:node /app
 
 # Switch to non-root user (prevents privilege escalation attacks)
 USER node

@@ -23,8 +23,8 @@ export const Header = memo(function Header({ status, eventCount, onHelpOpen }: H
           const data = await response.json();
           setHealth(data);
         }
-      } catch (err) {
-        console.error('Failed to fetch health:', err);
+      } catch {
+        // Silently fail - health state remains null, UI will show N/A
       }
     };
 
@@ -138,7 +138,12 @@ export const Header = memo(function Header({ status, eventCount, onHelpOpen }: H
           <div className="hidden md:block text-right">
             <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">System Time</p>
             <p className="text-sm font-mono font-medium tabular-nums">
-              {currentTime.toLocaleTimeString()}
+              {currentTime.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+              })}
             </p>
           </div>
 

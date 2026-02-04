@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0](https://github.com/ALLiDoizCode/m2m/compare/v1.5.0...v1.6.0) (2026-02-03)
+
+### Features
+
+- **explorer:** Dashboard redesign with NOC (Network Operations Center) aesthetic (Epic 18)
+  - New Dashboard landing page with metrics grid (Total Packets, Success Rate, Active Channels, Routing Status)
+  - Live Packet Flow visualization showing real-time packet routing
+  - Staggered entry animations with `prefers-reduced-motion` support
+  - Keyboard navigation (1-5 for tabs, ? for help)
+
+- **explorer:** Enhanced Account Cards with balance history charts and settlement timeline (Story 18.4)
+
+- **explorer:** Keys Tab for cryptographic key management with copy-to-clipboard (Story 18.6)
+
+- **explorer:** Playwright MCP integration testing with comprehensive browser automation (Story 18.8)
+
+- **docs:** Explorer UI documentation suite (Story 18.9)
+  - Redesign guide with design philosophy and color palette
+  - User guide with common workflows and troubleshooting
+  - Developer guide with architecture and customization
+
+### Changed
+
+- **explorer:** Events tab renamed to Packets tab for ILP terminology alignment (Story 18.3)
+- **explorer:** Dashboard is now the default landing page (was Events/Packets)
+- **explorer:** Updated color scheme to NOC aesthetic with deep space background and cyan/emerald/rose accents
+
+### Improved
+
+- **explorer:** Peers Tab with NOC aesthetic enhancement (Story 18.5)
+- **explorer:** Header with technical branding and WebSocket connection status (Story 18.2)
+- **explorer:** Animation system with hover effects, stagger classes, and smooth transitions (Story 18.7)
+
 ## [1.5.0](https://github.com/ALLiDoizCode/m2m/compare/v1.4.0...v1.5.0) (2026-01-28)
 
 ### Features

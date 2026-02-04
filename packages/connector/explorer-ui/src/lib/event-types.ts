@@ -14,6 +14,8 @@ export type TelemetryEventType =
   // Packet flow events
   | 'PACKET_RECEIVED'
   | 'PACKET_FORWARDED'
+  | 'PACKET_FULFILLED'
+  | 'PACKET_REJECTED'
   // Account and settlement events
   | 'ACCOUNT_BALANCE'
   | 'SETTLEMENT_TRIGGERED'
@@ -113,10 +115,22 @@ export function getIlpPacketType(event: TelemetryEvent | StoredEvent): IlpPacket
     }
   }
 
-  // PACKET_RECEIVED and PACKET_FORWARDED are always 'prepare' packets
+  // Determine packet type from event type
   const eventType = 'type' in event ? event.type : 'event_type' in event ? event.event_type : null;
+
+  // PACKET_RECEIVED and PACKET_FORWARDED are always 'prepare' packets
   if (eventType === 'PACKET_RECEIVED' || eventType === 'PACKET_FORWARDED') {
     return 'prepare';
+  }
+
+  // PACKET_FULFILLED events are 'fulfill' packets
+  if (eventType === 'PACKET_FULFILLED') {
+    return 'fulfill';
+  }
+
+  // PACKET_REJECTED events are 'reject' packets
+  if (eventType === 'PACKET_REJECTED') {
+    return 'reject';
   }
 
   return null;
@@ -136,6 +150,8 @@ export function isIlpPacketEvent(event: TelemetryEvent | StoredEvent): boolean {
 export const ILP_PACKET_EVENT_TYPES = [
   'PACKET_RECEIVED',
   'PACKET_FORWARDED',
+  'PACKET_FULFILLED',
+  'PACKET_REJECTED',
   'AGENT_CHANNEL_PAYMENT_SENT',
 ] as const;
 
@@ -171,9 +187,11 @@ export interface HealthResponse {
 export const EVENT_TYPE_COLORS: Record<string, string> = {
   // Node lifecycle - gray (neutral)
   NODE_STATUS: 'bg-gray-500',
-  // Packet flow - blue shades
+  // Packet flow - blue shades for prepare, green/red for fulfill/reject
   PACKET_RECEIVED: 'bg-blue-400',
   PACKET_FORWARDED: 'bg-blue-600',
+  PACKET_FULFILLED: 'bg-green-500',
+  PACKET_REJECTED: 'bg-red-500',
   // Account and settlement - green/yellow
   ACCOUNT_BALANCE: 'bg-blue-500',
   SETTLEMENT_TRIGGERED: 'bg-yellow-500',

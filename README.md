@@ -147,11 +147,45 @@ ilp-connector/
 
 ## Prerequisites
 
-- **Docker Desktop** (v27.0.0+)
+- **Docker** (v27.0.0+)
+  - **Linux/Windows:** Docker Desktop or Docker Engine
+  - **macOS:** [OrbStack](https://orbstack.dev/) (recommended) or Docker Desktop
 - **Node.js** (v22.11.0 LTS)
 - **npm** (v10.9.0+)
 - **8GB RAM** minimum (16GB recommended)
 - **10GB disk space** for Docker images
+
+### macOS Development Setup
+
+**⚠️ Important for macOS developers:** TigerBeetle (our accounting database) requires native installation on macOS. Docker Desktop and OrbStack both have compatibility issues with TigerBeetle's `io_uring` requirements.
+
+**✅ Recommended Solution:** Install TigerBeetle natively (no Docker needed for the database).
+
+**Quick Setup (5 minutes):**
+
+```bash
+# 1. Install TigerBeetle binary
+npm run tigerbeetle:install
+
+# 2. Start development (TigerBeetle + Connector)
+npm run dev
+```
+
+**Why Native Installation?**
+
+- ✅ Perfect dev/production parity (same TigerBeetle binary)
+- ✅ Zero Docker compatibility issues
+- ✅ Simple one-command setup
+- ✅ Works on both Apple Silicon (M1/M2/M3) and Intel Macs
+- ✅ Production uses containerized TigerBeetle (same binary, different deployment)
+
+**What Gets Installed:**
+
+- TigerBeetle binary → `/usr/local/bin/tigerbeetle`
+- Data directory → `~/.tigerbeetle/data`
+- Auto-starts with `npm run dev`
+
+**📚 Full Guide:** [macOS Development Setup](docs/guides/local-development-macos.md)
 
 ### Port Requirements
 

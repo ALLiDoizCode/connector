@@ -8,10 +8,15 @@
  * 3. Disaster Simulation: Destroy all wallet state
  * 4. Recovery: Restore from backup file
  * 5. Verification: Validate restored state matches original
+ *
+ * DISABLED: Epic 16 (AI Agent Infrastructure) was deferred.
+ * The agent wallet infrastructure was removed from the codebase.
+ * This test suite is skipped until Epic 16 is resumed.
  */
 
 /* eslint-disable no-console */
 
+/*
 import { WalletSeedManager } from '../../src/wallet/wallet-seed-manager';
 import { AgentWalletDerivation } from '../../src/wallet/agent-wallet-derivation';
 import { AgentWalletLifecycle } from '../../src/wallet/agent-wallet-lifecycle';
@@ -19,6 +24,7 @@ import { AgentBalanceTracker } from '../../src/wallet/agent-balance-tracker';
 import { AgentWalletFunder } from '../../src/wallet/agent-wallet-funder';
 import { WalletBackupManager, BackupConfig } from '../../src/wallet/wallet-backup-manager';
 import { FundingConfig } from '../../src/wallet/agent-wallet-funder';
+*/
 import { ethers } from 'ethers';
 import { Client as XRPLClient } from 'xrpl';
 import * as fs from 'fs';
@@ -45,7 +51,7 @@ interface StoredLifecycleRecord {
   totalTransactions: number;
 }
 
-describe('Wallet Disaster Recovery Integration Test', () => {
+describe.skip('Wallet Disaster Recovery Integration Test', () => {
   // Use IsolatedTestEnv for automatic cleanup between tests
   let env: IsolatedTestEnv;
   let tempDbPath: string;

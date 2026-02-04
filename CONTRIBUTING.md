@@ -48,10 +48,15 @@ After reading the documentation above:
 
 ### Prerequisites
 
-- Node.js 20.11.0 or higher (LTS)
-- npm 10.x or higher
-- Git 2.x
-- Familiarity with TypeScript and Interledger Protocol basics
+- **Node.js** 20.11.0 or higher (LTS)
+- **npm** 10.x or higher
+- **Git** 2.x
+- **Docker**:
+  - **Linux/Windows:** Docker Desktop or Docker Engine
+  - **macOS:** Native TigerBeetle installation required (no Docker) - See [macOS Setup Guide](docs/guides/local-development-macos.md)
+    - ⚠️ TigerBeetle requires native installation on macOS
+    - One-command setup: `npm run tigerbeetle:install`
+- **Familiarity** with TypeScript and Interledger Protocol basics
 
 ### Initial Setup
 

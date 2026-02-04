@@ -195,14 +195,14 @@ export class PaymentChannelSDK {
    * @param tokenAddress - ERC20 token address for this channel
    * @param settlementTimeout - Challenge period duration in seconds
    * @param initialDeposit - Initial deposit amount (0 for no deposit)
-   * @returns Channel ID (bytes32)
+   * @returns Object with channelId and txHash
    */
   async openChannel(
     participant2: string,
     tokenAddress: string,
     settlementTimeout: number,
     initialDeposit: bigint
-  ): Promise<string> {
+  ): Promise<{ channelId: string; txHash: string }> {
     const tokenNetwork = await this.getTokenNetworkContract(tokenAddress);
 
     // Call openChannel on TokenNetwork contract
@@ -256,11 +256,13 @@ export class PaymentChannelSDK {
       openedAt: Date.now() / 1000, // Approximate timestamp
     });
 
+    const txHash = receipt.hash;
+
     this.logger.info('Channel opened successfully', {
       channelId,
       participant1,
       participant2: participant2Addr,
-      txHash: receipt.hash,
+      txHash,
     });
 
     // Handle initial deposit if specified
@@ -268,7 +270,7 @@ export class PaymentChannelSDK {
       await this.deposit(channelId, tokenAddress, initialDeposit);
     }
 
-    return channelId;
+    return { channelId, txHash };
   }
 
   /**
@@ -293,10 +295,17 @@ export class PaymentChannelSDK {
     });
 
     // Approve tokens for TokenNetwork contract
+    // Must approve newTotalDeposit (not just amount) because setTotalDeposit transfers the full total
     const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer);
     const tokenNetworkAddress = await tokenNetwork.getAddress();
-    const approveTx = await token.approve!(tokenNetworkAddress, amount);
+    const approveTx = await token.approve!(tokenNetworkAddress, newTotalDeposit);
     await approveTx.wait();
+
+    this.logger.debug('Token approval confirmed', {
+      channelId,
+      approvedAmount: newTotalDeposit.toString(),
+      txHash: approveTx.hash,
+    });
 
     // Call setTotalDeposit
     const tx = await tokenNetwork.setTotalDeposit!(channelId, myAddress, newTotalDeposit);

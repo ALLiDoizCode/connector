@@ -29,6 +29,12 @@ export enum TelemetryEventType {
   PACKET_RECEIVED = 'PACKET_RECEIVED',
   /** Packet forwarded event - emitted when ILP packet forwarded */
   PACKET_FORWARDED = 'PACKET_FORWARDED',
+  /** Packet fulfilled event - emitted when ILP packet successfully fulfilled */
+  PACKET_FULFILLED = 'PACKET_FULFILLED',
+  /** Packet rejected event - emitted when ILP packet rejected */
+  PACKET_REJECTED = 'PACKET_REJECTED',
+  /** Packet sent event - emitted when ILP packet sent to next hop (deprecated, use PACKET_FORWARDED) */
+  PACKET_SENT = 'PACKET_SENT',
   /** Account balance event - emitted when account balance changes (Story 6.8) */
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
   /** Settlement triggered event - emitted when settlement threshold exceeded (Story 6.6) */
@@ -77,6 +83,8 @@ export enum TelemetryEventType {
   CLAIM_SENT = 'CLAIM_SENT',
   /** Claim received event - emitted when payment channel claim received via BTP (Story 17.3) */
   CLAIM_RECEIVED = 'CLAIM_RECEIVED',
+  /** Claim redeemed event - emitted when claim redeemed on-chain (Story 17.5) */
+  CLAIM_REDEEMED = 'CLAIM_REDEEMED',
 }
 
 /**
@@ -279,6 +287,136 @@ export interface SettlementCompletedEvent {
   errorMessage?: string;
   /** Event timestamp (ISO 8601 format) */
   timestamp: string;
+}
+
+/**
+ * Packet Received Telemetry Event
+ *
+ * Emitted when PacketHandler receives an ILP Prepare packet.
+ * Indicates an ILP packet has been received from an upstream peer or client.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI displays packet flow visualization
+ * - Packet inspector shows packet details
+ *
+ * @example
+ * ```typescript
+ * const event: PacketReceivedEvent = {
+ *   type: 'PACKET_RECEIVED',
+ *   nodeId: 'connector-a',
+ *   packetId: 'abc123...',
+ *   destination: 'g.connector.peer2',
+ *   amount: '1000',
+ *   from: 'peer1',
+ *   timestamp: 1704729600000
+ * };
+ * ```
+ */
+export interface PacketReceivedEvent {
+  /** Event type discriminator */
+  type: 'PACKET_RECEIVED';
+  /** Connector node ID receiving packet */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Packet amount, bigint as string */
+  amount: string;
+  /** Peer ID who sent the packet */
+  from: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
+ * Packet Forwarded Telemetry Event
+ *
+ * Emitted when PacketHandler forwards an ILP packet to the next hop.
+ * Indicates an ILP packet has been successfully forwarded to a downstream peer.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI displays packet flow visualization
+ * - Packet inspector shows forwarding decisions
+ *
+ * @example
+ * ```typescript
+ * const event: PacketForwardedEvent = {
+ *   type: 'PACKET_FORWARDED',
+ *   nodeId: 'connector-a',
+ *   packetId: 'abc123...',
+ *   destination: 'g.connector.peer2',
+ *   amount: '990',
+ *   to: 'peer2',
+ *   timestamp: 1704729600000
+ * };
+ * ```
+ */
+export interface PacketForwardedEvent {
+  /** Event type discriminator */
+  type: 'PACKET_FORWARDED';
+  /** Connector node ID forwarding packet */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Forwarded packet amount (after fee), bigint as string */
+  amount: string;
+  /** Peer ID to whom the packet was forwarded */
+  to: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
+ * Packet Fulfilled Telemetry Event
+ *
+ * Emitted when an ILP Prepare packet is successfully fulfilled.
+ */
+export interface PacketFulfilledEvent {
+  /** Event type discriminator */
+  type: 'PACKET_FULFILLED';
+  /** Connector node ID */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Packet amount, bigint as string */
+  amount: string;
+  /** Source peer ID */
+  from: string;
+  /** Fulfillment (32-byte preimage hex) */
+  fulfillment: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
+ * Packet Rejected Telemetry Event
+ *
+ * Emitted when an ILP Prepare packet is rejected.
+ */
+export interface PacketRejectedEvent {
+  /** Event type discriminator */
+  type: 'PACKET_REJECTED';
+  /** Connector node ID */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Packet amount, bigint as string */
+  amount: string;
+  /** Source peer ID */
+  from: string;
+  /** ILP error code */
+  code: string;
+  /** Rejection message */
+  message: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
 }
 
 /**
@@ -1341,6 +1479,71 @@ export interface ClaimReceivedEvent {
 }
 
 /**
+ * Claim Redeemed Telemetry Event
+ *
+ * Emitted when a verified payment channel claim is successfully (or unsuccessfully)
+ * redeemed on-chain by the ClaimRedemptionService (Story 17.5).
+ *
+ * **Emission Points:**
+ * - After each claim redemption attempt (success or failure)
+ * - In ClaimRedemptionService._emitRedemptionTelemetry()
+ *
+ * **Use Cases:**
+ * - Monitor automatic claim redemption success rate
+ * - Track gas costs for redemption profitability analysis
+ * - Correlate CLAIM_RECEIVED → CLAIM_REDEEMED for end-to-end claim flow
+ * - Detect redemption failures for investigation
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimRedeemedEvent = {
+ *   type: 'CLAIM_REDEEMED',
+ *   nodeId: 'connector-bob',
+ *   peerId: 'connector-alice',
+ *   blockchain: 'xrp',
+ *   messageId: 'msg_xyz123',
+ *   channelId: 'ABC123...',
+ *   amount: '5000000',
+ *   txHash: 'msg_xyz123',
+ *   gasCost: '10',
+ *   success: true,
+ *   timestamp: '2026-02-02T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimRedeemedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_REDEEMED';
+  /** Connector node ID redeeming claim */
+  nodeId: string;
+  /** Peer identifier who sent the claim */
+  peerId: string;
+  /** Blockchain type: 'xrp', 'evm', 'aptos' */
+  blockchain: 'xrp' | 'evm' | 'aptos';
+  /** Unique message ID from CLAIM_RECEIVED (for correlation) */
+  messageId: string;
+  /** Channel ID (XRP: 64-char hex, EVM: bytes32, Aptos: channelOwner) */
+  channelId: string;
+  /** Claim amount redeemed, bigint as string */
+  amount: string;
+  /**
+   * Transaction hash or identifier.
+   * Note: Currently set to messageId since SDK methods return void.
+   * For actual blockchain tx hashes, query explorers using signatures/amounts
+   * and redeemed_at timestamp.
+   */
+  txHash: string;
+  /** Estimated gas cost for redemption, bigint as string */
+  gasCost: string;
+  /** Whether redemption succeeded */
+  success: boolean;
+  /** Error message if success=false */
+  error?: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -1402,6 +1605,10 @@ export interface ClaimReceivedEvent {
  * ```
  */
 export type TelemetryEvent =
+  | PacketReceivedEvent
+  | PacketForwardedEvent
+  | PacketFulfilledEvent
+  | PacketRejectedEvent
   | AccountBalanceEvent
   | SettlementTriggeredEvent
   | SettlementCompletedEvent
@@ -1428,4 +1635,5 @@ export type TelemetryEvent =
   | ClaimSettlementSuccessEvent
   | ClaimSettlementFailedEvent
   | ClaimSentEvent
-  | ClaimReceivedEvent;
+  | ClaimReceivedEvent
+  | ClaimRedeemedEvent;

@@ -1,20 +1,11 @@
 import * as React from 'react';
-import { Check, ChevronsUpDown, X, Search, CalendarIcon, Wallet } from 'lucide-react';
+import { Check, ChevronsUpDown, X, Search, CalendarIcon, Wallet, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
@@ -24,7 +15,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { TelemetryEventType, EVENT_TYPE_COLORS, SETTLEMENT_EVENT_TYPES } from '../lib/event-types';
+import {
+  TelemetryEventType,
+  EVENT_TYPE_COLORS,
+  SETTLEMENT_EVENT_TYPES,
+  ILP_PACKET_EVENT_TYPES,
+} from '../lib/event-types';
 import { DateRange } from 'react-day-picker';
 
 /**
@@ -68,6 +64,8 @@ const ALL_EVENT_TYPES: TelemetryEventType[] = [
   'NODE_STATUS',
   'PACKET_RECEIVED',
   'PACKET_FORWARDED',
+  'PACKET_FULFILLED',
+  'PACKET_REJECTED',
   'ACCOUNT_BALANCE',
   'SETTLEMENT_TRIGGERED',
   'SETTLEMENT_COMPLETED',
@@ -100,7 +98,13 @@ const ALL_EVENT_TYPES: TelemetryEventType[] = [
  */
 const EVENT_TYPE_CATEGORIES: Record<string, TelemetryEventType[]> = {
   Node: ['NODE_STATUS'],
-  'ILP Packets': ['PACKET_RECEIVED', 'PACKET_FORWARDED', 'AGENT_CHANNEL_PAYMENT_SENT'],
+  'ILP Packets': [
+    'PACKET_RECEIVED',
+    'PACKET_FORWARDED',
+    'PACKET_FULFILLED',
+    'PACKET_REJECTED',
+    'AGENT_CHANNEL_PAYMENT_SENT',
+  ],
   Account: ['ACCOUNT_BALANCE', 'SETTLEMENT_TRIGGERED', 'SETTLEMENT_COMPLETED'],
   'Agent Wallet': [
     'AGENT_BALANCE_CHANGED',
@@ -200,47 +204,97 @@ function EventTypeMultiSelect({
         ? 'All event types'
         : `${selectedTypes.length} types selected`;
 
+  // Search filter state
+  const [searchText, setSearchText] = React.useState('');
+
+  // References for positioning
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  // Filter event types based on search
+  const filteredCategories = React.useMemo(() => {
+    if (!searchText) return EVENT_TYPE_CATEGORIES;
+    const search = searchText.toLowerCase();
+    const filtered: Record<string, TelemetryEventType[]> = {};
+    for (const [category, types] of Object.entries(EVENT_TYPE_CATEGORIES)) {
+      const matchingTypes = types.filter((t) => t.toLowerCase().includes(search));
+      if (matchingTypes.length > 0) {
+        filtered[category] = matchingTypes;
+      }
+    }
+    return filtered;
+  }, [searchText]);
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-[180px] justify-between"
-        >
-          <span className="truncate">{displayText}</span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search event types..." />
-          <CommandList>
-            <CommandEmpty>No event type found.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem onSelect={handleSelectAll}>
-                <Check
-                  className={cn(
-                    'mr-2 h-4 w-4',
-                    selectedTypes.length === ALL_EVENT_TYPES.length ? 'opacity-100' : 'opacity-0'
-                  )}
-                />
-                Select All
-              </CommandItem>
-              <CommandItem onSelect={handleClearAll}>
-                <X className="mr-2 h-4 w-4 opacity-50" />
-                Clear All
-              </CommandItem>
-            </CommandGroup>
-            <CommandSeparator />
-            {Object.entries(EVENT_TYPE_CATEGORIES).map(([category, types]) => (
-              <CommandGroup key={category} heading={category}>
+    <div className="relative" ref={containerRef}>
+      <Button
+        variant="outline"
+        role="combobox"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="w-[180px] justify-between"
+      >
+        <span className="truncate">{displayText}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 w-[300px] rounded-md border bg-popover text-popover-foreground shadow-md">
+          {/* Search input */}
+          <div className="flex items-center border-b px-3 py-2">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <input
+              type="text"
+              placeholder="Search event types..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          {/* Options list */}
+          <div className="max-h-[300px] overflow-y-auto p-1">
+            {/* Select/Clear all */}
+            <div
+              className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+              onClick={handleSelectAll}
+            >
+              <Check
+                className={cn(
+                  'mr-2 h-4 w-4',
+                  selectedTypes.length === ALL_EVENT_TYPES.length ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+              Select All
+            </div>
+            <div
+              className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+              onClick={handleClearAll}
+            >
+              <X className="mr-2 h-4 w-4 opacity-50" />
+              Clear All
+            </div>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            {/* Categories */}
+            {Object.entries(filteredCategories).map(([category, types]) => (
+              <div key={category}>
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  {category}
+                </div>
                 {types.map((eventType) => (
-                  <CommandItem
+                  <div
                     key={eventType}
-                    value={eventType}
-                    onSelect={() => handleToggle(eventType)}
+                    className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                    onClick={() => handleToggle(eventType)}
                   >
                     <Check
                       className={cn(
@@ -250,18 +304,23 @@ function EventTypeMultiSelect({
                     />
                     <Badge
                       variant="secondary"
-                      className={`${EVENT_TYPE_COLORS[eventType] || 'bg-gray-500'} text-white text-xs mr-2`}
+                      className={`${EVENT_TYPE_COLORS[eventType] || 'bg-gray-500'} text-white text-xs`}
                     >
                       {eventType.replace(/_/g, ' ')}
                     </Badge>
-                  </CommandItem>
+                  </div>
                 ))}
-              </CommandGroup>
+              </div>
             ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+            {Object.keys(filteredCategories).length === 0 && (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                No event type found.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -405,6 +464,28 @@ export function FilterBar({ filters, onFilterChange, onReset, activeFilterCount 
             selectedTypes={filters.eventTypes}
             onSelectionChange={(types) => onFilterChange({ eventTypes: types })}
           />
+          {/* ILP Packets quick filter preset (Story 18.3 AC 5) */}
+          <Button
+            variant={
+              filters.eventTypes.length === ILP_PACKET_EVENT_TYPES.length &&
+              ILP_PACKET_EVENT_TYPES.every((t) => filters.eventTypes.includes(t))
+                ? 'secondary'
+                : 'outline'
+            }
+            size="sm"
+            onClick={() => {
+              const isIlpPacketsActive =
+                filters.eventTypes.length === ILP_PACKET_EVENT_TYPES.length &&
+                ILP_PACKET_EVENT_TYPES.every((t) => filters.eventTypes.includes(t));
+              onFilterChange({
+                eventTypes: isIlpPacketsActive ? [] : [...ILP_PACKET_EVENT_TYPES],
+              });
+            }}
+            className="gap-1.5"
+          >
+            <Zap className="h-4 w-4" />
+            ILP Packets
+          </Button>
           {/* Settlement quick filter preset (Story 14.6) */}
           <Button
             variant={

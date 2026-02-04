@@ -15,6 +15,87 @@ describe('AccountCard', () => {
     ...overrides,
   });
 
+  describe('NOC aesthetic styling (Story 18.4)', () => {
+    it('should display peer ID with monospace font', () => {
+      render(<AccountCard {...createDefaultProps()} />);
+
+      const peerIdElement = screen.getByText('peer-a');
+      expect(peerIdElement).toHaveClass('font-mono');
+    });
+
+    it('should display net balance prominently with tabular-nums', () => {
+      render(<AccountCard {...createDefaultProps({ netBalance: 1000n })} />);
+
+      // Find the element containing the formatted balance (1000n formats to "1.0K")
+      const netBalanceContainer = screen.getByText('1.0K');
+      // Should have text-3xl for prominent display and tabular-nums
+      expect(netBalanceContainer).toHaveClass('text-3xl');
+      expect(netBalanceContainer).toHaveClass('font-bold');
+      expect(netBalanceContainer).toHaveClass('tabular-nums');
+    });
+
+    it('should color net balance emerald when positive', () => {
+      render(<AccountCard {...createDefaultProps({ netBalance: 1000n })} />);
+
+      const netBalanceElement = screen.getByText('1.0K');
+      expect(netBalanceElement).toHaveClass('text-emerald-500');
+    });
+
+    it('should color net balance rose when negative', () => {
+      render(<AccountCard {...createDefaultProps({ netBalance: -1000n })} />);
+
+      const netBalanceElement = screen.getByText('-1.0K');
+      expect(netBalanceElement).toHaveClass('text-rose-500');
+    });
+
+    it('should color debit balance rose', () => {
+      const { container } = render(
+        <AccountCard {...createDefaultProps({ debitBalance: 1000n })} />
+      );
+
+      // Debit balance is in a specific section with rose-400 class
+      const debitElement = container.querySelector('.text-rose-400');
+      expect(debitElement).toBeInTheDocument();
+      expect(debitElement?.textContent).toBe('1.0K');
+    });
+
+    it('should color credit balance emerald', () => {
+      const { container } = render(
+        <AccountCard {...createDefaultProps({ creditBalance: 1000n })} />
+      );
+
+      // Credit balance is in a specific section with emerald-400 class
+      const creditElement = container.querySelector('.text-emerald-400');
+      expect(creditElement).toBeInTheDocument();
+      expect(creditElement?.textContent).toBe('1.0K');
+    });
+
+    it('should have card with NOC border hover effect', () => {
+      const { container } = render(<AccountCard {...createDefaultProps()} />);
+
+      const card = container.querySelector('[class*="hover:border-cyan"]');
+      expect(card).toBeInTheDocument();
+    });
+
+    it('should animate IN_PROGRESS settlement badge with pulse', () => {
+      render(
+        <AccountCard {...createDefaultProps({ settlementState: 'SETTLEMENT_IN_PROGRESS' })} />
+      );
+
+      const badge = screen.getByText('In Progress');
+      expect(badge).toHaveClass('animate-pulse');
+      expect(badge).toHaveClass('bg-cyan-500');
+    });
+
+    it('should apply hover-elevate class for card elevation effect (Story 18.7)', () => {
+      const { container } = render(<AccountCard {...createDefaultProps()} />);
+
+      // Card should have hover-elevate class for smooth hover elevation
+      const card = container.querySelector('.hover-elevate');
+      expect(card).toBeInTheDocument();
+    });
+  });
+
   describe('basic rendering', () => {
     it('renders peer ID and token ID correctly', () => {
       render(<AccountCard {...createDefaultProps()} />);
@@ -41,9 +122,10 @@ describe('AccountCard', () => {
         />
       );
 
-      expect(screen.getByText('We Owe')).toBeInTheDocument();
-      expect(screen.getByText('They Owe')).toBeInTheDocument();
-      expect(screen.getByText('Net')).toBeInTheDocument();
+      // NOC aesthetic: updated labels with parenthetical explanation
+      expect(screen.getByText('We Owe (Debit)')).toBeInTheDocument();
+      expect(screen.getByText('They Owe (Credit)')).toBeInTheDocument();
+      expect(screen.getByText('Net Balance')).toBeInTheDocument();
     });
 
     it('handles zero balances correctly', () => {
