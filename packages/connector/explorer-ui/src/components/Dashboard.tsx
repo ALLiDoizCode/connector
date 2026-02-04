@@ -13,6 +13,9 @@ import {
 } from 'lucide-react';
 import { TelemetryEvent, getIlpPacketType } from '../lib/event-types';
 import { cn } from '@/lib/utils';
+import { usePeers } from '../hooks/usePeers';
+import { useFeeStatistics } from '../hooks/useFeeStatistics';
+import { FeeStatistics } from './FeeStatistics';
 
 interface DashboardProps {
   events: TelemetryEvent[];
@@ -232,6 +235,12 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
     totalVolume: BigInt(0),
   });
 
+  // Fetch peer information for network detection
+  const { peers } = usePeers();
+
+  // Calculate fee statistics per network
+  const feeStats = useFeeStatistics(events, peers);
+
   const packetFlow = useMemo(() => {
     const flow: PacketFlowItem[] = [];
     let counter = 0;
@@ -410,6 +419,14 @@ export function Dashboard({ events, connectionStatus }: DashboardProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Fee Statistics by Network */}
+      <FeeStatistics
+        stats={feeStats.stats}
+        grandTotal={feeStats.grandTotalFormatted}
+        totalPackets={feeStats.totalPackets}
+        tokenSymbol={feeStats.tokenConfig.symbol}
+      />
 
       {/* Live Packet Flow */}
       <PacketFlowVisualization events={packetFlow} />
