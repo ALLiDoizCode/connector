@@ -290,6 +290,12 @@ describe('Multi-Chain Settlement Acceptance Tests', () => {
 
   describe('Mixed EVM+XRP Settlements', () => {
     it('should process mixed settlements in the same time window', async () => {
+      // Use zero failure rate for deterministic testing of concurrent mixed settlements
+      // The purpose of this test is to verify that mixed EVM+XRP settlements work correctly
+      // together, not to test failure tolerance (which is covered in other tests)
+      executor.setEvmFailureRate(0);
+      executor.setXrpFailureRate(0);
+
       const peers = Array.from({ length: PEER_COUNT }, (_, i) => `peer-mixed-${i}`);
       const results: MockSettlementResult[] = [];
 
