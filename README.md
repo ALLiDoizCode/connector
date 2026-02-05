@@ -172,6 +172,10 @@ The **Agent Runtime** handles ILP/SPSP/STREAM protocol complexity, allowing you 
 
 ### Quick Start
 
+> **📘 Full Guide:** See [Creating Your Own ILP Agent](docs/guides/creating-your-agent.md) for complete workflow options (separate repo, fork, monorepo).
+
+**You only implement the Business Logic** - the Connector and Agent Runtime are provided as pre-built components.
+
 #### 1. Create Your Business Logic Server
 
 Your server needs to implement two endpoints:
@@ -322,7 +326,7 @@ Called when SPSP endpoint is queried (before payment begins).
 ### Deploy with Docker Compose
 
 ```yaml
-# docker-compose.yml
+# docker-compose.yml (in your project root or separate repo)
 services:
   connector:
     image: ilp-connector
@@ -341,17 +345,27 @@ services:
       - business-logic
 
   business-logic:
+    # Path to YOUR business logic directory (relative to docker-compose.yml)
+    # Options:
+    #   build: .                    (if docker-compose.yml is in your business logic dir)
+    #   build: ./my-payment-handler (if in a subdirectory)
+    #   build: ./business-logic     (if you forked m2m and added business-logic/ folder)
     build: ./my-payment-handler
     ports:
       - '8080:8080'
 ```
 
 ```bash
-# Build and deploy
+# Option 1: If using pre-built images from this repo
 docker build -t ilp-connector .
 docker build -t agent-runtime -f packages/agent-runtime/Dockerfile .
 docker-compose up -d
+
+# Option 2: If images are published (future)
+# docker-compose up -d (will pull images automatically)
 ```
+
+**📘 See [Creating Your Own ILP Agent](docs/guides/creating-your-agent.md) for detailed workflow examples.**
 
 ### Deploy with Kubernetes
 
