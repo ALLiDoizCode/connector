@@ -26,6 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install libsql native module for Linux
+        run: |
+          # Force install the Linux x64 glibc native module for libsql
+          # This is needed because package-lock.json may have been generated on macOS
+          npm install @libsql/linux-x64-gnu --no-save --ignore-scripts || true
+          # Verify the module is available
+          ls -la node_modules/@libsql/linux-x64-gnu/ || echo "Native module installation may have failed, continuing..."
+
       - name: Build packages
         run: npm run build
 
