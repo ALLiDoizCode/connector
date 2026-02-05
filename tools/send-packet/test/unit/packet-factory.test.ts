@@ -3,7 +3,7 @@
  */
 
 import { createHash } from 'crypto';
-import { PacketType, ILPErrorCode } from '@m2m/shared';
+import { PacketType, ILPErrorCode } from '@agent-runtime/shared';
 import {
   createTestPreparePacket,
   createTestFulfillPacket,

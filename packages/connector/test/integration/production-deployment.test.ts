@@ -16,7 +16,7 @@ import fs from 'fs';
 
 const PRODUCTION_COMPOSE_FILE = 'docker-compose-production.yml';
 const DEV_COMPOSE_FILE = 'docker-compose.yml';
-const IMAGE_NAME = 'ilp-connector';
+const IMAGE_NAME = 'agent-runtime';
 const TEST_ENV_FILE = '.env.test';
 
 // Increase timeout for Docker Compose operations (3 minutes for production deployment)

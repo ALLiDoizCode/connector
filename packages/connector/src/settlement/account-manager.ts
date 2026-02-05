@@ -20,7 +20,7 @@
 
 import { Logger } from 'pino';
 import { AccountFlags, Transfer, TransferFlags } from 'tigerbeetle-node';
-import { SettlementState } from '@m2m/shared';
+import { SettlementState } from '@agent-runtime/shared';
 import { TigerBeetleClient } from './tigerbeetle-client';
 import { TigerBeetleAccountError } from './tigerbeetle-errors';
 import { generateAccountId } from './account-id-generator';

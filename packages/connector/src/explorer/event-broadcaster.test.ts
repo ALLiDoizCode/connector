@@ -6,7 +6,7 @@
 
 import WebSocket, { WebSocketServer } from 'ws';
 import { EventBroadcaster } from './event-broadcaster';
-import { TelemetryEvent, AccountBalanceEvent, SettlementState } from '@m2m/shared';
+import { TelemetryEvent, AccountBalanceEvent, SettlementState } from '@agent-runtime/shared';
 import pino from 'pino';
 import { createServer, Server as HTTPServer } from 'http';
 

@@ -4,7 +4,7 @@
  * @see {@link https://github.com/interledger/rfcs/blob/master/0027-interledger-protocol-4/0027-interledger-protocol-4.md|RFC-0027: Interledger Protocol v4}
  */
 
-import { ILPAddress, RoutingTableEntry, isValidILPAddress } from '@m2m/shared';
+import { ILPAddress, RoutingTableEntry, isValidILPAddress } from '@agent-runtime/shared';
 
 /**
  * In-memory routing table implementing longest-prefix matching per RFC-0027

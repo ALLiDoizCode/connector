@@ -14,7 +14,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 
 /**
  * Create valid ILP Prepare packet for testing

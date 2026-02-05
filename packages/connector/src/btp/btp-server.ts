@@ -15,7 +15,7 @@ import {
   ILPFulfillPacket,
   ILPRejectPacket,
   PacketType,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 
 /**
  * BTP peer connection metadata

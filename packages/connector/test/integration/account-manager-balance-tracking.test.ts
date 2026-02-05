@@ -22,7 +22,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
-import { AccountBalanceEvent } from '@m2m/shared';
+import { AccountBalanceEvent } from '@agent-runtime/shared';
 import { createLogger } from '../../src/utils/logger';
 import { AccountManager } from '../../src/settlement/account-manager';
 import { TigerBeetleClient } from '../../src/settlement/tigerbeetle-client';

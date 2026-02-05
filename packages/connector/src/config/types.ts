@@ -1298,7 +1298,7 @@ export interface PerformanceConfig {
  *   },
  *   opentelemetry: {
  *     enabled: true,
- *     serviceName: 'ilp-connector',
+ *     serviceName: 'agent-runtime',
  *     exporterEndpoint: 'http://jaeger:4318/v1/traces',
  *     samplingRatio: 1.0
  *   },
@@ -1389,7 +1389,7 @@ export interface ExplorerConfig {
  *   },
  *   opentelemetry: {
  *     enabled: true,
- *     serviceName: 'ilp-connector',
+ *     serviceName: 'agent-runtime',
  *     exporterEndpoint: 'http://jaeger:4318/v1/traces',
  *     samplingRatio: 1.0
  *   },
@@ -1423,7 +1423,7 @@ export interface ObservabilityConfig {
    * Enables distributed tracing across connector hops via OTLP
    *
    * @property enabled - Whether tracing is enabled (default: false)
-   * @property serviceName - Service name for traces (default: 'ilp-connector')
+   * @property serviceName - Service name for traces (default: 'agent-runtime')
    * @property exporterEndpoint - OTLP exporter endpoint (default: http://localhost:4318)
    * @property samplingRatio - Trace sampling ratio 0.0-1.0 (default: 1.0)
    */

@@ -14,7 +14,7 @@ import {
   AgentChannelPaymentSentEvent,
   XRPChannelOpenedEvent,
   PaymentChannelOpenedEvent,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 import pino from 'pino';
 
 // Create mock logger for testing

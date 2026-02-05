@@ -22,7 +22,7 @@ import {
 import type { IAptosChannelSDK } from '../../src/settlement/aptos-channel-sdk';
 import type { AptosClaim } from '../../src/settlement/aptos-claim-signer';
 import type { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
-import type { AptosSettlementTelemetryEvent } from '@m2m/shared';
+import type { AptosSettlementTelemetryEvent } from '@agent-runtime/shared';
 
 // Test logger
 const logger = pino({ level: process.env.TEST_LOG_LEVEL || 'silent' });

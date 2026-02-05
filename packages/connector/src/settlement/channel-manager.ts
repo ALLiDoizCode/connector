@@ -7,7 +7,7 @@ import type {
   PaymentChannelOpenedEvent,
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 
 /**
  * ChannelManager configuration

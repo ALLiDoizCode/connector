@@ -13,7 +13,7 @@ import {
   PacketType,
   ILPErrorCode,
   isValidILPAddress,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 
 /**
  * Result from creating a test Prepare packet

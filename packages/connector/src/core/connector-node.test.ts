@@ -10,7 +10,7 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPServer } from '../btp/btp-server';
 import { PacketHandler } from './packet-handler';
 import { Logger } from '../utils/logger';
-import { RoutingTableEntry } from '@m2m/shared';
+import { RoutingTableEntry } from '@agent-runtime/shared';
 import { ConfigLoader } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 

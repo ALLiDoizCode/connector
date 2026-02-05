@@ -13,7 +13,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 import { LocalDeliveryConfig } from '../config/types';
 
 /**

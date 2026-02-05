@@ -4,7 +4,7 @@
  */
 
 import { RoutingTable } from './routing-table';
-import { RoutingTableEntry } from '@m2m/shared';
+import { RoutingTableEntry } from '@agent-runtime/shared';
 
 /**
  * Mock logger for testing log output without console noise

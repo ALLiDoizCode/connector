@@ -28,7 +28,7 @@ export interface PrometheusMetricsConfig {
 export interface OpenTelemetryConfig {
   /** Whether tracing is enabled */
   enabled: boolean;
-  /** Service name for traces (e.g., 'ilp-connector') */
+  /** Service name for traces (e.g., 'agent-runtime') */
   serviceName: string;
   /** OTLP exporter endpoint (default: http://localhost:4318) */
   exporterEndpoint?: string;

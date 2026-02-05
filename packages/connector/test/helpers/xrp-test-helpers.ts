@@ -12,7 +12,7 @@
 
 import { Client, Wallet, Payment } from 'xrpl';
 import { WebSocket } from 'ws';
-import { TelemetryEvent } from '@m2m/shared';
+import { TelemetryEvent } from '@agent-runtime/shared';
 
 /**
  * Check rippled health before running tests

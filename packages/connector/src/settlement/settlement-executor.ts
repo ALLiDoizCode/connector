@@ -25,7 +25,7 @@
 import EventEmitter from 'events';
 import { Logger } from 'pino';
 import { SettlementTriggerEvent } from '../config/types';
-import { BalanceProof } from '@m2m/shared';
+import { BalanceProof } from '@agent-runtime/shared';
 import { AccountManager } from './account-manager';
 import { PaymentChannelSDK } from './payment-channel-sdk';
 import { SettlementMonitor } from './settlement-monitor';

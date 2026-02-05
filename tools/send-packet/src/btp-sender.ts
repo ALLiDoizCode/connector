@@ -13,7 +13,7 @@ import {
   ILPRejectPacket,
   serializePacket,
   deserializePacket,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 
 // Copy essential BTP types locally since we don't export them from connector
 enum BTPMessageType {

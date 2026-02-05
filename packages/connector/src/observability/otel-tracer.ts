@@ -28,7 +28,7 @@ import { OpenTelemetryConfig } from './types';
  */
 const DEFAULT_CONFIG: OpenTelemetryConfig = {
   enabled: false,
-  serviceName: 'ilp-connector',
+  serviceName: 'agent-runtime',
   exporterEndpoint: 'http://localhost:4318/v1/traces',
   samplingRatio: 1.0,
 };

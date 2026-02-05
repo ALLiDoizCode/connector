@@ -15,7 +15,7 @@ import { promisify } from 'util';
 // @ts-ignore - Used in E2E tests (skipped in CI)
 const execAsync = promisify(exec);
 
-const IMAGE_NAME = 'ilp-connector-integration-test';
+const IMAGE_NAME = 'agent-runtime-integration-test';
 const CONTAINER_PREFIX = 'ilp-test-container';
 
 // Increase timeout for Docker operations (30 seconds)

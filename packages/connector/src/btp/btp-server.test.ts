@@ -15,7 +15,7 @@ import {
   PacketType,
   ILPErrorCode,
   serializePacket,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 import WebSocket, { WebSocketServer } from 'ws';
 import { EventEmitter } from 'events';
 

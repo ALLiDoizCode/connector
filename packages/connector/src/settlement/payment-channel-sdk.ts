@@ -15,7 +15,7 @@ import type {
   ChannelClosedEvent,
   ChannelSettledEvent,
   ChannelCooperativeSettledEvent,
-} from '@m2m/shared';
+} from '@agent-runtime/shared';
 import { getDomainSeparator, getBalanceProofTypes } from './eip712-helper';
 import type { Logger } from '../utils/logger';
 import type { KeyManager } from '../security/key-manager';

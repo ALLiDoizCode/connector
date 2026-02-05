@@ -5,7 +5,7 @@
 
 import { Logger } from '../utils/logger';
 import { BTPClient, Peer, BTPConnectionError } from './btp-client';
-import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
 import type { PacketHandler } from '../core/packet-handler';
 
 /**

@@ -14,7 +14,7 @@ import { execSync } from 'child_process';
 import path from 'path';
 
 const COMPOSE_FILE = 'docker-compose.yml';
-const IMAGE_NAME = 'ilp-connector';
+const IMAGE_NAME = 'agent-runtime';
 
 // Increase timeout for Docker Compose operations (60 seconds)
 jest.setTimeout(60000);

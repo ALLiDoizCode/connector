@@ -11,7 +11,7 @@
  */
 
 import { createClient, Client } from '@libsql/client';
-import { TelemetryEvent } from '@m2m/shared';
+import { TelemetryEvent } from '@agent-runtime/shared';
 import { Logger } from '../utils/logger';
 
 /**

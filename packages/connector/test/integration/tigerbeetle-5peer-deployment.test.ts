@@ -10,7 +10,7 @@
  *
  * Prerequisites:
  * - Docker and Docker Compose installed
- * - Built connector image: docker build -t ilp-connector .
+ * - Built connector image: docker build -t agent-runtime .
  * - Linux host with io_uring support (required by TigerBeetle)
  *
  * Note: TigerBeetle requires Linux with io_uring support. These tests will be

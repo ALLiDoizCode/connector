@@ -7,7 +7,7 @@
 
 import { Command } from 'commander';
 import pino from 'pino';
-import { PacketType } from '@m2m/shared';
+import { PacketType } from '@agent-runtime/shared';
 import { createTestPreparePacket } from './packet-factory';
 import { BTPSender } from './btp-sender';
 

@@ -9,7 +9,7 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPServer } from '../btp/btp-server';
 import { PacketHandler } from './packet-handler';
 import { Peer } from '../btp/btp-client';
-import { RoutingTableEntry, ILPAddress } from '@m2m/shared';
+import { RoutingTableEntry, ILPAddress } from '@agent-runtime/shared';
 import { ConnectorConfig, SettlementConfig } from '../config/types';
 import { ConfigLoader, ConfigurationError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
