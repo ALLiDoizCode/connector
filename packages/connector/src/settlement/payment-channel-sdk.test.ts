@@ -140,6 +140,7 @@ describe('PaymentChannelSDK', () => {
       approve: jest.fn().mockResolvedValue({
         wait: jest.fn().mockResolvedValue({ hash: '0xtxhash' }),
       }),
+      allowance: jest.fn().mockResolvedValue(0n), // Default to 0 allowance
     } as unknown as jest.Mocked<ethers.Contract>;
 
     // Mock logger
@@ -170,10 +171,11 @@ describe('PaymentChannelSDK', () => {
       .fn()
       .mockReturnValue('0x1234567890123456789012345678901234567890123456789012345678901234');
 
-    // Mock ethers.ZeroAddress and ZeroHash
+    // Mock ethers.ZeroAddress, ZeroHash, and MaxUint256
     (ethers.ZeroAddress as string) = '0x0000000000000000000000000000000000000000';
     (ethers.ZeroHash as string) =
       '0x0000000000000000000000000000000000000000000000000000000000000000';
+    (ethers.MaxUint256 as bigint) = 2n ** 256n - 1n;
 
     // Create SDK instance
     sdk = new PaymentChannelSDK(
