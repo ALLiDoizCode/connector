@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0](https://github.com/ALLiDoizCode/m2m/compare/v1.5.0...v1.6.0) (2026-02-05)
+
+### Features
+
+- add Epic 28-30 - testnet integration, explorer links, balance proofs ([dcbbdd9](https://github.com/ALLiDoizCode/m2m/commit/dcbbdd9751688d334c86e6034a55412d93f4611f))
+- add Epics 29-32 - UI components, balance proofs, workflow demo, private messaging ([a573b08](https://github.com/ALLiDoizCode/m2m/commit/a573b082d5d7d4626ba7c50b6e44576e00c8bb43))
+- add NETWORK_MODE flag for testnet/mainnet switching ([4e0b247](https://github.com/ALLiDoizCode/m2m/commit/4e0b24793280d34d948e38825932bba6be7527dc))
+- add production-ready Docker Compose and Kubernetes deployments ([ec2745f](https://github.com/ALLiDoizCode/m2m/commit/ec2745f780818ca081b8ff30ad6d46fa2db48531))
+- **agent-runtime:** add Agent Runtime package for custom business logic integration ([7116509](https://github.com/ALLiDoizCode/m2m/commit/7116509f788cc9c56314d370af87900dbed63732))
+- complete deployment testing - Docker Compose and Kubernetes verified ([347a82f](https://github.com/ALLiDoizCode/m2m/commit/347a82ff7e00821cd57c052b800be1c2566ee347))
+- **connector:** add Admin API for dynamic peer and route management ([3439a99](https://github.com/ALLiDoizCode/m2m/commit/3439a992a56f235fc13ef312fb793b967e2aa305))
+- **epic-17:** complete Story 17.6 - Telemetry and Monitoring ([c222ca7](https://github.com/ALLiDoizCode/m2m/commit/c222ca71e8aa5a7a06888cc6999c71cea0b3bfd2))
+- **epic-17:** implement Story 17.7 - BTP Claim Exchange Integration Tests ([146ee70](https://github.com/ALLiDoizCode/m2m/commit/146ee7030e74745d20bc5d1c6439a1fedfdca1a1))
+- **epic-17:** reorganize epics 11-15 and add Epic 16-17 ([2dcf8e2](https://github.com/ALLiDoizCode/m2m/commit/2dcf8e2881ff77c1ee41080105afb1b8eaf177ce))
+- **epic-18,19:** complete Explorer UI NOC redesign and deployment improvements ([7871746](https://github.com/ALLiDoizCode/m2m/commit/787174628398dca730754b16d866b68a8ca04499))
+- **epic-18:** create Epic 18 - Explorer UI NOC Redesign ([3d7accf](https://github.com/ALLiDoizCode/m2m/commit/3d7accf22c4703f30993dd835f9b0af711ceab92)), closes [#0D1829](https://github.com/ALLiDoizCode/m2m/issues/0D1829)
+- **epic-19:** implement M2M token funding and fix Explorer UI peer tracking ([dffde6d](https://github.com/ALLiDoizCode/m2m/commit/dffde6d689c53b58f2460565dc8b407ed66f591c))
+- **epic-20:** add zkVM verification and agent service markets ([cea9e56](https://github.com/ALLiDoizCode/m2m/commit/cea9e567c30c844e0efa784734456d5f0a193485))
+- **epic-27:** implement Aptos payment channel settlement ([56bb455](https://github.com/ALLiDoizCode/m2m/commit/56bb4550d6911ba3e28284e76d16155115e55ff8))
+- **epic-28:** add Aptos multi-arch Docker build files ([c28c5a2](https://github.com/ALLiDoizCode/m2m/commit/c28c5a2054c76c61c150d1039ed8cdc13c7de7df))
+- **epic-28:** add ARM64 Aptos Docker image epic ([fa2c9d7](https://github.com/ALLiDoizCode/m2m/commit/fa2c9d7e5084a785dabaab260c69e93abbc06035))
+- **explorer:** add fee statistics by network with token denomination ([33b04db](https://github.com/ALLiDoizCode/m2m/commit/33b04db714fb5830e736a39a92d0307d453e3112))
+- **scripts:** add agent runtime testing to 5-peer deployment script ([55f1d28](https://github.com/ALLiDoizCode/m2m/commit/55f1d28e7e8036241deb4db2da37bde24a8cd6e6))
+- **tri-chain:** enhance 5-peer multihop with tri-chain configuration ([88e49b0](https://github.com/ALLiDoizCode/m2m/commit/88e49b069fc449cd53de0f6d9653c2916406aba1))
+
+### Bug Fixes
+
+- **ci:** filter Aptos tests to channel module and fix rippled config ([bdb953f](https://github.com/ALLiDoizCode/m2m/commit/bdb953ff422dac1bd4ae4e88bea7923bf790b774))
+- **ci:** fix Aptos SDK tests and make npm audit advisory ([9574d23](https://github.com/ALLiDoizCode/m2m/commit/9574d234629f787ae15abb72bb34e8016f2ec1a0))
+- **ci:** make security job advisory in CI status check ([9376d27](https://github.com/ALLiDoizCode/m2m/commit/9376d271a9f53b0678b573f667ca3b6ef6a01745))
+- **ci:** make Snyk scan continue-on-error ([2a7c902](https://github.com/ALLiDoizCode/m2m/commit/2a7c90245ce57d33715244253ca653899bf11c80))
+- **ci:** resolve Aptos Move address conflict and add docker-compose-dev.yml ([55f0028](https://github.com/ALLiDoizCode/m2m/commit/55f00287e45053db437966e45b2fcaca1a4adfcc))
+- **ci:** skip integration tests with missing type dependencies ([16e544b](https://github.com/ALLiDoizCode/m2m/commit/16e544b5b99445f9ed3dc7d1a7e63e3137a6b78c))
+- **ci:** skip tigerbeetle-5peer-deployment.test.ts ([42f76cf](https://github.com/ALLiDoizCode/m2m/commit/42f76cf10f9b61353266a28974dd84b877840033))
+- **docker-compose:** enable TigerBeetle and settlement in production ([5c7c490](https://github.com/ALLiDoizCode/m2m/commit/5c7c490327eee655302d6af67ef3341d09c0eb9a))
+- **docs:** include data and expiresAt fields in business logic examples ([4a1d179](https://github.com/ALLiDoizCode/m2m/commit/4a1d179030dd45b0f8b49872fc0e015b79bd021e))
+- **epic-17:** complete Story 17.7 - all integration tests passing (10/10) ([48b489a](https://github.com/ALLiDoizCode/m2m/commit/48b489a3eb0812a509d6834191d6bdce4629dd52))
+- **telemetry:** check WebSocket state before closing in disconnect ([61fcd28](https://github.com/ALLiDoizCode/m2m/commit/61fcd28dcade2a156ad9dd2fdd77afeec96831ab))
+- update tests for openChannel return type and add K8s TigerBeetle manifests ([7f1aa8e](https://github.com/ALLiDoizCode/m2m/commit/7f1aa8ee70488ac1071a6c6523bfae7d90d643a6))
+
 ## [1.6.0](https://github.com/ALLiDoizCode/m2m/compare/v1.5.0...v1.6.0) (2026-02-03)
 
 ### Features
