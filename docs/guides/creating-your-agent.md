@@ -714,6 +714,558 @@ curl -X POST http://localhost:3100/.well-known/pay
 
 ---
 
+## Kubernetes Deployment
+
+Deploying your agent on Kubernetes requires creating manifests for your business logic and configuring the connector and agent runtime.
+
+### Prerequisites
+
+- Kubernetes cluster (1.25+)
+- kubectl configured
+- Docker image registry (Docker Hub, GitHub Container Registry, etc.)
+
+### Step 1: Build and Push Your Business Logic Image
+
+```bash
+# Build your business logic image
+docker build -t your-registry/my-business-logic:latest .
+
+# Push to registry
+docker push your-registry/my-business-logic:latest
+```
+
+### Step 2: Create Kubernetes Manifests
+
+Create a `k8s/` directory in your project:
+
+```
+my-ilp-agent/
+├── k8s/
+│   ├── namespace.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── configmap.yaml
+├── src/
+└── Dockerfile
+```
+
+#### namespace.yaml
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-agent
+  labels:
+    app: my-ilp-agent
+```
+
+#### deployment.yaml
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: business-logic
+  namespace: my-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: business-logic
+  template:
+    metadata:
+      labels:
+        app: business-logic
+    spec:
+      containers:
+        - name: business-logic
+          image: your-registry/my-business-logic:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: '8080'
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: business-logic-secrets
+                  key: database-url
+          resources:
+            requests:
+              memory: '128Mi'
+              cpu: '100m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+```
+
+#### service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: business-logic
+  namespace: my-agent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: business-logic
+```
+
+#### configmap.yaml
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-logic-config
+  namespace: my-agent
+data:
+  PORT: '8080'
+  LOG_LEVEL: 'info'
+```
+
+### Step 3: Deploy Agent Runtime
+
+The agent runtime connects your business logic to the ILP connector.
+
+#### Update Agent Runtime ConfigMap
+
+```bash
+# Create/update the agent-runtime configmap to point to your business logic
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-runtime-config
+  namespace: m2m-agent-runtime
+data:
+  BASE_ADDRESS: "g.connector.myagent"
+  BUSINESS_LOGIC_URL: "http://business-logic.my-agent.svc.cluster.local:8080"
+  BUSINESS_LOGIC_TIMEOUT: "5000"
+  PORT: "3100"
+  SPSP_ENABLED: "true"
+  SESSION_TTL_MS: "3600000"
+  LOG_LEVEL: "info"
+EOF
+```
+
+#### Deploy Agent Runtime
+
+```bash
+# Deploy the agent runtime from the m2m repo
+kubectl apply -k /path/to/m2m/k8s/agent-runtime
+```
+
+### Step 4: Configure Connector for Local Delivery
+
+Update the connector deployment to enable local delivery:
+
+```bash
+# Option A: Using kubectl set env
+kubectl -n m2m-connector set env deployment/connector \
+  LOCAL_DELIVERY_ENABLED=true \
+  LOCAL_DELIVERY_URL=http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100
+
+# Option B: Patch the deployment
+kubectl -n m2m-connector patch deployment connector --type=json -p='[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "LOCAL_DELIVERY_ENABLED",
+      "value": "true"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "LOCAL_DELIVERY_URL",
+      "value": "http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100"
+    }
+  }
+]'
+```
+
+#### Or Update Connector ConfigMap
+
+```yaml
+# k8s/connector/base/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: connector-config
+  namespace: m2m-connector
+data:
+  # ... existing config ...
+  LOCAL_DELIVERY_ENABLED: 'true'
+  LOCAL_DELIVERY_URL: 'http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100'
+```
+
+Then apply:
+
+```bash
+kubectl apply -k k8s/connector/base
+```
+
+### Step 5: Deploy Your Business Logic
+
+```bash
+# Deploy your business logic
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/deployment.yaml
+
+# Or use kustomize
+kubectl apply -k k8s/
+```
+
+### Step 6: Verify Deployment
+
+```bash
+# Check all pods are running
+kubectl get pods -n my-agent
+kubectl get pods -n m2m-agent-runtime
+kubectl get pods -n m2m-connector
+
+# Check logs
+kubectl -n my-agent logs -f deployment/business-logic
+kubectl -n m2m-agent-runtime logs -f deployment/agent-runtime
+kubectl -n m2m-connector logs -f deployment/connector
+
+# Test SPSP endpoint
+kubectl -n m2m-agent-runtime port-forward svc/agent-runtime 3100:3100
+curl http://localhost:3100/.well-known/pay
+```
+
+### Step 7: Add Routes to Connector
+
+Add a route to send packets to your agent:
+
+```yaml
+# connector-config.yaml
+routes:
+  - prefix: g.connector.myagent
+    nextHop: local
+    priority: 100
+```
+
+Or use the Admin API:
+
+```bash
+# Port-forward admin API
+kubectl -n m2m-connector port-forward svc/connector 8081:8081
+
+# Add route dynamically
+curl -X POST http://localhost:8081/routes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prefix": "g.connector.myagent",
+    "nextHop": "local",
+    "priority": 100
+  }'
+```
+
+---
+
+## Kubernetes Architecture
+
+### Single Agent
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Namespace: m2m-connector                            │
+│                                                     │
+│  ┌──────────────────────────────────────┐          │
+│  │ Deployment: connector                │          │
+│  │ - LOCAL_DELIVERY_ENABLED=true        │          │
+│  │ - LOCAL_DELIVERY_URL=http://agent... │          │
+│  └──────────────────────────────────────┘          │
+└─────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│ Namespace: m2m-agent-runtime                        │
+│                                                     │
+│  ┌──────────────────────────────────────┐          │
+│  │ Deployment: agent-runtime            │          │
+│  │ - BUSINESS_LOGIC_URL=http://...      │          │
+│  └──────────────────────────────────────┘          │
+└─────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│ Namespace: my-agent (YOUR CODE)                     │
+│                                                     │
+│  ┌──────────────────────────────────────┐          │
+│  │ Deployment: business-logic           │          │
+│  │ - Your implementation                │          │
+│  └──────────────────────────────────────┘          │
+└─────────────────────────────────────────────────────┘
+```
+
+### Multi-Agent Setup
+
+For multiple agents, deploy multiple instances:
+
+```bash
+# Agent 1
+kubectl apply -k agent-1/k8s/
+kubectl apply -k k8s/agent-runtime-1/
+
+# Agent 2
+kubectl apply -k agent-2/k8s/
+kubectl apply -k k8s/agent-runtime-2/
+
+# Shared connector
+kubectl apply -k k8s/connector/
+```
+
+Update connector routes to handle both:
+
+```yaml
+routes:
+  - prefix: g.connector.agent1
+    nextHop: local # Routes to agent-runtime-1
+  - prefix: g.connector.agent2
+    nextHop: local # Routes to agent-runtime-2
+```
+
+---
+
+## Production Considerations
+
+### Resource Limits
+
+Adjust based on your traffic:
+
+```yaml
+resources:
+  requests:
+    memory: '256Mi'
+    cpu: '200m'
+  limits:
+    memory: '1Gi'
+    cpu: '1000m'
+```
+
+### Horizontal Pod Autoscaling
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: business-logic-hpa
+  namespace: my-agent
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: business-logic
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+```
+
+### Network Policies
+
+Restrict traffic between components:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: business-logic-netpol
+  namespace: my-agent
+spec:
+  podSelector:
+    matchLabels:
+      app: business-logic
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow agent-runtime to call business logic
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: m2m-agent-runtime
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: m2m-agent-runtime
+      ports:
+        - protocol: TCP
+          port: 8080
+```
+
+### Secrets Management
+
+**Option A: Kubernetes Secrets**
+
+```bash
+kubectl -n my-agent create secret generic business-logic-secrets \
+  --from-literal=database-url=postgresql://... \
+  --from-literal=api-key=...
+```
+
+**Option B: External Secrets Operator**
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: business-logic-secrets
+  namespace: my-agent
+spec:
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: business-logic-secrets
+  data:
+    - secretKey: database-url
+      remoteRef:
+        key: my-agent/database-url
+```
+
+---
+
+## Complete Kubernetes Example
+
+Here's a complete example for deploying your agent to Kubernetes:
+
+### Directory Structure
+
+```
+my-ilp-agent/
+├── k8s/
+│   ├── namespace.yaml
+│   ├── secret.yaml
+│   ├── configmap.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── hpa.yaml
+│   └── kustomization.yaml
+├── src/
+│   └── server.ts
+├── Dockerfile
+└── README.md
+```
+
+### kustomization.yaml
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: my-agent
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+
+images:
+  - name: business-logic
+    newName: your-registry/my-business-logic
+    newTag: latest
+```
+
+### Deploy Everything
+
+```bash
+# Build and push your image
+docker build -t your-registry/my-business-logic:latest .
+docker push your-registry/my-business-logic:latest
+
+# Deploy your business logic
+kubectl apply -k k8s/
+
+# Deploy agent runtime (if not already deployed)
+kubectl apply -k /path/to/m2m/k8s/agent-runtime
+
+# Update agent-runtime to point to your business logic
+kubectl -n m2m-agent-runtime patch configmap agent-runtime-config \
+  --type merge \
+  -p '{"data":{"BUSINESS_LOGIC_URL":"http://business-logic.my-agent.svc.cluster.local:8080"}}'
+
+# Restart agent-runtime to pick up new config
+kubectl -n m2m-agent-runtime rollout restart deployment/agent-runtime
+
+# Deploy/update connector (if not already deployed)
+kubectl apply -k /path/to/m2m/k8s/connector
+
+# Configure connector for local delivery
+kubectl -n m2m-connector set env deployment/connector \
+  LOCAL_DELIVERY_ENABLED=true \
+  LOCAL_DELIVERY_URL=http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100
+
+# Verify everything is running
+kubectl get pods -n my-agent
+kubectl get pods -n m2m-agent-runtime
+kubectl get pods -n m2m-connector
+```
+
+### Cross-Namespace Service Discovery
+
+Kubernetes DNS format for cross-namespace communication:
+
+```
+http://[service-name].[namespace].svc.cluster.local:[port]
+```
+
+**Examples:**
+
+- Business Logic → Database: `postgresql://db.my-agent.svc.cluster.local:5432/mydb`
+- Agent Runtime → Business Logic: `http://business-logic.my-agent.svc.cluster.local:8080`
+- Connector → Agent Runtime: `http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100`
+
+### Using Helm (Advanced)
+
+Create a Helm chart for easier deployment:
+
+```bash
+# Create Helm chart
+helm create my-agent
+
+# Edit values.yaml
+# Deploy
+helm install my-agent ./my-agent \
+  --namespace my-agent \
+  --create-namespace \
+  --set image.repository=your-registry/my-business-logic \
+  --set image.tag=latest
+```
+
+---
+
 ## Summary: Where Does Your Code Go?
 
 | Approach          | Your Code Location       | docker-compose.yml           | Pros                            |
