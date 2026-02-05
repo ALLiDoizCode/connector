@@ -716,6 +716,8 @@ curl -X POST http://localhost:3100/.well-known/pay
 
 ## Kubernetes Deployment
 
+> **📘 Complete K8s Guide:** See [Kubernetes Agent Deployment with TigerBeetle](k8s-agent-deployment.md) for the full production deployment guide including TigerBeetle replica configuration, kustomize overlays, and monitoring.
+
 Deploying your agent on Kubernetes requires creating manifests for your business logic and configuring the connector and agent runtime.
 
 ### Prerequisites
