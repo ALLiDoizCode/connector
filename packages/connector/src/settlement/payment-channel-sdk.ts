@@ -44,8 +44,11 @@ const TOKEN_NETWORK_ABI = [
   'event ChannelCooperativeSettled(bytes32 indexed channelId, uint256 participant1Amount, uint256 participant2Amount)',
 ];
 
-// Standard ERC20 ABI for approvals
-const ERC20_ABI = ['function approve(address spender, uint256 amount) external returns (bool)'];
+// Standard ERC20 ABI for approvals and allowance checks
+const ERC20_ABI = [
+  'function approve(address spender, uint256 amount) external returns (bool)',
+  'function allowance(address owner, address spender) external view returns (uint256)',
+];
 
 /**
  * Custom error for challenge period not expired
@@ -294,18 +297,39 @@ export class PaymentChannelSDK {
       newTotalDeposit: newTotalDeposit.toString(),
     });
 
-    // Approve tokens for TokenNetwork contract
-    // Must approve newTotalDeposit (not just amount) because setTotalDeposit transfers the full total
+    // Check current allowance and approve if needed
+    // Use max uint256 approval to avoid repeated approvals for each deposit
     const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer);
     const tokenNetworkAddress = await tokenNetwork.getAddress();
-    const approveTx = await token.approve!(tokenNetworkAddress, newTotalDeposit);
-    await approveTx.wait();
+    const currentAllowance = (await token.allowance!(myAddress, tokenNetworkAddress)) as bigint;
 
-    this.logger.debug('Token approval confirmed', {
-      channelId,
-      approvedAmount: newTotalDeposit.toString(),
-      txHash: approveTx.hash,
-    });
+    // Approve max uint256 if current allowance is insufficient
+    // This avoids race conditions with multiple concurrent settlements
+    if (currentAllowance < newTotalDeposit) {
+      const maxApproval = ethers.MaxUint256;
+      this.logger.info('Approving max token allowance for TokenNetwork', {
+        channelId,
+        currentAllowance: currentAllowance.toString(),
+        requiredAmount: newTotalDeposit.toString(),
+        approvalAmount: 'max uint256',
+        tokenNetworkAddress,
+      });
+
+      const approveTx = await token.approve!(tokenNetworkAddress, maxApproval);
+      await approveTx.wait();
+
+      this.logger.debug('Token approval confirmed', {
+        channelId,
+        approvedAmount: 'max uint256',
+        txHash: approveTx.hash,
+      });
+    } else {
+      this.logger.debug('Sufficient token allowance already exists', {
+        channelId,
+        currentAllowance: currentAllowance.toString(),
+        requiredAmount: newTotalDeposit.toString(),
+      });
+    }
 
     // Call setTotalDeposit
     const tx = await tokenNetwork.setTotalDeposit!(channelId, myAddress, newTotalDeposit);
