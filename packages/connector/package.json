@@ -1,11 +1,11 @@
 {
-  "name": "@m2m/connector",
+  "name": "@agent-runtime/connector",
   "version": "0.1.0",
-  "description": "ILP Connector with BTP support",
+  "description": "Connector with BTP support and tri-chain settlement",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "m2m-connector": "./dist/cli/index.js"
+    "agent-runtime": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "npm run build:ui && tsc",
@@ -48,7 +48,7 @@
     "@azure/keyvault-keys": "^4.8.0",
     "@google-cloud/kms": "^3.2.0",
     "@libsql/client": "0.14.0",
-    "@m2m/shared": "*",
+    "@agent-runtime/shared": "*",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.52.0",
     "@opentelemetry/resources": "^1.25.0",

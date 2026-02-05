@@ -1,7 +1,7 @@
 {
-  "name": "@m2m/shared",
+  "name": "@agent-runtime/shared",
   "version": "0.1.0",
-  "description": "Shared TypeScript types and utilities for ILP protocol",
+  "description": "Shared TypeScript types and utilities for Agent Runtime",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
