@@ -52,19 +52,30 @@ app.use(express.json());
  * - Streaming: Accept payment chunks for ongoing service
  */
 async function handlePayment(request: PaymentRequest): Promise<PaymentResponse> {
-  const { paymentId, amount, destination, metadata } = request;
+  const { paymentId, amount, destination, data, expiresAt, metadata } = request;
 
   // eslint-disable-next-line no-console
   console.log('Payment received:', {
     paymentId,
     amount,
     destination,
+    hasData: !!data,
+    expiresAt,
     metadata,
   });
 
   // --------------------------------------------------------
   // TODO: Implement your business logic here
   // --------------------------------------------------------
+
+  // Optional: Decode the STREAM data if present
+  if (data) {
+    const streamData = Buffer.from(data, 'base64');
+    // Process STREAM protocol data (invoices, receipts, application data, etc.)
+    // Example: const invoice = JSON.parse(streamData.toString('utf8'));
+    // eslint-disable-next-line no-console
+    console.log('Received STREAM data:', streamData.length, 'bytes');
+  }
 
   // Example 1: Accept all payments under a limit
   const amountBigInt = BigInt(amount);

@@ -206,13 +206,20 @@ Edit `src/server.ts` and implement the `handlePayment` function:
 
 ```typescript
 async function handlePayment(request: PaymentRequest): Promise<PaymentResponse> {
-  const { paymentId, amount, destination, metadata } = request;
+  const { paymentId, amount, destination, data, expiresAt, metadata } = request;
 
   // Your business logic here:
   // - Check inventory
   // - Validate user
   // - Record payment
+  // - Decode and process STREAM data
   // - etc.
+
+  // Optional: Decode the STREAM data if present
+  if (data) {
+    const streamData = Buffer.from(data, 'base64');
+    // Process STREAM protocol data (invoices, receipts, etc.)
+  }
 
   // Accept the payment
   return { accept: true };
