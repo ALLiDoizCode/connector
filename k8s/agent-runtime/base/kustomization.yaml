@@ -1,0 +1,22 @@
+# M2M Agent Runtime Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: m2m-agent-runtime
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: m2m
+      app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+
+images:
+  - name: m2m/agent-runtime
+    newTag: latest

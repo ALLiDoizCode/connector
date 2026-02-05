@@ -11,10 +11,22 @@ import { RoutingTable } from './routing/routing-table';
 import { PacketHandler } from './core/packet-handler';
 import { BTPServer } from './btp/btp-server';
 import { BTPClient } from './btp/btp-client';
+import { LocalDeliveryClient } from './core/local-delivery-client';
 import type { Logger } from 'pino';
 
 // Export public API
-export { ConnectorNode, RoutingTable, PacketHandler, BTPServer, BTPClient, createLogger };
+export {
+  ConnectorNode,
+  RoutingTable,
+  PacketHandler,
+  BTPServer,
+  BTPClient,
+  LocalDeliveryClient,
+  createLogger,
+};
+
+// Export configuration types
+export type { LocalDeliveryConfig } from './config/types';
 
 // Export main function for testing
 export { main };

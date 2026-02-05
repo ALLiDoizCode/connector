@@ -1,0 +1,26 @@
+# M2M Agent Runtime ConfigMap
+# Configuration for agent runtime deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-runtime-config
+  namespace: m2m-agent-runtime
+  labels:
+    app.kubernetes.io/name: m2m-agent-runtime
+    app.kubernetes.io/component: agent-runtime
+data:
+  # HTTP server port
+  PORT: "3100"
+  # ILP address prefix for this agent
+  BASE_ADDRESS: "g.connector.agent"
+  # Business logic container URL (update for your deployment)
+  BUSINESS_LOGIC_URL: "http://business-logic.m2m-agent-runtime.svc.cluster.local:8080"
+  # Business logic request timeout
+  BUSINESS_LOGIC_TIMEOUT: "5000"
+  # Enable SPSP endpoint
+  SPSP_ENABLED: "true"
+  # Session TTL (1 hour)
+  SESSION_TTL_MS: "3600000"
+  # Logging
+  LOG_LEVEL: "info"
+  NODE_ID: "agent-runtime"

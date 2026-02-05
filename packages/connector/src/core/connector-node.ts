@@ -151,6 +151,20 @@ export class ConnectorNode implements HealthStatusProvider {
     // Link BTPServer to PacketHandler for bidirectional forwarding (resolves circular dependency)
     this._packetHandler.setBTPServer(this._btpServer);
 
+    // Configure local delivery if enabled (forwards local packets to agent runtime)
+    const localDeliveryEnabled =
+      config.localDelivery?.enabled || process.env.LOCAL_DELIVERY_ENABLED === 'true';
+    if (localDeliveryEnabled) {
+      const localDeliveryConfig = {
+        enabled: true,
+        handlerUrl: config.localDelivery?.handlerUrl || process.env.LOCAL_DELIVERY_URL || '',
+        timeout:
+          config.localDelivery?.timeout ||
+          parseInt(process.env.LOCAL_DELIVERY_TIMEOUT || '30000', 10),
+      };
+      this._packetHandler.setLocalDelivery(localDeliveryConfig);
+    }
+
     // Link PacketHandler to BTPClientManager for incoming packet handling (resolves circular dependency)
     this._btpClientManager.setPacketHandler(this._packetHandler);
 

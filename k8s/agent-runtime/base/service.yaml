@@ -1,0 +1,20 @@
+# M2M Agent Runtime Service
+# Exposes agent runtime for connector local delivery and SPSP queries
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-runtime
+  namespace: m2m-agent-runtime
+  labels:
+    app.kubernetes.io/name: m2m-agent-runtime
+    app.kubernetes.io/component: agent-runtime
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: m2m-agent-runtime
+    app.kubernetes.io/component: agent-runtime

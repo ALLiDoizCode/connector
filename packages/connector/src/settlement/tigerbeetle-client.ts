@@ -55,7 +55,7 @@ export interface TigerBeetleConfig {
   /**
    * Operation timeout in milliseconds
    * Recommended: 5000ms for development, 10000ms for production multi-replica clusters
-   * Default: 5000ms
+   * Default: 10000ms (production-safe default)
    */
   operationTimeout?: number;
 }
@@ -89,11 +89,12 @@ export class TigerBeetleClient {
     private readonly _logger: Logger
   ) {
     // Apply defaults for optional configuration
+    // Using 10000ms as production-safe default for multi-replica consensus
     this._config = {
       clusterId: config.clusterId,
       replicaAddresses: config.replicaAddresses,
       connectionTimeout: config.connectionTimeout ?? 5000,
-      operationTimeout: config.operationTimeout ?? 5000,
+      operationTimeout: config.operationTimeout ?? 10000,
     };
   }
 

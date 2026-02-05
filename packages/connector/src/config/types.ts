@@ -336,6 +336,18 @@ export interface ConnectorConfig {
    * Example: 'shared-secret-123'
    */
   btpAuthToken?: string;
+
+  /**
+   * Optional local delivery configuration for forwarding packets to agent runtime
+   * When enabled, packets destined for local addresses are forwarded via HTTP
+   * to an external agent runtime instead of using the built-in auto-fulfill stub
+   *
+   * Environment variables:
+   * - LOCAL_DELIVERY_ENABLED: Enable/disable local delivery (default: false)
+   * - LOCAL_DELIVERY_URL: URL to agent runtime (e.g., "http://agent-runtime:3100")
+   * - LOCAL_DELIVERY_TIMEOUT: Request timeout in ms (default: 30000)
+   */
+  localDelivery?: LocalDeliveryConfig;
 }
 
 /**
@@ -1436,6 +1448,62 @@ export interface ObservabilityConfig {
     settlementSuccessRateThreshold?: number;
     p99LatencyThresholdMs?: number;
   };
+}
+
+/**
+ * Local Delivery Configuration Interface
+ *
+ * Configures local delivery to an agent runtime for handling packets
+ * destined for local addresses. When enabled, packets routed to 'local'
+ * or the connector's own nodeId are forwarded to an external agent runtime
+ * via HTTP instead of using the built-in auto-fulfill stub.
+ *
+ * @property enabled - Enable/disable local delivery forwarding (default: false)
+ * @property handlerUrl - URL to the agent runtime (e.g., "http://agent-runtime:3100")
+ * @property timeout - HTTP request timeout in milliseconds (default: 30000)
+ *
+ * @example
+ * ```typescript
+ * const localDelivery: LocalDeliveryConfig = {
+ *   enabled: true,
+ *   handlerUrl: 'http://agent-runtime:3100',
+ *   timeout: 30000
+ * };
+ * ```
+ *
+ * @example
+ * ```yaml
+ * # YAML configuration
+ * localDelivery:
+ *   enabled: true
+ *   handlerUrl: http://agent-runtime:3100
+ *   timeout: 30000
+ * ```
+ */
+export interface LocalDeliveryConfig {
+  /**
+   * Enable/disable local delivery forwarding
+   * When false, local packets use built-in auto-fulfill stub
+   * Environment variable: LOCAL_DELIVERY_ENABLED (default: 'false')
+   * Default: false
+   */
+  enabled?: boolean;
+
+  /**
+   * URL to the agent runtime's packet handling endpoint
+   * The connector will POST to {handlerUrl}/ilp/packets
+   * Environment variable: LOCAL_DELIVERY_URL
+   * Example: 'http://agent-runtime:3100'
+   */
+  handlerUrl?: string;
+
+  /**
+   * HTTP request timeout in milliseconds
+   * Should be less than packet expiry to allow time for rejection response
+   * Environment variable: LOCAL_DELIVERY_TIMEOUT (default: '30000')
+   * Default: 30000
+   */
+  timeout?: number;
 }
 
 /**

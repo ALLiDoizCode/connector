@@ -19,10 +19,11 @@ import { BTPServer } from '../btp/btp-server';
 import { BTPConnectionError, BTPAuthenticationError } from '../btp/btp-client';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { AccountManager } from '../settlement/account-manager';
-import { SettlementConfig } from '../config/types';
+import { SettlementConfig, LocalDeliveryConfig } from '../config/types';
 import { AccountLedgerCodes } from '../settlement/types';
 import { EventStore } from '../explorer/event-store';
 import { EventBroadcaster } from '../explorer/event-broadcaster';
+import { LocalDeliveryClient } from './local-delivery-client';
 
 /**
  * Packet validation result
@@ -116,6 +117,14 @@ export class PacketHandler {
    * Not readonly to support late initialization via setSettlement().
    */
   private settlementConfig: SettlementConfig | null;
+
+  /**
+   * Local delivery client for forwarding to agent runtime (optional)
+   * @remarks
+   * When enabled, packets destined for local addresses are forwarded
+   * via HTTP to an external agent runtime instead of auto-fulfilling.
+   */
+  private localDeliveryClient: LocalDeliveryClient | null = null;
 
   /**
    * Creates a new PacketHandler instance
@@ -221,6 +230,39 @@ export class PacketHandler {
         'Settlement recording enabled via late initialization'
       );
     }
+  }
+
+  /**
+   * Set LocalDeliveryClient for forwarding local packets to agent runtime
+   * @param config - Local delivery configuration
+   * @remarks
+   * When enabled, packets destined for local addresses (nextHop === nodeId || 'local')
+   * are forwarded via HTTP to an external agent runtime instead of auto-fulfilling.
+   * This allows custom business logic to handle payments.
+   */
+  setLocalDelivery(config: LocalDeliveryConfig): void {
+    if (config.enabled) {
+      this.localDeliveryClient = new LocalDeliveryClient(config, this.logger);
+      this.logger.info(
+        {
+          event: 'local_delivery_enabled',
+          handlerUrl: config.handlerUrl,
+          timeout: config.timeout,
+        },
+        'Local delivery forwarding enabled'
+      );
+    } else {
+      this.localDeliveryClient = null;
+      this.logger.info('Local delivery forwarding disabled (using auto-fulfill stub)');
+    }
+  }
+
+  /**
+   * Check if local delivery forwarding is enabled
+   * @returns True if local delivery client is configured and enabled
+   */
+  private isLocalDeliveryEnabled(): boolean {
+    return this.localDeliveryClient !== null && this.localDeliveryClient.isEnabled();
   }
 
   /**
@@ -857,8 +899,33 @@ export class PacketHandler {
         'Delivering packet locally'
       );
 
-      // For educational/testing purposes, auto-fulfill local packets
-      // In a real implementation, this would be handled by a local account/application
+      // If local delivery client is enabled, forward to agent runtime
+      if (this.isLocalDeliveryEnabled() && this.localDeliveryClient) {
+        this.logger.debug(
+          { correlationId, destination: packet.destination },
+          'Forwarding to agent runtime for local delivery'
+        );
+
+        const response = await this.localDeliveryClient.deliver(packet, sourcePeerId);
+
+        this.logger.info(
+          {
+            correlationId,
+            event: 'packet_response',
+            packetType: response.type,
+            destination: packet.destination,
+            timestamp: Date.now(),
+          },
+          response.type === PacketType.FULFILL
+            ? 'Packet fulfilled by agent runtime'
+            : 'Packet rejected by agent runtime'
+        );
+
+        return response;
+      }
+
+      // Fallback: auto-fulfill local packets (educational/testing purposes)
+      // In a real deployment, use localDelivery config to forward to agent runtime
       const fulfillPacket: ILPFulfillPacket = {
         type: PacketType.FULFILL,
         fulfillment: packet.executionCondition, // Educational implementation - using condition as fulfillment
@@ -873,7 +940,7 @@ export class PacketHandler {
           destination: packet.destination,
           timestamp: Date.now(),
         },
-        'Returning local fulfillment'
+        'Returning local fulfillment (auto-fulfill stub)'
       );
 
       return fulfillPacket;
