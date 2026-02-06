@@ -6,6 +6,7 @@ dist/
 *.tsbuildinfo
 *.js.map
 *.d.ts.map
+packages/contracts-aptos/build/
 
 # Test coverage
 coverage/
@@ -49,6 +50,13 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
+
+# Test databases
+data/*.db
+packages/connector/data/*.db
+
+# Playwright test artifacts
+.playwright-mcp/
 
 # Docker volumes
 .docker-data/
