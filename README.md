@@ -239,12 +239,11 @@ agent-runtime/
 
 ## Documentation
 
-| Guide                                                     | Description                                     |
-| --------------------------------------------------------- | ----------------------------------------------- |
-| [Building Agents](docs/building-agents.md)                | Write your business logic and deploy            |
-| [Deployment](docs/deployment.md)                          | Docker Compose & Kubernetes setup               |
-| [Protocols](docs/protocols.md)                            | Technical details on ILP, BTP, payment channels |
-| [Creating Your Agent](docs/guides/creating-your-agent.md) | Step-by-step guide                              |
+| Guide                                      | Description                                     |
+| ------------------------------------------ | ----------------------------------------------- |
+| [Building Agents](docs/building-agents.md) | Write your business logic and deploy            |
+| [Deployment](docs/deployment.md)           | Docker Compose & Kubernetes setup               |
+| [Protocols](docs/protocols.md)             | Technical details on ILP, BTP, payment channels |
 
 ---
 

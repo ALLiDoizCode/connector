@@ -24,8 +24,6 @@ Agent Runtime handles all the protocol complexity. You only implement the **Busi
 
 ## Quick Start
 
-> **Full Guide:** See [Creating Your Agent](guides/creating-your-agent.md) for complete workflow options.
-
 ### 1. Create Your Business Logic Server
 
 Your server needs to implement these endpoints:
