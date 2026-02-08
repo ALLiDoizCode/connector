@@ -13,7 +13,8 @@ import { Logger } from 'pino';
 import { SPSPServer } from '../spsp/spsp-server';
 import { PacketHandler } from '../packet/packet-handler';
 import { SessionManager } from '../session/session-manager';
-import { LocalDeliveryRequest, LocalDeliveryResponse } from '../types';
+import { LocalDeliveryRequest, LocalDeliveryResponse, IPacketSender } from '../types';
+import { IlpSendHandler } from './ilp-send-handler';
 
 export interface HttpServerConfig {
   /** HTTP server port */
@@ -32,6 +33,7 @@ export class HttpServer {
   private readonly packetHandler: PacketHandler;
   private readonly sessionManager: SessionManager;
   private readonly logger: Logger;
+  private readonly sender: IPacketSender | null;
   private server: Server | null = null;
 
   constructor(
@@ -39,13 +41,15 @@ export class HttpServer {
     spspServer: SPSPServer,
     packetHandler: PacketHandler,
     sessionManager: SessionManager,
-    logger: Logger
+    logger: Logger,
+    sender?: IPacketSender | null
   ) {
     this.config = config;
     this.spspServer = spspServer;
     this.packetHandler = packetHandler;
     this.sessionManager = sessionManager;
     this.logger = logger.child({ component: 'HttpServer' });
+    this.sender = sender ?? null;
 
     this.app = express();
     this.setupMiddleware();
@@ -72,12 +76,14 @@ export class HttpServer {
   private setupRoutes(): void {
     // Health check endpoint
     this.app.get('/health', (_req: Request, res: Response) => {
-      res.json({
+      const health: Record<string, unknown> = {
         status: 'healthy',
         nodeId: this.config.nodeId,
         activeSessions: this.sessionManager.sessionCount,
+        btpConnected: this.sender ? this.sender.isConnected() : false,
         timestamp: new Date().toISOString(),
-      });
+      };
+      res.json(health);
     });
 
     // Readiness check (for Kubernetes)
@@ -112,6 +118,10 @@ export class HttpServer {
         res.status(500).json(errorResponse);
       }
     });
+
+    // Outbound ILP send endpoint (Epic 20)
+    const ilpSendHandler = new IlpSendHandler(this.sender, this.logger);
+    this.app.post('/ilp/send', ilpSendHandler.handle.bind(ilpSendHandler));
 
     // Mount SPSP routes
     this.app.use(this.spspServer.getRouter());

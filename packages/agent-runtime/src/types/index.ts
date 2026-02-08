@@ -5,6 +5,8 @@
  * which handles ILP/SPSP/STREAM protocol complexity for business logic agents.
  */
 
+import type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
+
 /**
  * Payment session stored by the runtime.
  * Contains the shared secret for STREAM fulfillment computation.
@@ -193,3 +195,80 @@ export const REJECT_CODE_MAP: Record<string, string> = {
   internal_error: 'T00',
   timeout: 'T00',
 };
+
+/**
+ * Request body for `POST /ilp/send`.
+ *
+ * Used by the BLS to initiate outbound ILP packets through the agent-runtime.
+ *
+ * @example
+ * ```json
+ * {
+ *   "destination": "g.connector.peer1",
+ *   "amount": "1500000",
+ *   "data": "SGVsbG8gV29ybGQ=",
+ *   "timeoutMs": 30000
+ * }
+ * ```
+ */
+export interface IlpSendRequest {
+  /** Valid ILP address (RFC-0015) */
+  destination: string;
+  /** Non-negative integer string (e.g., "0", "1500000") */
+  amount: string;
+  /** Base64-encoded application data (max 64KB decoded) */
+  data: string;
+  /** Optional timeout in milliseconds (default: 30000) */
+  timeoutMs?: number;
+}
+
+/**
+ * Response body for `POST /ilp/send`.
+ *
+ * Both FULFILL and REJECT ILP responses return HTTP 200, distinguished by the
+ * `fulfilled` boolean.
+ *
+ * @example Fulfill response
+ * ```json
+ * {
+ *   "fulfilled": true,
+ *   "fulfillment": "base64...",
+ *   "data": "base64..."
+ * }
+ * ```
+ *
+ * @example Reject response
+ * ```json
+ * {
+ *   "fulfilled": false,
+ *   "code": "F02",
+ *   "message": "No route to destination",
+ *   "data": "base64..."
+ * }
+ * ```
+ */
+export interface IlpSendResponse {
+  /** Whether the ILP packet was fulfilled */
+  fulfilled: boolean;
+  /** Base64-encoded 32-byte fulfillment preimage (when fulfilled=true) */
+  fulfillment?: string;
+  /** ILP error code (when fulfilled=false) */
+  code?: string;
+  /** Human-readable error message (when fulfilled=false) */
+  message?: string;
+  /** Base64-encoded response data (optional in both cases) */
+  data?: string;
+}
+
+/**
+ * Interface for sending outbound ILP packets.
+ *
+ * Story 20.2's `OutboundBTPClient` will implement this interface.
+ * During Story 20.1, a mock implementation is used for testing.
+ */
+export interface IPacketSender {
+  /** Send an ILP Prepare packet and return the response (Fulfill or Reject). */
+  sendPacket(prepare: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>;
+  /** Check whether the sender is connected and ready to send packets. */
+  isConnected(): boolean;
+}

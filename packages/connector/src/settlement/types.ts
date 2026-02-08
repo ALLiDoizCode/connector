@@ -276,6 +276,133 @@ export interface PeerConfig {
    * Format: 64-character hex (ed25519 public key)
    */
   aptosPubkey?: string;
+
+  /**
+   * Optional: ERC20 token contract address for settlement
+   * Format: 0x-prefixed 40-character hex (EVM address)
+   * @example '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+   */
+  tokenAddress?: string;
+
+  /**
+   * Optional: TokenNetwork contract address for payment channels
+   * Format: 0x-prefixed 40-character hex (EVM address)
+   * @example '0x1234567890abcdef1234567890abcdef12345678'
+   */
+  tokenNetworkAddress?: string;
+
+  /**
+   * Optional: EVM chain ID (e.g., 8453 for Base, 84532 for Base Sepolia)
+   * Must be a positive integer
+   */
+  chainId?: number;
+
+  /**
+   * Optional: Payment channel ID for claim exchange
+   * Used to reference an existing payment channel between peers
+   */
+  channelId?: string;
+
+  /**
+   * Optional: Initial deposit amount for payment channel
+   * Format: String representation of a non-negative integer (for bigint)
+   * @example '1000000'
+   */
+  initialDeposit?: string;
+}
+
+/**
+ * Settlement configuration request DTO for the Admin API
+ *
+ * Sent as part of the AddPeerRequest body to configure settlement
+ * parameters for a peer at runtime via POST /admin/peers.
+ *
+ * @interface AdminSettlementConfig
+ * @example
+ * ```json
+ * {
+ *   "preference": "evm",
+ *   "evmAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28",
+ *   "tokenAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+ *   "chainId": 8453
+ * }
+ * ```
+ */
+export interface AdminSettlementConfig {
+  /** Settlement method preference */
+  preference: 'evm' | 'xrp' | 'aptos' | 'any';
+
+  /** 0x-prefixed EVM address (42 chars) */
+  evmAddress?: string;
+
+  /** r-prefixed XRP address (25-35 chars) */
+  xrpAddress?: string;
+
+  /** 0x-prefixed Aptos address (66 chars) */
+  aptosAddress?: string;
+
+  /** Hex-encoded Ed25519 public key (64 chars) */
+  aptosPubkey?: string;
+
+  /** ERC20 token contract address (0x-prefixed, 42 chars) */
+  tokenAddress?: string;
+
+  /** TokenNetwork contract address (0x-prefixed, 42 chars) */
+  tokenNetworkAddress?: string;
+
+  /** EVM chain ID (positive integer) */
+  chainId?: number;
+
+  /** Existing payment channel ID */
+  channelId?: string;
+
+  /** Initial deposit amount (non-negative integer string) */
+  initialDeposit?: string;
+}
+
+/** Regex pattern for valid EVM addresses (0x + 40 hex chars) */
+const EVM_ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
+
+/** Regex pattern for valid Aptos addresses (0x + 64 hex chars) */
+const APTOS_ADDRESS_REGEX = /^0x[0-9a-fA-F]{64}$/;
+
+/** Regex pattern for non-negative integer strings */
+const NON_NEGATIVE_INTEGER_REGEX = /^\d+$/;
+
+/**
+ * Validate an EVM address format
+ * @param address - Address to validate
+ * @returns true if address matches 0x-prefixed 40-char hex pattern
+ */
+export function isValidEvmAddress(address: string): boolean {
+  return EVM_ADDRESS_REGEX.test(address);
+}
+
+/**
+ * Validate an XRP address format
+ * @param address - Address to validate
+ * @returns true if address starts with 'r' and is 25-35 characters
+ */
+export function isValidXrpAddress(address: string): boolean {
+  return address.startsWith('r') && address.length >= 25 && address.length <= 35;
+}
+
+/**
+ * Validate an Aptos address format
+ * @param address - Address to validate
+ * @returns true if address matches 0x-prefixed 64-char hex pattern
+ */
+export function isValidAptosAddress(address: string): boolean {
+  return APTOS_ADDRESS_REGEX.test(address);
+}
+
+/**
+ * Validate a non-negative integer string (for bigint amounts)
+ * @param value - String to validate
+ * @returns true if value is a non-negative integer string
+ */
+export function isValidNonNegativeIntegerString(value: string): boolean {
+  return NON_NEGATIVE_INTEGER_REGEX.test(value);
 }
 
 /**

@@ -112,6 +112,58 @@ export class UnifiedSettlementExecutor {
   }
 
   /**
+   * Add a peer's settlement configuration at runtime
+   *
+   * Stores the PeerConfig in the executor's peers Map for settlement routing.
+   * Called by the Admin API when a peer is registered with settlement config.
+   *
+   * @param peerConfig - Settlement configuration for the peer
+   */
+  addPeerConfig(peerConfig: PeerConfig): void {
+    this.config.peers.set(peerConfig.peerId, peerConfig);
+    this.logger.info(
+      { peerId: peerConfig.peerId, preference: peerConfig.settlementPreference },
+      'Added peer settlement config'
+    );
+  }
+
+  /**
+   * Remove a peer's settlement configuration at runtime
+   *
+   * Removes the PeerConfig from the executor's peers Map.
+   * Called by the Admin API when a peer is deleted.
+   *
+   * @param peerId - Peer identifier to remove
+   * @returns true if the peer config existed and was removed
+   */
+  removePeerConfig(peerId: string): boolean {
+    const existed = this.config.peers.delete(peerId);
+    if (existed) {
+      this.logger.info({ peerId }, 'Removed peer settlement config');
+    }
+    return existed;
+  }
+
+  /**
+   * Get a peer's settlement configuration
+   *
+   * @param peerId - Peer identifier to look up
+   * @returns PeerConfig if found, undefined otherwise
+   */
+  getPeerConfig(peerId: string): PeerConfig | undefined {
+    return this.config.peers.get(peerId);
+  }
+
+  /**
+   * Get all peer settlement configurations
+   *
+   * @returns Map of peerId to PeerConfig
+   */
+  getAllPeerConfigs(): Map<string, PeerConfig> {
+    return this.config.peers;
+  }
+
+  /**
    * Stop settlement executor
    *
    * Unregisters listener and stops settlement processing.

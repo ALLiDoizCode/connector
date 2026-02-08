@@ -18,6 +18,7 @@ import { RoutingTable } from '../routing/routing-table';
 import { BTPClientManager } from '../btp/btp-client-manager';
 import { createAdminRouter } from './admin-api';
 import { AdminApiConfig } from '../config/types';
+import { PeerConfig as SettlementPeerConfig } from '../settlement/types';
 
 /**
  * Admin API HTTP Server
@@ -63,8 +64,9 @@ export class AdminServer {
     nodeId: string;
     config: AdminApiConfig;
     logger: Logger;
+    settlementPeers?: Map<string, SettlementPeerConfig>;
   }) {
-    const { routingTable, btpClientManager, nodeId, config, logger } = options;
+    const { routingTable, btpClientManager, nodeId, config, logger, settlementPeers } = options;
 
     this._nodeId = nodeId;
     this._config = config;
@@ -78,6 +80,7 @@ export class AdminServer {
       nodeId,
       apiKey: config.apiKey,
       logger: this._logger,
+      settlementPeers,
     });
 
     this._app.use('/admin', adminRouter);

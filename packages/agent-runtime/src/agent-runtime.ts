@@ -15,7 +15,13 @@ import { SPSPServer } from './spsp/spsp-server';
 import { PacketHandler } from './packet/packet-handler';
 import { BusinessClient } from './business/business-client';
 import { HttpServer } from './http/http-server';
-import { AgentRuntimeConfig, ResolvedAgentRuntimeConfig, DEFAULT_CONFIG } from './types';
+import {
+  AgentRuntimeConfig,
+  ResolvedAgentRuntimeConfig,
+  DEFAULT_CONFIG,
+  IPacketSender,
+} from './types';
+import { OutboundBTPClient } from './btp/outbound-btp-client';
 
 /**
  * Main Agent Runtime class.
@@ -42,9 +48,10 @@ export class AgentRuntime {
   private readonly spspServer: SPSPServer;
   private readonly packetHandler: PacketHandler;
   private readonly httpServer: HttpServer;
+  private readonly sender: IPacketSender | null;
   private started = false;
 
-  constructor(config: AgentRuntimeConfig) {
+  constructor(config: AgentRuntimeConfig, sender?: IPacketSender | null) {
     // Resolve config with defaults
     this.config = this.resolveConfig(config);
 
@@ -91,6 +98,8 @@ export class AgentRuntime {
       this.logger
     );
 
+    this.sender = sender ?? null;
+
     this.httpServer = new HttpServer(
       {
         port: this.config.port,
@@ -99,7 +108,8 @@ export class AgentRuntime {
       this.spspServer,
       this.packetHandler,
       this.sessionManager,
-      this.logger
+      this.logger,
+      this.sender
     );
   }
 
@@ -116,6 +126,16 @@ export class AgentRuntime {
 
     await this.httpServer.start();
     this.started = true;
+
+    // Connect BTP client after HTTP server is up (non-fatal on failure — reconnection will retry)
+    if (this.sender && this.sender instanceof OutboundBTPClient) {
+      try {
+        await this.sender.connect();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn({ error: msg }, 'BTP client initial connect failed — will retry');
+      }
+    }
 
     this.logger.info(
       {
@@ -136,6 +156,16 @@ export class AgentRuntime {
     }
 
     this.logger.info('Stopping Agent Runtime');
+
+    // Disconnect BTP client before stopping HTTP server
+    if (this.sender && this.sender instanceof OutboundBTPClient) {
+      try {
+        await this.sender.disconnect();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error({ error: msg }, 'Error disconnecting BTP client');
+      }
+    }
 
     await this.httpServer.stop();
     this.sessionManager.shutdown();
@@ -217,6 +247,9 @@ export class AgentRuntime {
  * - SESSION_TTL_MS: Session TTL in ms (default: 3600000)
  * - LOG_LEVEL: Log level (default: info)
  * - NODE_ID: Node ID for logging (default: agent-runtime)
+ * - CONNECTOR_BTP_URL: WebSocket URL of local connector BTP endpoint (optional)
+ * - CONNECTOR_BTP_AUTH_TOKEN: Shared secret for BTP auth (required if CONNECTOR_BTP_URL is set)
+ * - CONNECTOR_BTP_PEER_ID: Peer ID for BTP auth (default: agent-runtime)
  */
 export async function startFromEnv(): Promise<AgentRuntime> {
   const config: AgentRuntimeConfig = {
@@ -242,7 +275,31 @@ export async function startFromEnv(): Promise<AgentRuntime> {
     throw new Error('BUSINESS_LOGIC_URL environment variable is required');
   }
 
-  const runtime = new AgentRuntime(config);
+  // Create OutboundBTPClient if CONNECTOR_BTP_URL is set
+  let sender: IPacketSender | null = null;
+  const btpUrl = process.env['CONNECTOR_BTP_URL'];
+  if (btpUrl) {
+    const btpAuthToken = process.env['CONNECTOR_BTP_AUTH_TOKEN'];
+    if (!btpAuthToken) {
+      throw new Error('CONNECTOR_BTP_AUTH_TOKEN is required when CONNECTOR_BTP_URL is set');
+    }
+
+    const btpLogger = pino({
+      name: config.nodeId ?? 'agent-runtime',
+      level: config.logLevel ?? 'info',
+    });
+
+    sender = new OutboundBTPClient(
+      {
+        url: btpUrl,
+        authToken: btpAuthToken,
+        peerId: process.env['CONNECTOR_BTP_PEER_ID'] ?? 'agent-runtime',
+      },
+      btpLogger
+    );
+  }
+
+  const runtime = new AgentRuntime(config, sender);
   await runtime.start();
 
   // Handle shutdown signals

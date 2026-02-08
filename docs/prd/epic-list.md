@@ -57,11 +57,17 @@ Transform the Connector Explorer into a distinctive, production-grade Network Op
 **Epic 19: Production Deployment Parity**
 Enable TigerBeetle accounting infrastructure in the docker-compose-5-peer-multihop.yml deployment by adding the TigerBeetle service, wiring real AccountManager to replace mock implementation, and verifying that the Explorer UI Accounts tab displays real-time balance data. This epic bridges Epic 6 (backend accounting code - completed) with Epic 18 (frontend UI - completed) by activating accounting in the multi-peer test deployment.
 
+**Epic 20: Bidirectional Agent-Runtime Middleware**
+Transform agent-runtime from a one-way inbound proxy into a bidirectional middleware. Add `POST /ilp/send` so the BLS can initiate outbound ILP packets (e.g., SPSP handshakes, peer announcements). Extend `POST /admin/peers` with settlement configuration fields so the BLS can register peers with chain preferences and channel IDs. Foundational enabler for agent-society Epics 7 & 8.
+
+**Epic 21: Payment Channel Admin APIs**
+Expose payment channel management and balance query endpoints on the connector Admin API. Add `POST /admin/channels` (open), `GET /admin/channels` (list), `GET /admin/channels/:channelId` (inspect), `POST /admin/channels/:channelId/deposit` (fund), `POST /admin/channels/:channelId/close` (close), `GET /admin/balances/:peerId` (balance query), and `GET /admin/settlement/states` (settlement health). Enables the BLS to manage channels via API without direct blockchain SDK access. Required by agent-society Epics 7 & 8.
+
 ---
 
 ## Project Status
 
-Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. The connector is feature-complete with:
+Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering
