@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.2...v1.7.0) (2026-02-08)
+
+### Features
+
+- **epic-20:** add missing type definitions and wiring for bidirectional middleware ([f4ef6a0](https://github.com/ALLiDoizCode/agent-runtime/commit/f4ef6a021584da64c877ae251076589e7b9667b5))
+
 ## [1.6.2](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.1...v1.6.2) (2026-02-06)
 
 ### Code Refactoring
