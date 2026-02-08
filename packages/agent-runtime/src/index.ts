@@ -28,7 +28,19 @@ export {
   ResolvedAgentRuntimeConfig,
   DEFAULT_CONFIG,
   REJECT_CODE_MAP,
+  // Outbound ILP send types (Epic 20)
+  IlpSendRequest,
+  IlpSendResponse,
+  IPacketSender,
 } from './types';
+
+// BTP client for outbound packet injection (Epic 20)
+export {
+  OutboundBTPClient,
+  OutboundBTPClientConfig,
+  BTPConnectionError,
+  BTPAuthenticationError,
+} from './btp/outbound-btp-client';
 
 // Components (for advanced use cases)
 export { SessionManager, SessionManagerConfig } from './session/session-manager';

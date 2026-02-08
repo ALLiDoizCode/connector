@@ -29,6 +29,14 @@ import { RoutingTable } from '../routing/routing-table';
 import { BTPClientManager } from '../btp/btp-client-manager';
 import { Peer } from '../btp/btp-client';
 import { ILPAddress, isValidILPAddress } from '@agent-runtime/shared';
+import {
+  AdminSettlementConfig,
+  PeerConfig as SettlementPeerConfig,
+  isValidEvmAddress,
+  isValidXrpAddress,
+  isValidAptosAddress,
+  isValidNonNegativeIntegerString,
+} from '../settlement/types';
 
 /**
  * Admin API Configuration
@@ -48,6 +56,13 @@ export interface AdminAPIConfig {
 
   /** Node ID for logging context */
   nodeId: string;
+
+  /**
+   * Optional settlement peer config Map for storing runtime settlement configurations.
+   * When provided, POST /admin/peers stores PeerConfig entries and GET /admin/peers
+   * includes settlement info. If omitted, settlement features are silently skipped.
+   */
+  settlementPeers?: Map<string, SettlementPeerConfig>;
 }
 
 /**
@@ -70,6 +85,21 @@ export interface AddPeerRequest {
     /** Route priority (higher wins, default: 0) */
     priority?: number;
   }>;
+
+  /**
+   * Optional settlement configuration for this peer.
+   * When provided, a PeerConfig is created and stored for settlement routing.
+   * @example
+   * ```json
+   * {
+   *   "preference": "evm",
+   *   "evmAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28",
+   *   "tokenAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+   *   "chainId": 8453
+   * }
+   * ```
+   */
+  settlement?: AdminSettlementConfig;
 }
 
 /**
@@ -103,7 +133,7 @@ export interface AddRouteRequest {
  */
 export function createAdminRouter(config: AdminAPIConfig): Router {
   const router = Router();
-  const { routingTable, btpClientManager, logger, apiKey, nodeId } = config;
+  const { routingTable, btpClientManager, logger, apiKey, nodeId, settlementPeers } = config;
   const log = logger.child({ component: 'AdminAPI' });
 
   // JSON body parser
@@ -164,12 +194,33 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         const peerRoutes = routes.filter((r) => r.nextHop === peerId);
         const ilpAddresses = peerRoutes.map((r) => r.prefix);
 
-        return {
+        const peerResponse: Record<string, unknown> = {
           id: peerId,
           connected: peerStatus.get(peerId) ?? false,
           ilpAddresses,
           routeCount: peerRoutes.length,
         };
+
+        // Include settlement info if available
+        if (settlementPeers) {
+          const peerConfig = settlementPeers.get(peerId);
+          if (peerConfig) {
+            peerResponse.settlement = {
+              preference: peerConfig.settlementPreference,
+              evmAddress: peerConfig.evmAddress,
+              xrpAddress: peerConfig.xrpAddress,
+              aptosAddress: peerConfig.aptosAddress,
+              aptosPubkey: peerConfig.aptosPubkey,
+              tokenAddress: peerConfig.tokenAddress,
+              tokenNetworkAddress: peerConfig.tokenNetworkAddress,
+              chainId: peerConfig.chainId,
+              channelId: peerConfig.channelId,
+              initialDeposit: peerConfig.initialDeposit,
+            };
+          }
+        }
+
+        return peerResponse;
       });
 
       res.json({
@@ -263,6 +314,104 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         `Added peer: ${body.id}`
       );
 
+      // Validate settlement config if provided
+      if (body.settlement) {
+        const s = body.settlement;
+        const VALID_PREFERENCES = ['evm', 'xrp', 'aptos', 'any'];
+
+        if (!s.preference || !VALID_PREFERENCES.includes(s.preference)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.preference must be one of: evm, xrp, aptos, any',
+          });
+          return;
+        }
+
+        // Validate required addresses based on preference
+        if (s.preference === 'evm' && !s.evmAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.evmAddress required when preference is evm',
+          });
+          return;
+        }
+        if (s.preference === 'xrp' && !s.xrpAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.xrpAddress required when preference is xrp',
+          });
+          return;
+        }
+        if (s.preference === 'aptos' && !s.aptosAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.aptosAddress required when preference is aptos',
+          });
+          return;
+        }
+        if (s.preference === 'any' && !s.evmAddress && !s.xrpAddress && !s.aptosAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement: at least one address required when preference is any',
+          });
+          return;
+        }
+
+        // Validate address formats
+        if (s.evmAddress && !isValidEvmAddress(s.evmAddress)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.evmAddress must be a valid 0x-prefixed address (42 chars)',
+          });
+          return;
+        }
+        if (s.xrpAddress && !isValidXrpAddress(s.xrpAddress)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.xrpAddress must start with r and be 25-35 characters',
+          });
+          return;
+        }
+        if (s.aptosAddress && !isValidAptosAddress(s.aptosAddress)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.aptosAddress must be a valid 0x-prefixed address (66 chars)',
+          });
+          return;
+        }
+
+        // Validate optional fields
+        if (s.tokenAddress && !isValidEvmAddress(s.tokenAddress)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.tokenAddress must be a valid 0x-prefixed address (42 chars)',
+          });
+          return;
+        }
+        if (s.tokenNetworkAddress && !isValidEvmAddress(s.tokenNetworkAddress)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message:
+              'settlement.tokenNetworkAddress must be a valid 0x-prefixed address (42 chars)',
+          });
+          return;
+        }
+        if (s.chainId !== undefined && (!Number.isInteger(s.chainId) || s.chainId <= 0)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.chainId must be a positive integer',
+          });
+          return;
+        }
+        if (s.initialDeposit !== undefined && !isValidNonNegativeIntegerString(s.initialDeposit)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'settlement.initialDeposit must be a non-negative integer string',
+          });
+          return;
+        }
+      }
+
       // Add routes if provided
       const addedRoutes: string[] = [];
       if (body.routes) {
@@ -274,6 +423,48 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
             `Added route: ${route.prefix} -> ${body.id}`
           );
         }
+      }
+
+      // Create and store PeerConfig if settlement provided and settlementPeers available
+      if (body.settlement && settlementPeers) {
+        const s = body.settlement;
+        const ilpAddress = body.routes && body.routes.length > 0 ? body.routes[0]!.prefix : '';
+
+        // Build settlementTokens
+        const settlementTokens: string[] = [];
+        if (s.tokenAddress) {
+          settlementTokens.push(s.tokenAddress);
+        } else {
+          if (s.evmAddress) settlementTokens.push('EVM');
+          if (s.xrpAddress) settlementTokens.push('XRP');
+          if (s.aptosAddress) settlementTokens.push('APT');
+        }
+
+        const peerConfig: SettlementPeerConfig = {
+          peerId: body.id,
+          address: ilpAddress,
+          settlementPreference: s.preference,
+          settlementTokens,
+          evmAddress: s.evmAddress,
+          xrpAddress: s.xrpAddress,
+          aptosAddress: s.aptosAddress,
+          aptosPubkey: s.aptosPubkey,
+          tokenAddress: s.tokenAddress,
+          tokenNetworkAddress: s.tokenNetworkAddress,
+          chainId: s.chainId,
+          channelId: s.channelId,
+          initialDeposit: s.initialDeposit,
+        };
+
+        settlementPeers.set(body.id, peerConfig);
+        log.info(
+          {
+            event: 'admin_settlement_config_added',
+            peerId: body.id,
+            preference: s.preference,
+          },
+          `Added settlement config for peer: ${body.id}`
+        );
       }
 
       // Check connection status after a brief delay
@@ -325,6 +516,14 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
       // Remove peer
       await btpClientManager.removePeer(peerId);
       log.info({ event: 'admin_peer_removed', peerId }, `Removed peer: ${peerId}`);
+
+      // Remove settlement config if exists
+      if (settlementPeers && settlementPeers.delete(peerId)) {
+        log.info(
+          { event: 'admin_settlement_config_removed', peerId },
+          `Removed settlement config for peer: ${peerId}`
+        );
+      }
 
       // Remove routes if requested
       const removedRoutes: string[] = [];
