@@ -18,6 +18,7 @@
 #   ./scripts/deploy-5-peer-multihop.sh --with-agent       # Include agent runtime tests
 #   ./scripts/deploy-5-peer-multihop.sh --agent-only       # Only run agent runtime tests (assumes network is up)
 #   ./scripts/deploy-5-peer-multihop.sh --with-nostr-spsp  # Include Nostr-based SPSP via ILP-gated relay
+#   ./scripts/deploy-5-peer-multihop.sh --unified          # Full 3-layer unified stack (agent-society + middleware + connectors)
 #
 # Prerequisites:
 #   1. OrbStack installed and running (https://orbstack.dev)
@@ -42,7 +43,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMPOSE_FILE="${PROJECT_ROOT}/docker-compose-5-peer-multihop.yml"
 COMPOSE_FILE_AGENT="${PROJECT_ROOT}/docker-compose-5-peer-agent-runtime.yml"
 COMPOSE_FILE_NOSTR_SPSP="${PROJECT_ROOT}/docker-compose-5-peer-nostr-spsp.yml"
+COMPOSE_FILE_UNIFIED="${PROJECT_ROOT}/docker-compose-unified.yml"
 AGENT_SOCIETY_DIR="${PROJECT_ROOT}/../agent-society"
+AGENT_SOCIETY_PATH="${AGENT_SOCIETY_PATH:-${PROJECT_ROOT}/../agent-society}"
 FUNDING_SCRIPT="${PROJECT_ROOT}/tools/fund-peers/dist/index.js"
 COMPOSE_CMD="docker compose"
 
@@ -50,6 +53,7 @@ COMPOSE_CMD="docker compose"
 WITH_AGENT=false
 AGENT_ONLY=false
 WITH_NOSTR_SPSP=false
+WITH_UNIFIED=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -66,13 +70,36 @@ while [[ $# -gt 0 ]]; do
       WITH_NOSTR_SPSP=true
       shift
       ;;
+    --unified)
+      WITH_UNIFIED=true
+      shift
+      ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
-      echo "Usage: $0 [--with-agent] [--agent-only] [--with-nostr-spsp]"
+      echo "Usage: $0 [--with-agent] [--agent-only] [--with-nostr-spsp] [--unified]"
       exit 1
       ;;
   esac
 done
+
+# Flag conflict detection for --unified
+if [ "${WITH_UNIFIED}" = true ]; then
+  if [ "${WITH_AGENT}" = true ] || [ "${WITH_NOSTR_SPSP}" = true ] || [ "${AGENT_ONLY}" = true ]; then
+    echo -e "${RED}Error: --unified is mutually exclusive with --with-agent, --agent-only, and --with-nostr-spsp (unified mode includes all layers)${NC}"
+    exit 1
+  fi
+fi
+
+# SIGINT/SIGTERM trap for unified mode cleanup
+cleanup_unified() {
+  echo -e "\n${YELLOW}Caught interrupt. Tearing down unified stack...${NC}"
+  docker compose -f "${COMPOSE_FILE_UNIFIED}" --env-file "${PROJECT_ROOT}/.env.peers" down 2>/dev/null || true
+  exit 1
+}
+
+if [ "${WITH_UNIFIED}" = true ]; then
+  trap cleanup_unified SIGINT SIGTERM
+fi
 
 # Initialize test result variables with defaults
 # These may be updated during test execution
@@ -245,6 +272,9 @@ fi
 if [ "${WITH_NOSTR_SPSP}" = true ]; then
   echo "  + Nostr-based SPSP (ILP-Gated Relay)"
 fi
+if [ "${WITH_UNIFIED}" = true ]; then
+  echo "  + Unified 3-Layer Stack"
+fi
 echo "======================================"
 echo ""
 
@@ -254,7 +284,9 @@ echo ""
 resolve_network_urls
 
 # Display mode
-if [ "${AGENT_ONLY}" = true ]; then
+if [ "${WITH_UNIFIED}" = true ]; then
+  echo -e "${GREEN}Mode: Unified 3-layer stack (agent-society + middleware + connectors)${NC}"
+elif [ "${AGENT_ONLY}" = true ]; then
   echo -e "${YELLOW}Mode: Agent Runtime Testing Only (skipping network deployment)${NC}"
 elif [ "${WITH_AGENT}" = true ]; then
   echo -e "${GREEN}Mode: Full deployment with Agent Runtime${NC}"
@@ -318,7 +350,559 @@ if [ ! -f "${PROJECT_ROOT}/.env" ]; then
 fi
 echo -e "${GREEN}✓ .env file exists${NC}"
 
+# Unified mode prerequisites
+if [ "${WITH_UNIFIED}" = true ]; then
+  echo ""
+  echo -e "${BLUE}Checking unified deployment prerequisites...${NC}"
+
+  # Check agent-society repo exists
+  if [ ! -d "${AGENT_SOCIETY_PATH}" ]; then
+    echo -e "${RED}✗ agent-society repo not found at ${AGENT_SOCIETY_PATH}. Set AGENT_SOCIETY_PATH env var.${NC}"
+    exit 1
+  fi
+  echo -e "${GREEN}✓ agent-society repo found at ${AGENT_SOCIETY_PATH}${NC}"
+
+  # Check unified compose file exists
+  if [ ! -f "${COMPOSE_FILE_UNIFIED}" ]; then
+    echo -e "${RED}✗ docker-compose-unified.yml not found at ${COMPOSE_FILE_UNIFIED}${NC}"
+    exit 1
+  fi
+  echo -e "${GREEN}✓ docker-compose-unified.yml exists${NC}"
+
+  # Build connector image (agent-runtime)
+  echo ""
+  echo "Building Docker images for unified stack..."
+  echo -n "  Building agent-runtime (connector)... "
+  if docker build -t agent-runtime "${PROJECT_ROOT}" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC}"
+  else
+    echo -e "${RED}✗ Failed${NC}"
+    echo "Run manually: docker build -t agent-runtime ."
+    exit 1
+  fi
+
+  # Build middleware image (agent-runtime-core)
+  echo -n "  Building agent-runtime-core (middleware)... "
+  if docker build -t agent-runtime-core -f packages/agent-runtime/Dockerfile "${PROJECT_ROOT}" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC}"
+  else
+    echo -e "${RED}✗ Failed${NC}"
+    echo "Run manually: docker build -t agent-runtime-core -f packages/agent-runtime/Dockerfile ."
+    exit 1
+  fi
+
+  # Build agent-society image
+  echo -n "  Building agent-society... "
+  if docker build -t agent-society "${AGENT_SOCIETY_PATH}" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC}"
+  else
+    echo -e "${RED}✗ Failed${NC}"
+    echo "Run manually: docker build -t agent-society ${AGENT_SOCIETY_PATH}"
+    exit 1
+  fi
+
+  echo -e "${GREEN}✓ All 3 Docker images built successfully${NC}"
+
+  # Nostr keypair generation/validation
+  echo ""
+  echo "Checking Nostr keypairs in .env.peers..."
+
+  # Source .env.peers to read current values
+  if [ -f "${PROJECT_ROOT}/.env.peers" ]; then
+    set -a
+    source "${PROJECT_ROOT}/.env.peers"
+    set +a
+  fi
+
+  # Check if PEER1_NOSTR_SECRET_KEY is a placeholder (60+ leading zeros)
+  if echo "${PEER1_NOSTR_SECRET_KEY:-}" | grep -qE "^0{60}"; then
+    echo -e "${YELLOW}Placeholder Nostr keys detected. Generating real keypairs...${NC}"
+
+    # Generate real keypairs
+    KEYGEN_OUTPUT=$(generate_nostr_keypairs)
+
+    # Write generated keys back to .env.peers (replace placeholder lines)
+    for i in {1..5}; do
+      NEW_SK=$(echo "${KEYGEN_OUTPUT}" | grep "PEER${i}_NOSTR_SECRET_KEY=" | sed 's/export //')
+      NEW_PK=$(echo "${KEYGEN_OUTPUT}" | grep "PEER${i}_NOSTR_PUBKEY=" | sed 's/export //')
+
+      if [ -n "${NEW_SK}" ] && [ -n "${NEW_PK}" ]; then
+        SK_VALUE=$(echo "${NEW_SK}" | cut -d'=' -f2)
+        PK_VALUE=$(echo "${NEW_PK}" | cut -d'=' -f2)
+
+        # Replace in .env.peers file
+        sed -i.bak "s/^PEER${i}_NOSTR_SECRET_KEY=.*/PEER${i}_NOSTR_SECRET_KEY=${SK_VALUE}/" "${PROJECT_ROOT}/.env.peers"
+        sed -i.bak "s/^PEER${i}_NOSTR_PUBKEY=.*/PEER${i}_NOSTR_PUBKEY=${PK_VALUE}/" "${PROJECT_ROOT}/.env.peers"
+      fi
+    done
+
+    # Clean up sed backup files
+    rm -f "${PROJECT_ROOT}/.env.peers.bak"
+
+    echo -e "${GREEN}✓ Real Nostr keypairs generated and written to .env.peers${NC}"
+
+    # Re-source the updated file
+    set -a
+    source "${PROJECT_ROOT}/.env.peers"
+    set +a
+  else
+    echo -e "${GREEN}✓ Real Nostr keypairs already present in .env.peers${NC}"
+  fi
+
+  # Export all Nostr keys for Docker Compose interpolation
+  for i in {1..5}; do
+    eval "export PEER${i}_NOSTR_SECRET_KEY"
+    eval "export PEER${i}_NOSTR_PUBKEY"
+  done
+
+  echo ""
+fi
+
 echo ""
+
+# =============================================================================
+# Unified Deployment Mode (--unified)
+# =============================================================================
+if [ "${WITH_UNIFIED}" = true ]; then
+
+  # Phase result tracking
+  UNIFIED_PHASE1_PASS=false
+  UNIFIED_PHASE2_PASS=false
+  UNIFIED_PHASE3_PASS=false
+  UNIFIED_PHASE4_PASS=false
+  UNIFIED_PHASE5_PASS=false
+  UNIFIED_PHASE6_PASS=false
+  UNIFIED_PHASE7_PASS=false
+
+  UNIFIED_TIMEOUT=${UNIFIED_TIMEOUT:-120}
+
+  # Helper: print phase result
+  print_phase_result() {
+    local phase_num=$1
+    local phase_name=$2
+    local passed=$3
+    local dots=""
+    local name_len=${#phase_name}
+    local dot_count=$((45 - name_len))
+    for ((d=0; d<dot_count; d++)); do dots+="."; done
+
+    if [ "${passed}" = true ]; then
+      echo -e "  [Phase ${phase_num}/7] ${phase_name} ${dots} ${GREEN}✓ PASS${NC}"
+    elif [ "${passed}" = "warn" ]; then
+      echo -e "  [Phase ${phase_num}/7] ${phase_name} ${dots} ${YELLOW}⚠ WARN${NC}"
+    else
+      echo -e "  [Phase ${phase_num}/7] ${phase_name} ${dots} ${RED}✗ FAIL${NC}"
+    fi
+  }
+
+  # Helper: print service status table
+  print_unified_status_table() {
+    echo ""
+    echo "┌───────────────────┬──────────┬──────────────────────────┐"
+    echo "│ Service           │ Status   │ Port                     │"
+    echo "├───────────────────┼──────────┼──────────────────────────┤"
+
+    # TigerBeetle
+    TB_STATUS=$(docker compose -f "${COMPOSE_FILE_UNIFIED}" --env-file "${PROJECT_ROOT}/.env.peers" ps tigerbeetle --format "{{.Status}}" 2>/dev/null | head -1)
+    if echo "${TB_STATUS}" | grep -qi "up\|running"; then
+      printf "│ %-17s │ ${GREEN}%-8s${NC} │ %-24s │\n" "tigerbeetle" "✓ Up" "(internal)"
+    else
+      printf "│ %-17s │ ${RED}%-8s${NC} │ %-24s │\n" "tigerbeetle" "✗ Down" "(internal)"
+    fi
+
+    # Agent-society containers
+    for i in {1..5}; do
+      BLS_PORT=$((3109 + i))
+      WS_PORT=$((7109 + i))
+      if curl -s "http://localhost:${BLS_PORT}/health" 2>/dev/null | grep -q "healthy"; then
+        printf "│ %-17s │ ${GREEN}%-8s${NC} │ %-24s │\n" "agent-society-${i}" "✓ Healthy" "BLS:${BLS_PORT} WS:${WS_PORT}"
+      else
+        printf "│ %-17s │ ${RED}%-8s${NC} │ %-24s │\n" "agent-society-${i}" "✗ Down" "BLS:${BLS_PORT} WS:${WS_PORT}"
+      fi
+    done
+
+    # Agent-runtime middleware containers
+    for i in {1..5}; do
+      MW_PORT=$((3199 + i))
+      if curl -s "http://localhost:${MW_PORT}/health" 2>/dev/null | grep -q "healthy\|ok"; then
+        printf "│ %-17s │ ${GREEN}%-8s${NC} │ %-24s │\n" "agent-runtime-${i}" "✓ Healthy" "${MW_PORT}"
+      else
+        printf "│ %-17s │ ${RED}%-8s${NC} │ %-24s │\n" "agent-runtime-${i}" "✗ Down" "${MW_PORT}"
+      fi
+    done
+
+    # Connector containers
+    for i in {1..5}; do
+      BTP_PORT=$((2999 + i))
+      H_PORT=$((9079 + i))
+      ADMIN_PORT=$((8180 + i))
+      if curl -s "http://localhost:${H_PORT}/health" 2>/dev/null | grep -q "healthy\|ok"; then
+        printf "│ %-17s │ ${GREEN}%-8s${NC} │ %-24s │\n" "peer${i}" "✓ Healthy" "BTP:${BTP_PORT} H:${H_PORT}"
+      else
+        printf "│ %-17s │ ${RED}%-8s${NC} │ %-24s │\n" "peer${i}" "✗ Down" "BTP:${BTP_PORT} H:${H_PORT}"
+      fi
+    done
+
+    echo "└───────────────────┴──────────┴──────────────────────────┘"
+    echo ""
+  }
+
+  # --------------------------------------------------------------------------
+  # Phase 0: Initialize TigerBeetle
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 0]${NC} Initializing TigerBeetle..."
+  echo ""
+
+  cd "${PROJECT_ROOT}"
+
+  # Stop any existing unified deployment
+  docker compose -f "${COMPOSE_FILE_UNIFIED}" --env-file "${PROJECT_ROOT}/.env.peers" down 2>/dev/null || true
+
+  initialize_tigerbeetle
+
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Phase 1: Start all services and verify agent-society health
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 1/7]${NC} Starting unified stack and verifying agent-society health..."
+  echo ""
+
+  # Start all services (Docker Compose manages dependency ordering via depends_on)
+  echo "Starting all 16 services via docker-compose-unified.yml..."
+  docker compose -f "${COMPOSE_FILE_UNIFIED}" --env-file "${PROJECT_ROOT}/.env.peers" up -d
+
+  echo ""
+  echo "Waiting for agent-society containers to become healthy..."
+
+  PHASE1_FAILED=false
+  for i in {1..5}; do
+    BLS_PORT=$((3109 + i))
+    echo -n "  agent-society-${i} (port ${BLS_PORT})... "
+
+    MAX_ATTEMPTS=$((UNIFIED_TIMEOUT / 2))
+    for attempt in $(seq 1 ${MAX_ATTEMPTS}); do
+      if curl -s "http://localhost:${BLS_PORT}/health" 2>/dev/null | grep -q "healthy"; then
+        echo -e "${GREEN}✓${NC}"
+        break
+      fi
+
+      if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
+        echo -e "${RED}✗ Timeout after ${UNIFIED_TIMEOUT}s${NC}"
+        PHASE1_FAILED=true
+      fi
+
+      sleep 2
+    done
+  done
+
+  # Check relay WebSocket ports
+  echo ""
+  echo "Checking Nostr relay ports..."
+  for i in {1..5}; do
+    WS_PORT=$((7109 + i))
+    echo -n "  agent-society-${i} relay (port ${WS_PORT})... "
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${WS_PORT}/" 2>/dev/null || echo "000")
+    if [ "${HTTP_CODE}" != "000" ]; then
+      echo -e "${GREEN}✓ Listening${NC}"
+    else
+      echo -e "${YELLOW}⚠ Not responding${NC}"
+    fi
+  done
+
+  if [ "${PHASE1_FAILED}" = false ]; then
+    UNIFIED_PHASE1_PASS=true
+  fi
+  echo ""
+  print_phase_result 1 "Agent-Society Health" "${UNIFIED_PHASE1_PASS}"
+  echo ""
+
+  if [ "${PHASE1_FAILED}" = true ]; then
+    echo -e "${RED}Phase 1 failed. Check agent-society logs:${NC}"
+    echo "  docker compose -f docker-compose-unified.yml --env-file .env.peers logs agent-society-1"
+  fi
+
+  # --------------------------------------------------------------------------
+  # Phase 2: Wait for agent-runtime middleware
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 2/7]${NC} Verifying agent-runtime middleware health..."
+  echo ""
+
+  PHASE2_FAILED=false
+  for i in {1..5}; do
+    MW_PORT=$((3199 + i))
+    echo -n "  agent-runtime-${i} (port ${MW_PORT})... "
+
+    MAX_ATTEMPTS=$((UNIFIED_TIMEOUT / 2))
+    for attempt in $(seq 1 ${MAX_ATTEMPTS}); do
+      if curl -s "http://localhost:${MW_PORT}/health" 2>/dev/null | grep -q "healthy\|ok"; then
+        echo -e "${GREEN}✓${NC}"
+        break
+      fi
+
+      if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
+        echo -e "${RED}✗ Timeout after ${UNIFIED_TIMEOUT}s${NC}"
+        PHASE2_FAILED=true
+      fi
+
+      sleep 2
+    done
+  done
+
+  if [ "${PHASE2_FAILED}" = false ]; then
+    UNIFIED_PHASE2_PASS=true
+  fi
+  echo ""
+  print_phase_result 2 "Agent-Runtime Middleware" "${UNIFIED_PHASE2_PASS}"
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Phase 3: Wait for connectors
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 3/7]${NC} Verifying connector health..."
+  echo ""
+
+  PHASE3_FAILED=false
+  for i in {1..5}; do
+    H_PORT=$((9079 + i))
+    ADMIN_PORT=$((8180 + i))
+    echo -n "  peer${i} (health: ${H_PORT}, admin: ${ADMIN_PORT})... "
+
+    MAX_ATTEMPTS=$((UNIFIED_TIMEOUT / 2))
+    for attempt in $(seq 1 ${MAX_ATTEMPTS}); do
+      HEALTH_OK=$(curl -s "http://localhost:${H_PORT}/health" 2>/dev/null || echo "")
+      ADMIN_OK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${ADMIN_PORT}/admin/peers" 2>/dev/null || echo "000")
+
+      if [ -n "${HEALTH_OK}" ] && [ "${ADMIN_OK}" = "200" ]; then
+        echo -e "${GREEN}✓${NC}"
+        break
+      fi
+
+      if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
+        echo -e "${RED}✗ Timeout after ${UNIFIED_TIMEOUT}s${NC}"
+        PHASE3_FAILED=true
+      fi
+
+      sleep 2
+    done
+  done
+
+  if [ "${PHASE3_FAILED}" = false ]; then
+    UNIFIED_PHASE3_PASS=true
+  fi
+  echo ""
+  print_phase_result 3 "Connector Health" "${UNIFIED_PHASE3_PASS}"
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Phase 4: Bootstrap verification
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 4/7]${NC} Verifying bootstrap..."
+  echo ""
+
+  # Check agent-society-1 logs for bootstrap events
+  echo "Checking bootstrap node logs..."
+  BOOTSTRAP_LOGS=$(docker compose -f "${COMPOSE_FILE_UNIFIED}" --env-file "${PROJECT_ROOT}/.env.peers" logs agent-society-1 2>&1 | tail -50)
+
+  if echo "${BOOTSTRAP_LOGS}" | grep -qi "bootstrap\|kind:10032\|published\|ready"; then
+    echo -e "  ${GREEN}✓ Bootstrap events detected in agent-society-1 logs${NC}"
+  else
+    echo -e "  ${YELLOW}⚠ No bootstrap events found in agent-society-1 logs (may still be initializing)${NC}"
+  fi
+
+  # Allow extra time for handshakes
+  echo ""
+  echo "Waiting 10s for bootstrap handshakes to complete..."
+  sleep 10
+
+  # Verify peers 2-5 have peer1 registered
+  echo ""
+  echo "Checking peer registration via Admin API..."
+  PHASE4_FAILED=false
+  for i in {2..5}; do
+    ADMIN_PORT=$((8180 + i))
+    echo -n "  peer${i} (port ${ADMIN_PORT}) peers list... "
+
+    PEERS_RESPONSE=$(curl -s "http://localhost:${ADMIN_PORT}/admin/peers" 2>/dev/null || echo "")
+
+    if echo "${PEERS_RESPONSE}" | grep -q "peer1"; then
+      echo -e "${GREEN}✓ Has peer1 registered${NC}"
+    elif [ -n "${PEERS_RESPONSE}" ] && [ "${PEERS_RESPONSE}" != "" ]; then
+      echo -e "${YELLOW}⚠ peer1 not found in peers list${NC}"
+    else
+      echo -e "${RED}✗ Admin API not responding${NC}"
+      PHASE4_FAILED=true
+    fi
+  done
+
+  if [ "${PHASE4_FAILED}" = false ]; then
+    UNIFIED_PHASE4_PASS=true
+  fi
+  echo ""
+  print_phase_result 4 "Bootstrap Verification" "${UNIFIED_PHASE4_PASS}"
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Phase 5: Verify payment channels
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 5/7]${NC} Verifying payment channels..."
+  echo ""
+
+  TOTAL_CHANNELS=0
+  for i in {1..5}; do
+    ADMIN_PORT=$((8180 + i))
+    echo -n "  peer${i} (port ${ADMIN_PORT})... "
+
+    CHANNELS_RESPONSE=$(curl -s "http://localhost:${ADMIN_PORT}/admin/channels" 2>/dev/null || echo "[]")
+
+    # Count channels (simple JSON array length heuristic)
+    CHANNEL_COUNT=$(echo "${CHANNELS_RESPONSE}" | grep -o '"channelId"' 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "${CHANNEL_COUNT}" -gt "0" ] 2>/dev/null; then
+      echo -e "${GREEN}✓ ${CHANNEL_COUNT} channel(s)${NC}"
+      TOTAL_CHANNELS=$((TOTAL_CHANNELS + CHANNEL_COUNT))
+    else
+      echo -e "${YELLOW}⚠ 0 channels${NC}"
+    fi
+  done
+
+  if [ "${TOTAL_CHANNELS}" -gt "0" ]; then
+    UNIFIED_PHASE5_PASS=true
+  else
+    UNIFIED_PHASE5_PASS="warn"
+  fi
+  echo ""
+  print_phase_result 5 "Payment Channels" "${UNIFIED_PHASE5_PASS}"
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Phase 6: Verify routing tables
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 6/7]${NC} Verifying routing tables..."
+  echo ""
+
+  echo "Checking peer1 routing table (port 8181)..."
+  ROUTES_RESPONSE=$(curl -s "http://localhost:8181/admin/routes" 2>/dev/null || echo "")
+
+  ROUTES_FOUND=0
+  for peer_addr in g.peer2 g.peer3 g.peer4 g.peer5; do
+    echo -n "  Route to ${peer_addr}... "
+    if echo "${ROUTES_RESPONSE}" | grep -q "${peer_addr}"; then
+      echo -e "${GREEN}✓ Found${NC}"
+      ROUTES_FOUND=$((ROUTES_FOUND + 1))
+    else
+      echo -e "${YELLOW}⚠ Not found${NC}"
+    fi
+  done
+
+  echo ""
+  echo "  Routes found: ${ROUTES_FOUND}/4"
+
+  if [ "${ROUTES_FOUND}" -ge 4 ]; then
+    UNIFIED_PHASE6_PASS=true
+  elif [ "${ROUTES_FOUND}" -gt 0 ]; then
+    UNIFIED_PHASE6_PASS="warn"
+  fi
+  echo ""
+  print_phase_result 6 "Routing Tables" "${UNIFIED_PHASE6_PASS}"
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Phase 7: End-to-end test packet
+  # --------------------------------------------------------------------------
+  echo -e "${BLUE}[Phase 7/7]${NC} Sending end-to-end test packet..."
+  echo ""
+
+  echo "Sending via agent-runtime-1 middleware (port 3200)..."
+  echo '  POST /ilp/send {"destination":"g.peer5","amount":"1000","data":"SGVsbG8="}'
+  echo ""
+
+  E2E_RESPONSE=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"destination":"g.peer5","amount":"1000","data":"SGVsbG8="}' \
+    http://localhost:3200/ilp/send 2>/dev/null || echo "")
+
+  echo "  Response: ${E2E_RESPONSE}"
+  echo ""
+
+  if echo "${E2E_RESPONSE}" | grep -qi "fulfill\|fulfilled"; then
+    echo -e "  ${GREEN}✓ End-to-end test: FULFILL received${NC}"
+    UNIFIED_PHASE7_PASS=true
+  elif echo "${E2E_RESPONSE}" | grep -qi "reject"; then
+    echo -e "  ${RED}✗ End-to-end test: REJECT received${NC}"
+  else
+    echo -e "  ${YELLOW}⚠ End-to-end test: Unexpected response${NC}"
+  fi
+  echo ""
+  print_phase_result 7 "End-to-End Test" "${UNIFIED_PHASE7_PASS}"
+  echo ""
+
+  # --------------------------------------------------------------------------
+  # Unified Deployment Summary
+  # --------------------------------------------------------------------------
+  echo "======================================"
+  echo "  Unified Deployment Verification"
+  echo "======================================"
+  echo ""
+  print_phase_result 1 "Agent-Society Health" "${UNIFIED_PHASE1_PASS}"
+  print_phase_result 2 "Agent-Runtime Middleware" "${UNIFIED_PHASE2_PASS}"
+  print_phase_result 3 "Connector Health" "${UNIFIED_PHASE3_PASS}"
+  print_phase_result 4 "Bootstrap Verification" "${UNIFIED_PHASE4_PASS}"
+  print_phase_result 5 "Payment Channels" "${UNIFIED_PHASE5_PASS}"
+  print_phase_result 6 "Routing Tables" "${UNIFIED_PHASE6_PASS}"
+  print_phase_result 7 "End-to-End Test" "${UNIFIED_PHASE7_PASS}"
+  echo ""
+
+  # Print service status table
+  print_unified_status_table
+
+  # Print useful commands
+  echo "======================================"
+  echo "  Useful Commands (Unified Mode)"
+  echo "======================================"
+  echo ""
+  echo "View logs:"
+  echo "  docker compose -f docker-compose-unified.yml --env-file .env.peers logs -f"
+  echo ""
+  echo "View specific service:"
+  echo "  docker compose -f docker-compose-unified.yml --env-file .env.peers logs -f agent-society-1"
+  echo ""
+  echo "Check health:"
+  echo "  curl http://localhost:3110/health   # BLS (agent-society-1)"
+  echo "  curl http://localhost:3200/health   # Middleware (agent-runtime-1)"
+  echo "  curl http://localhost:9080/health   # Connector (peer1)"
+  echo ""
+  echo "Admin API:"
+  echo "  curl http://localhost:8181/admin/peers"
+  echo "  curl http://localhost:8181/admin/channels"
+  echo "  curl http://localhost:8181/admin/routes"
+  echo ""
+  echo "Stop:"
+  echo "  docker compose -f docker-compose-unified.yml --env-file .env.peers down"
+  echo ""
+
+  # Overall unified status
+  echo "======================================"
+  UNIFIED_CRITICAL_PASS=true
+  if [ "${UNIFIED_PHASE1_PASS}" != true ] || [ "${UNIFIED_PHASE2_PASS}" != true ] || [ "${UNIFIED_PHASE3_PASS}" != true ]; then
+    UNIFIED_CRITICAL_PASS=false
+  fi
+
+  if [ "${UNIFIED_CRITICAL_PASS}" = true ] && [ "${UNIFIED_PHASE7_PASS}" = true ]; then
+    echo -e "${GREEN}  UNIFIED DEPLOYMENT VERIFICATION PASSED ✓${NC}"
+    echo "======================================"
+    exit 0
+  elif [ "${UNIFIED_CRITICAL_PASS}" = true ]; then
+    echo -e "${YELLOW}  UNIFIED DEPLOYMENT COMPLETED WITH WARNINGS${NC}"
+    echo "======================================"
+    exit 0
+  else
+    echo -e "${RED}  UNIFIED DEPLOYMENT VERIFICATION FAILED${NC}"
+    echo "======================================"
+    exit 4
+  fi
+
+fi  # End of WITH_UNIFIED block
 
 # Skip standard deployment steps in agent-only mode
 if [ "${AGENT_ONLY}" = false ]; then
@@ -1383,6 +1967,7 @@ fi
 # 1 = multi-hop forwarding failed
 # 2 = reject tests had failures
 # 3 = agent runtime tests had failures
+# 4 = unified deployment/verification failed
 
 if [ "${AGENT_ONLY}" = true ]; then
   # Agent-only mode

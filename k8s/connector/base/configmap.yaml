@@ -50,5 +50,9 @@ data:
   # Monitoring
   PROMETHEUS_ENABLED: "true"
 
+  # Local Delivery — forward inbound ILP packets to agent-runtime middleware
+  LOCAL_DELIVERY_ENABLED: "true"
+  LOCAL_DELIVERY_URL: "http://agent-runtime.agent-runtime-core.svc.cluster.local:3100"
+
   # Peer Discovery (disabled by default)
   PEER_DISCOVERY_ENABLED: "false"
