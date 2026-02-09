@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.8.0...v1.9.0) (2026-02-09)
+
+### Features
+
+- add ElizaOS plugin generator skill with research docs ([4718c97](https://github.com/ALLiDoizCode/agent-runtime/commit/4718c976f9b619671d33faac51c04ef18522c4c5))
+
+### Bug Fixes
+
+- stabilize flaky CI tests for memory profiling and settlement failover ([6b54119](https://github.com/ALLiDoizCode/agent-runtime/commit/6b5411937c7d5ceabf3e047b5a169e29b9ecf2e3))
+
 ## [1.8.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.7.0...v1.8.0) (2026-02-09)
 
 ### Features
