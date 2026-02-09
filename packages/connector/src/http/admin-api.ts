@@ -37,6 +37,13 @@ import {
   isValidAptosAddress,
   isValidNonNegativeIntegerString,
 } from '../settlement/types';
+import type { ChannelManager } from '../settlement/channel-manager';
+import type { PaymentChannelSDK } from '../settlement/payment-channel-sdk';
+import type { XRPChannelLifecycleManager } from '../settlement/xrp-channel-lifecycle';
+import type { AccountManager } from '../settlement/account-manager';
+import type { SettlementMonitor } from '../settlement/settlement-monitor';
+import type { ClaimReceiver } from '../settlement/claim-receiver';
+import type { BlockchainType } from '../btp/btp-claim-types';
 
 /**
  * Admin API Configuration
@@ -63,6 +70,24 @@ export interface AdminAPIConfig {
    * includes settlement info. If omitted, settlement features are silently skipped.
    */
   settlementPeers?: Map<string, SettlementPeerConfig>;
+
+  /** Optional ChannelManager for payment channel lifecycle operations */
+  channelManager?: ChannelManager;
+
+  /** Optional PaymentChannelSDK for on-chain EVM channel state queries */
+  paymentChannelSDK?: PaymentChannelSDK;
+
+  /** Optional XRPChannelLifecycleManager for XRP payment channel operations */
+  xrpChannelLifecycleManager?: XRPChannelLifecycleManager;
+
+  /** Optional AccountManager for peer balance queries (TigerBeetle) */
+  accountManager?: AccountManager;
+
+  /** Optional SettlementMonitor for settlement state queries */
+  settlementMonitor?: SettlementMonitor;
+
+  /** Optional ClaimReceiver for payment channel claim queries */
+  claimReceiver?: ClaimReceiver;
 }
 
 /**
@@ -117,6 +142,30 @@ export interface AddRouteRequest {
 }
 
 /**
+ * GET /admin/balances/:peerId response
+ * MVP: balances array always contains a single element (one tokenId per query).
+ * Array structure allows future multi-token expansion without breaking the API.
+ */
+export interface BalanceResponse {
+  peerId: string;
+  balances: Array<{
+    tokenId: string;
+    debitBalance: string;
+    creditBalance: string;
+    netBalance: string;
+  }>;
+}
+
+/**
+ * GET /admin/settlement/states response item
+ */
+export interface SettlementStateResponse {
+  peerId: string;
+  tokenId: string;
+  state: string;
+}
+
+/**
  * Create Admin API Express router
  *
  * @param config - Admin API configuration
@@ -133,7 +182,20 @@ export interface AddRouteRequest {
  */
 export function createAdminRouter(config: AdminAPIConfig): Router {
   const router = Router();
-  const { routingTable, btpClientManager, logger, apiKey, nodeId, settlementPeers } = config;
+  const {
+    routingTable,
+    btpClientManager,
+    logger,
+    apiKey,
+    nodeId,
+    settlementPeers,
+    channelManager,
+    paymentChannelSDK,
+    xrpChannelLifecycleManager,
+    accountManager,
+    settlementMonitor,
+    claimReceiver,
+  } = config;
   const log = logger.child({ component: 'AdminAPI' });
 
   // JSON body parser
@@ -680,6 +742,662 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
     }
   });
 
+  // --- Payment Channel Endpoints ---
+
+  /**
+   * POST /admin/channels
+   * Open a new payment channel
+   */
+  router.post('/channels', async (req: Request, res: Response) => {
+    try {
+      if (!channelManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement infrastructure not enabled',
+        });
+        return;
+      }
+
+      const validation = validateOpenChannelRequest(req.body as Record<string, unknown>);
+      if (!validation.valid) {
+        res.status(400).json({ error: 'Bad request', message: validation.error });
+        return;
+      }
+
+      const body = req.body as OpenChannelRequest;
+      const chainPrefix = body.chain.split(':')[0];
+
+      if (chainPrefix === 'evm') {
+        // Derive tokenId from request
+        const tokenId = body.token ?? 'AGENT';
+
+        // Check for existing channel
+        const existing = channelManager.getChannelForPeer(body.peerId, tokenId);
+        if (existing && existing.status !== 'closed') {
+          res.status(409).json({
+            error: 'Conflict',
+            message: `Channel already exists for peer ${body.peerId} with token ${tokenId} on chain ${body.chain}`,
+          });
+          return;
+        }
+
+        const channelId = await channelManager.ensureChannelExists(body.peerId, tokenId, {
+          initialDeposit: BigInt(body.initialDeposit),
+          settlementTimeout: body.settlementTimeout,
+          chain: body.chain,
+        });
+
+        log.info(
+          { peerId: body.peerId, chain: body.chain, channelId },
+          'Channel opened via Admin API'
+        );
+
+        res.status(201).json({
+          channelId,
+          chain: body.chain,
+          status: 'open',
+          deposit: body.initialDeposit,
+        } satisfies OpenChannelResponse);
+      } else if (chainPrefix === 'xrp') {
+        if (!xrpChannelLifecycleManager) {
+          res.status(503).json({
+            error: 'Service Unavailable',
+            message: 'XRP settlement infrastructure not enabled',
+          });
+          return;
+        }
+
+        // Resolve XRP destination from settlementPeers
+        const peerConfig = settlementPeers?.get(body.peerId);
+        if (!peerConfig?.xrpAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'Peer has no XRP address configured',
+          });
+          return;
+        }
+
+        const channelId = await xrpChannelLifecycleManager.getOrCreateChannel(
+          body.peerId,
+          peerConfig.xrpAddress
+        );
+
+        log.info(
+          { peerId: body.peerId, chain: body.chain, channelId },
+          'XRP channel opened via Admin API'
+        );
+
+        res.status(201).json({
+          channelId,
+          chain: body.chain,
+          status: 'open',
+          deposit: body.initialDeposit,
+        } satisfies OpenChannelResponse);
+      } else if (chainPrefix === 'aptos') {
+        // Aptos channel open — placeholder
+        const peerConfig = settlementPeers?.get(body.peerId);
+        if (!peerConfig?.aptosAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'Peer has no Aptos address configured',
+          });
+          return;
+        }
+
+        returnNotImplemented(res, 'aptos', 'Channel open');
+      } else {
+        res.status(400).json({
+          error: 'Bad request',
+          message: `Unsupported blockchain: ${chainPrefix}`,
+        });
+      }
+    } catch (error) {
+      log.error(
+        {
+          err: error,
+          peerId: (req.body as Record<string, unknown>).peerId,
+          chain: (req.body as Record<string, unknown>).chain,
+        },
+        'Channel open failed'
+      );
+      res.status(500).json({ error: 'Internal error', message: 'Channel open failed' });
+    }
+  });
+
+  /**
+   * GET /admin/channels
+   * List all channels with optional filters
+   */
+  router.get('/channels', async (_req: Request, res: Response) => {
+    try {
+      if (!channelManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement infrastructure not enabled',
+        });
+        return;
+      }
+
+      let channels = channelManager.getAllChannels();
+
+      // Apply optional query filters
+      const filterPeerId = _req.query.peerId as string | undefined;
+      const filterChain = _req.query.chain as string | undefined;
+      const filterStatus = _req.query.status as string | undefined;
+
+      if (filterPeerId) {
+        channels = channels.filter((ch) => ch.peerId === filterPeerId);
+      }
+      if (filterChain) {
+        channels = channels.filter((ch) => ch.chain === filterChain);
+      }
+      if (filterStatus) {
+        channels = channels.filter((ch) => ch.status === filterStatus);
+      }
+
+      // Map to response format
+      const summaries: ChannelSummary[] = channels.map((ch) => ({
+        channelId: ch.channelId,
+        peerId: ch.peerId,
+        chain: ch.chain,
+        status: ch.status,
+        deposit: 'unknown',
+        lastActivity: ch.lastActivityAt.toISOString(),
+      }));
+
+      // Try to enrich with on-chain deposit info (parallel queries)
+      if (paymentChannelSDK) {
+        await Promise.all(
+          summaries.map(async (summary) => {
+            try {
+              const ch = channels.find((c) => c.channelId === summary.channelId);
+              if (ch) {
+                const state = await paymentChannelSDK.getChannelState(
+                  ch.channelId,
+                  ch.tokenAddress
+                );
+                summary.deposit = state.myDeposit.toString();
+              }
+            } catch {
+              // Leave as 'unknown' if query fails
+            }
+          })
+        );
+      }
+
+      res.json(summaries);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log.error({ event: 'admin_api_error', error: errorMessage }, 'Failed to list channels');
+      res.status(500).json({ error: 'Internal server error', message: errorMessage });
+    }
+  });
+
+  /**
+   * GET /admin/channels/:channelId
+   * Get channel details with on-chain state
+   */
+  router.get('/channels/:channelId', async (req: Request, res: Response) => {
+    try {
+      if (!channelManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement infrastructure not enabled',
+        });
+        return;
+      }
+
+      const reqChannelId = req.params.channelId as string;
+      const metadata = channelManager.getChannelById(reqChannelId);
+
+      if (!metadata) {
+        res.status(404).json({ error: 'Not found', message: 'Channel not found' });
+        return;
+      }
+
+      // Query on-chain state if SDK available
+      if (paymentChannelSDK && metadata.chain.startsWith('evm')) {
+        const state = await paymentChannelSDK.getChannelState(
+          metadata.channelId,
+          metadata.tokenAddress
+        );
+
+        // Serialize BigInt values to strings
+        res.json({
+          channelId: state.channelId,
+          participants: state.participants,
+          deposit: state.myDeposit.toString(),
+          theirDeposit: state.theirDeposit.toString(),
+          transferred: state.myTransferred.toString(),
+          theirTransferred: state.theirTransferred.toString(),
+          status: state.status,
+          nonce: state.myNonce,
+          theirNonce: state.theirNonce,
+          settlementTimeout: state.settlementTimeout,
+          openedAt: state.openedAt,
+          closedAt: state.closedAt,
+        } satisfies ChannelDetailResponse);
+        return;
+      }
+
+      // Fallback: return metadata only (non-EVM or SDK unavailable)
+      res.json({
+        channelId: metadata.channelId,
+        peerId: metadata.peerId,
+        chain: metadata.chain,
+        status: metadata.status,
+        deposit: 'unknown',
+        tokenId: metadata.tokenId,
+        createdAt: metadata.createdAt.toISOString(),
+        lastActivity: metadata.lastActivityAt.toISOString(),
+      } satisfies ChannelDetailResponse);
+    } catch (error) {
+      log.error({ err: error, channelId: req.params.channelId }, 'Failed to query channel state');
+      res.status(500).json({ error: 'Internal error', message: 'Failed to query channel state' });
+    }
+  });
+
+  /**
+   * POST /admin/channels/:channelId/deposit
+   * Add funds to a payment channel
+   */
+  router.post('/channels/:channelId/deposit', async (req: Request, res: Response) => {
+    try {
+      if (!channelManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement infrastructure not enabled',
+        });
+        return;
+      }
+
+      const reqChannelId = req.params.channelId as string;
+      const metadata = channelManager.getChannelById(reqChannelId);
+
+      if (!metadata) {
+        res.status(404).json({ error: 'Not found', message: 'Channel not found' });
+        return;
+      }
+
+      const validation = validateDepositRequest(req.body as Record<string, unknown>);
+      if (!validation.valid) {
+        res.status(400).json({ error: 'Bad request', message: validation.error });
+        return;
+      }
+
+      if (metadata.status !== 'active') {
+        res.status(400).json({
+          error: 'Bad request',
+          message: 'Channel is not in open state',
+        });
+        return;
+      }
+
+      const { amount } = req.body as DepositRequest;
+      const chainPrefix = metadata.chain.split(':')[0];
+
+      if (chainPrefix === 'evm') {
+        if (!paymentChannelSDK) {
+          res.status(503).json({
+            error: 'Service Unavailable',
+            message: 'EVM settlement infrastructure not enabled',
+          });
+          return;
+        }
+
+        await paymentChannelSDK.deposit(reqChannelId, metadata.tokenAddress, BigInt(amount));
+
+        const state = await paymentChannelSDK.getChannelState(reqChannelId, metadata.tokenAddress);
+
+        metadata.lastActivityAt = new Date();
+
+        log.info(
+          { channelId: reqChannelId, chain: chainPrefix, amount },
+          'Deposit completed via Admin API'
+        );
+
+        res.json({
+          channelId: reqChannelId,
+          newDeposit: state.myDeposit.toString(),
+          status: 'open',
+        } satisfies DepositResponse);
+      } else if (chainPrefix === 'xrp') {
+        if (!xrpChannelLifecycleManager) {
+          res.status(503).json({
+            error: 'Service Unavailable',
+            message: 'XRP settlement infrastructure not enabled',
+          });
+          return;
+        }
+
+        await xrpChannelLifecycleManager.fundChannel(metadata.peerId, amount);
+
+        metadata.lastActivityAt = new Date();
+
+        log.info(
+          { channelId: reqChannelId, chain: chainPrefix, amount },
+          'Deposit completed via Admin API'
+        );
+
+        res.json({
+          channelId: reqChannelId,
+          newDeposit: amount,
+          status: 'open',
+        } satisfies DepositResponse);
+      } else if (chainPrefix === 'aptos') {
+        returnNotImplemented(res, 'aptos', 'Channel deposit');
+      } else {
+        res.status(400).json({
+          error: 'Bad request',
+          message: `Unsupported blockchain: ${chainPrefix}`,
+        });
+      }
+    } catch (error) {
+      log.error({ err: error, channelId: req.params.channelId }, 'Deposit failed');
+      res.status(500).json({ error: 'Internal error', message: 'Deposit failed' });
+    }
+  });
+
+  /**
+   * POST /admin/channels/:channelId/close
+   * Initiate channel close
+   */
+  router.post('/channels/:channelId/close', async (req: Request, res: Response) => {
+    try {
+      if (!channelManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement infrastructure not enabled',
+        });
+        return;
+      }
+
+      const reqChannelId = req.params.channelId as string;
+      const metadata = channelManager.getChannelById(reqChannelId);
+
+      if (!metadata) {
+        res.status(404).json({ error: 'Not found', message: 'Channel not found' });
+        return;
+      }
+
+      if (metadata.status !== 'active' && metadata.status !== 'opening') {
+        res.status(400).json({
+          error: 'Bad request',
+          message: 'Channel is not in a closeable state',
+        });
+        return;
+      }
+
+      const body = req.body as CloseChannelRequest;
+      const cooperative = body.cooperative !== false;
+      const chainPrefix = metadata.chain.split(':')[0];
+
+      if (chainPrefix === 'evm') {
+        if (!paymentChannelSDK) {
+          res.status(503).json({
+            error: 'Service Unavailable',
+            message: 'EVM settlement infrastructure not enabled',
+          });
+          return;
+        }
+
+        if (cooperative) {
+          try {
+            const state = await paymentChannelSDK.getChannelState(
+              reqChannelId,
+              metadata.tokenAddress
+            );
+
+            const myBalanceProof = {
+              channelId: reqChannelId,
+              nonce: state.myNonce + 1,
+              transferredAmount: state.myTransferred,
+              lockedAmount: 0n,
+              locksRoot: '0x' + '0'.repeat(64),
+            };
+
+            const theirBalanceProof = {
+              channelId: reqChannelId,
+              nonce: state.theirNonce,
+              transferredAmount: state.theirTransferred,
+              lockedAmount: 0n,
+              locksRoot: '0x' + '0'.repeat(64),
+            };
+
+            const mySignature = '0x' + '0'.repeat(130);
+            const theirSignature = '0x' + '0'.repeat(130);
+
+            await paymentChannelSDK.cooperativeSettle(
+              reqChannelId,
+              metadata.tokenAddress,
+              myBalanceProof,
+              mySignature,
+              theirBalanceProof,
+              theirSignature
+            );
+
+            metadata.status = 'closed';
+            metadata.lastActivityAt = new Date();
+
+            log.info(
+              { channelId: reqChannelId, chain: chainPrefix, cooperative: true },
+              'Channel close initiated via Admin API'
+            );
+
+            res.json({
+              channelId: reqChannelId,
+              status: 'settled',
+            } satisfies CloseChannelResponse);
+            return;
+          } catch (coopError) {
+            log.warn(
+              { channelId: reqChannelId, err: coopError },
+              'Cooperative close failed, falling back to unilateral close'
+            );
+            // Fall through to unilateral close
+          }
+        }
+
+        // Unilateral close (fallback or cooperative: false)
+        const state = await paymentChannelSDK.getChannelState(reqChannelId, metadata.tokenAddress);
+
+        const signature = await paymentChannelSDK.signBalanceProof(
+          reqChannelId,
+          state.myNonce + 1,
+          state.myTransferred,
+          0n,
+          '0x' + '0'.repeat(64)
+        );
+
+        const balanceProof = {
+          channelId: reqChannelId,
+          nonce: state.myNonce + 1,
+          transferredAmount: state.myTransferred,
+          lockedAmount: 0n,
+          locksRoot: '0x' + '0'.repeat(64),
+        };
+
+        await paymentChannelSDK.closeChannel(
+          reqChannelId,
+          metadata.tokenAddress,
+          balanceProof,
+          signature
+        );
+
+        metadata.status = 'closing';
+        metadata.lastActivityAt = new Date();
+
+        log.info(
+          { channelId: reqChannelId, chain: chainPrefix, cooperative: false },
+          'Channel close initiated via Admin API'
+        );
+
+        res.json({
+          channelId: reqChannelId,
+          status: 'closing',
+        } satisfies CloseChannelResponse);
+      } else if (chainPrefix === 'xrp') {
+        if (!xrpChannelLifecycleManager) {
+          res.status(503).json({
+            error: 'Service Unavailable',
+            message: 'XRP settlement infrastructure not enabled',
+          });
+          return;
+        }
+
+        await xrpChannelLifecycleManager.closeChannel(metadata.peerId, 'manual');
+
+        metadata.status = 'closing';
+        metadata.lastActivityAt = new Date();
+
+        log.info(
+          { channelId: reqChannelId, chain: chainPrefix, cooperative },
+          'Channel close initiated via Admin API'
+        );
+
+        res.json({
+          channelId: reqChannelId,
+          status: 'closing',
+        } satisfies CloseChannelResponse);
+      } else if (chainPrefix === 'aptos') {
+        returnNotImplemented(res, 'aptos', 'Channel close');
+      } else {
+        res.status(400).json({
+          error: 'Bad request',
+          message: `Unsupported blockchain: ${chainPrefix}`,
+        });
+      }
+    } catch (error) {
+      log.error({ err: error, channelId: req.params.channelId }, 'Channel close failed');
+      res.status(500).json({ error: 'Internal error', message: 'Channel close failed' });
+    }
+  });
+
+  // --- Balance and Settlement State Query Endpoints (Story 21.3) ---
+
+  /**
+   * GET /admin/balances/:peerId
+   * Query balance for a specific peer
+   */
+  router.get('/balances/:peerId', async (req: Request, res: Response) => {
+    try {
+      if (!accountManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Account management not enabled',
+        });
+        return;
+      }
+
+      const peerId = req.params.peerId as string;
+      const tokenId = (req.query.tokenId as string) || 'ILP';
+
+      const balance = await accountManager.getAccountBalance(peerId, tokenId);
+
+      const response = {
+        peerId,
+        balances: [
+          {
+            tokenId,
+            debitBalance: balance.debitBalance.toString(),
+            creditBalance: balance.creditBalance.toString(),
+            netBalance: balance.netBalance.toString(),
+          },
+        ],
+      } satisfies BalanceResponse;
+
+      log.info({ peerId, tokenId }, 'Balance queried via Admin API');
+      res.json(response);
+    } catch (error) {
+      log.error({ err: error, peerId: req.params.peerId }, 'Balance query failed');
+      res.status(500).json({ error: 'Internal error', message: 'Balance query failed' });
+    }
+  });
+
+  /**
+   * GET /admin/settlement/states
+   * Query all settlement monitor states
+   */
+  router.get('/settlement/states', (_req: Request, res: Response) => {
+    try {
+      if (!settlementMonitor) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement monitoring not enabled',
+        });
+        return;
+      }
+
+      const allStates = settlementMonitor.getAllSettlementStates();
+      const states: SettlementStateResponse[] = [];
+
+      for (const [key, state] of allStates.entries()) {
+        const separatorIndex = key.lastIndexOf(':');
+        const peerId = key.substring(0, separatorIndex);
+        const tokenId = key.substring(separatorIndex + 1);
+        states.push({ peerId, tokenId, state });
+      }
+
+      log.info({ stateCount: states.length }, 'Settlement states queried via Admin API');
+      res.json(states);
+    } catch (error) {
+      log.error({ err: error }, 'Settlement state query failed');
+      res.status(500).json({ error: 'Internal error', message: 'Settlement state query failed' });
+    }
+  });
+
+  /**
+   * GET /admin/channels/:channelId/claims
+   * Get latest claim for a channel
+   */
+  router.get('/channels/:channelId/claims', async (req: Request, res: Response) => {
+    try {
+      if (!channelManager) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Settlement infrastructure not enabled',
+        });
+        return;
+      }
+
+      if (!claimReceiver) {
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: 'Claim receiver not enabled',
+        });
+        return;
+      }
+
+      const channelId = req.params.channelId as string;
+      const metadata = channelManager.getChannelById(channelId);
+
+      if (!metadata) {
+        res.status(404).json({ error: 'Not found', message: 'Channel not found' });
+        return;
+      }
+
+      const chainPrefix = metadata.chain.split(':')[0];
+      const blockchain = chainPrefix as BlockchainType;
+
+      const claim = await claimReceiver.getLatestVerifiedClaim(
+        metadata.peerId,
+        blockchain,
+        channelId
+      );
+
+      if (!claim) {
+        res.status(404).json({ error: 'Not found', message: 'No claims found for this channel' });
+        return;
+      }
+
+      log.info({ channelId, blockchain }, 'Claim queried via Admin API');
+      res.json(claim);
+    } catch (error) {
+      log.error({ err: error, channelId: req.params.channelId }, 'Claim query failed');
+      res.status(500).json({ error: 'Internal error', message: 'Claim query failed' });
+    }
+  });
+
   return router;
 }
 
@@ -698,4 +1416,176 @@ export interface AdminServerConfig {
 
   /** Enable/disable admin API (default: false) */
   enabled?: boolean;
+}
+
+// --- Payment Channel Admin API Types ---
+
+/** Chain format: {blockchain}:{network}:{chainId} */
+export const CHAIN_FORMAT_REGEX = /^(evm|xrp|aptos):[a-zA-Z0-9]+:\d+$/;
+
+/** POST /admin/channels request body */
+export interface OpenChannelRequest {
+  peerId: string;
+  chain: string;
+  token?: string;
+  tokenNetwork?: string;
+  initialDeposit: string;
+  settlementTimeout?: number;
+}
+
+/** POST /admin/channels response */
+export interface OpenChannelResponse {
+  channelId: string;
+  chain: string;
+  status: string;
+  deposit: string;
+}
+
+/** GET /admin/channels response item */
+export interface ChannelSummary {
+  channelId: string;
+  peerId: string;
+  chain: string;
+  status: string;
+  deposit: string;
+  lastActivity: string;
+}
+
+/** GET /admin/channels/:channelId response — base fields present in all responses */
+export interface ChannelDetailResponse {
+  channelId: string;
+  status: string;
+  deposit: string;
+  [key: string]: unknown;
+}
+
+/** POST /admin/channels/:channelId/deposit request body */
+export interface DepositRequest {
+  amount: string;
+  token?: string;
+}
+
+/** POST /admin/channels/:channelId/deposit response */
+export interface DepositResponse {
+  channelId: string;
+  /**
+   * For EVM channels: total cumulative deposit from getChannelState().myDeposit (includes all prior deposits).
+   * For XRP channels: the incremental deposited amount only (XRP fundChannel() returns void — cumulative total unavailable).
+   * Callers should be aware of this semantic difference when interpreting values across chain types.
+   */
+  newDeposit: string;
+  status: string;
+}
+
+/** POST /admin/channels/:channelId/close request body */
+export interface CloseChannelRequest {
+  cooperative?: boolean;
+}
+
+/** POST /admin/channels/:channelId/close response */
+export interface CloseChannelResponse {
+  channelId: string;
+  status: string;
+  txHash?: string;
+}
+
+/**
+ * Validate a deposit request body
+ * @returns Object with valid flag and optional error message
+ */
+export function validateDepositRequest(body: Record<string, unknown>): {
+  valid: boolean;
+  error?: string;
+} {
+  if (body.amount === undefined || body.amount === null) {
+    return { valid: false, error: 'Missing amount' };
+  }
+
+  if (typeof body.amount !== 'string') {
+    return { valid: false, error: 'amount must be a string' };
+  }
+
+  if (!isValidNonNegativeIntegerString(body.amount)) {
+    return { valid: false, error: 'amount must be a positive integer string' };
+  }
+
+  if (body.amount === '0') {
+    return { valid: false, error: 'amount must be greater than zero' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Return a 501 Not Implemented response for unsupported chain operations
+ */
+function returnNotImplemented(res: Response, chain: string, operation: string): void {
+  res.status(501).json({
+    error: 'Not Implemented',
+    message: `${operation} not yet implemented for ${chain}`,
+  });
+}
+
+/**
+ * Validate an OpenChannelRequest body
+ * @returns Object with valid flag and optional error message
+ */
+export function validateOpenChannelRequest(body: Record<string, unknown>): {
+  valid: boolean;
+  error?: string;
+} {
+  if (!body.peerId || typeof body.peerId !== 'string') {
+    return { valid: false, error: 'Missing or invalid peerId' };
+  }
+
+  if (!body.chain || typeof body.chain !== 'string') {
+    return { valid: false, error: 'Missing or invalid chain' };
+  }
+
+  if (!CHAIN_FORMAT_REGEX.test(body.chain)) {
+    return {
+      valid: false,
+      error: `Invalid chain format: ${body.chain}. Expected {blockchain}:{network}:{chainId}`,
+    };
+  }
+
+  if (body.initialDeposit === undefined || body.initialDeposit === null) {
+    return { valid: false, error: 'Missing initialDeposit' };
+  }
+
+  if (typeof body.initialDeposit !== 'string') {
+    return { valid: false, error: 'initialDeposit must be a string' };
+  }
+
+  if (!isValidNonNegativeIntegerString(body.initialDeposit)) {
+    return { valid: false, error: 'initialDeposit must be a non-negative integer string' };
+  }
+
+  if (
+    body.token !== undefined &&
+    typeof body.token === 'string' &&
+    !isValidEvmAddress(body.token)
+  ) {
+    return { valid: false, error: 'Invalid token address format' };
+  }
+
+  if (
+    body.tokenNetwork !== undefined &&
+    typeof body.tokenNetwork === 'string' &&
+    !isValidEvmAddress(body.tokenNetwork)
+  ) {
+    return { valid: false, error: 'Invalid tokenNetwork address format' };
+  }
+
+  if (body.settlementTimeout !== undefined) {
+    if (
+      typeof body.settlementTimeout !== 'number' ||
+      !Number.isInteger(body.settlementTimeout) ||
+      body.settlementTimeout <= 0
+    ) {
+      return { valid: false, error: 'settlementTimeout must be a positive integer' };
+    }
+  }
+
+  return { valid: true };
 }

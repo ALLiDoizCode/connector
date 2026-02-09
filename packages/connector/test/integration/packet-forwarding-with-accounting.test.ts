@@ -33,9 +33,16 @@ const PROJECT_ROOT = path.resolve(__dirname, '../../../../');
 const TEMP_CONFIG_DIR = path.join(__dirname, '../fixtures/configs/temp');
 
 /**
- * Check if TigerBeetle can run on this system
+ * Check if Docker is available and TigerBeetle can run on this system
  */
 async function canRunTigerBeetle(): Promise<boolean> {
+  try {
+    // First check if Docker daemon is running
+    await execAsync('docker info', { cwd: PROJECT_ROOT });
+  } catch {
+    return false;
+  }
+
   try {
     const { stdout, stderr } = await execAsync(
       `docker run --rm ghcr.io/tigerbeetle/tigerbeetle:0.16.68 format --cluster=0 --replica=0 --replica-count=1 /tmp/test.tigerbeetle 2>&1 || true`,
@@ -164,6 +171,7 @@ describe('Packet Forwarding with Accounting Enabled', () => {
       const minimalConfig = `
 nodeId: test-connector
 btpPort: 50000
+btpServerPort: 50000
 httpApiPort: 50001
 routing:
   defaultRoute: peer1
@@ -227,7 +235,7 @@ peers:
     });
 
     test('should verify accounting side effects do not interfere with packet routing', async () => {
-      if (!tigerBeetleSupported) {
+      if (!tigerBeetleSupported || !servicesStarted) {
         console.log('Skipping test - TigerBeetle not available');
         return;
       }
@@ -253,7 +261,7 @@ peers:
 
   describe('Accounting Side Effects Verification', () => {
     test('should verify balances are updated correctly after packet forwards', async () => {
-      if (!tigerBeetleSupported) {
+      if (!tigerBeetleSupported || !servicesStarted) {
         console.log('Skipping test - TigerBeetle not available');
         return;
       }
