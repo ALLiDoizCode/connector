@@ -19,6 +19,12 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { createAdminRouter } from './admin-api';
 import { AdminApiConfig } from '../config/types';
 import { PeerConfig as SettlementPeerConfig } from '../settlement/types';
+import type { ChannelManager } from '../settlement/channel-manager';
+import type { PaymentChannelSDK } from '../settlement/payment-channel-sdk';
+import type { XRPChannelLifecycleManager } from '../settlement/xrp-channel-lifecycle';
+import type { AccountManager } from '../settlement/account-manager';
+import type { SettlementMonitor } from '../settlement/settlement-monitor';
+import type { ClaimReceiver } from '../settlement/claim-receiver';
 
 /**
  * Admin API HTTP Server
@@ -65,8 +71,27 @@ export class AdminServer {
     config: AdminApiConfig;
     logger: Logger;
     settlementPeers?: Map<string, SettlementPeerConfig>;
+    channelManager?: ChannelManager;
+    paymentChannelSDK?: PaymentChannelSDK;
+    xrpChannelLifecycleManager?: XRPChannelLifecycleManager;
+    accountManager?: AccountManager;
+    settlementMonitor?: SettlementMonitor;
+    claimReceiver?: ClaimReceiver;
   }) {
-    const { routingTable, btpClientManager, nodeId, config, logger, settlementPeers } = options;
+    const {
+      routingTable,
+      btpClientManager,
+      nodeId,
+      config,
+      logger,
+      settlementPeers,
+      channelManager,
+      paymentChannelSDK,
+      xrpChannelLifecycleManager,
+      accountManager,
+      settlementMonitor,
+      claimReceiver,
+    } = options;
 
     this._nodeId = nodeId;
     this._config = config;
@@ -81,6 +106,12 @@ export class AdminServer {
       apiKey: config.apiKey,
       logger: this._logger,
       settlementPeers,
+      channelManager,
+      paymentChannelSDK,
+      xrpChannelLifecycleManager,
+      accountManager,
+      settlementMonitor,
+      claimReceiver,
     });
 
     this._app.use('/admin', adminRouter);
@@ -136,6 +167,12 @@ export class AdminServer {
                 'GET /admin/routes',
                 'POST /admin/routes',
                 'DELETE /admin/routes/:prefix',
+                'POST /admin/channels',
+                'GET /admin/channels',
+                'GET /admin/channels/:channelId',
+                'GET /admin/balances/:peerId',
+                'GET /admin/settlement/states',
+                'GET /admin/channels/:channelId/claims',
               ],
             },
             `Admin API server started on ${host}:${port}`

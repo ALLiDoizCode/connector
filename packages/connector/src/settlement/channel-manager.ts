@@ -34,9 +34,19 @@ export interface ChannelMetadata {
   peerId: string; // Peer connector ID (e.g., "connector-b")
   tokenId: string; // Token identifier (e.g., "ILP", "USDC")
   tokenAddress: string; // ERC20 token contract address
+  chain: string; // Chain identifier (e.g., "evm:base:8453")
   createdAt: Date; // When channel was opened
   lastActivityAt: Date; // Last settlement or balance update
   status: 'opening' | 'active' | 'closing' | 'settling' | 'closed';
+}
+
+/**
+ * Optional overrides for channel open operations via Admin API
+ */
+export interface ChannelOpenOptions {
+  initialDeposit?: bigint; // Override default deposit
+  settlementTimeout?: number; // Override default timeout
+  chain?: string; // Chain identifier for metadata
 }
 
 /**
@@ -112,7 +122,11 @@ export class ChannelManager extends EventEmitter {
   /**
    * Ensure channel exists for peer and token, creating if needed
    */
-  async ensureChannelExists(peerId: string, tokenId: string): Promise<string> {
+  async ensureChannelExists(
+    peerId: string,
+    tokenId: string,
+    options?: ChannelOpenOptions
+  ): Promise<string> {
     // Check if channel already exists
     const channelId = this.peerChannelIndex.get(peerId)?.get(tokenId);
 
@@ -126,7 +140,7 @@ export class ChannelManager extends EventEmitter {
     }
 
     // No active channel found, open new one
-    const newChannelId = await this.openChannelForPeer(peerId, tokenId);
+    const newChannelId = await this.openChannelForPeer(peerId, tokenId, options);
     this.logger.info({ peerId, tokenId, channelId: newChannelId }, 'Ensured channel exists (new)');
     return newChannelId;
   }
@@ -176,7 +190,11 @@ export class ChannelManager extends EventEmitter {
    * Open new channel for peer
    * @private
    */
-  private async openChannelForPeer(peerId: string, tokenId: string): Promise<string> {
+  private async openChannelForPeer(
+    peerId: string,
+    tokenId: string,
+    options?: ChannelOpenOptions
+  ): Promise<string> {
     // Get token and peer addresses
     const tokenAddress = this.config.tokenAddressMap.get(tokenId);
     if (!tokenAddress) {
@@ -188,16 +206,21 @@ export class ChannelManager extends EventEmitter {
       throw new Error(`Peer address not found for peerId: ${peerId}`);
     }
 
-    // Calculate initial deposit (using a default value since settlementThreshold is not available)
-    // TODO: Make this configurable or query from settlement monitor config
-    const defaultInitialDeposit = BigInt(1000000000000000000); // 1 ETH/token as default
-    const initialDeposit = defaultInitialDeposit * BigInt(this.config.initialDepositMultiplier);
+    // Use overrides if provided, otherwise fall back to defaults
+    const settlementTimeout = options?.settlementTimeout ?? this.config.defaultSettlementTimeout;
+    let initialDeposit: bigint;
+    if (options?.initialDeposit !== undefined) {
+      initialDeposit = options.initialDeposit;
+    } else {
+      const defaultInitialDeposit = BigInt(1000000000000000000); // 1 ETH/token as default
+      initialDeposit = defaultInitialDeposit * BigInt(this.config.initialDepositMultiplier);
+    }
 
     // Open channel on-chain
     const { channelId, txHash } = await this.paymentChannelSDK.openChannel(
       peerAddress,
       tokenAddress,
-      this.config.defaultSettlementTimeout,
+      settlementTimeout,
       initialDeposit
     );
 
@@ -214,6 +237,7 @@ export class ChannelManager extends EventEmitter {
       peerId,
       tokenId,
       tokenAddress,
+      chain: options?.chain ?? '',
       createdAt: new Date(),
       lastActivityAt: new Date(),
       status: 'active',
@@ -235,7 +259,7 @@ export class ChannelManager extends EventEmitter {
       peerId,
       tokenAddress,
       this.getTokenSymbol(tokenId),
-      this.config.defaultSettlementTimeout,
+      settlementTimeout,
       {
         [myAddress]: initialDeposit.toString(),
         [peerAddress]: '0',

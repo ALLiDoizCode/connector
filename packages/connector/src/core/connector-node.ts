@@ -11,6 +11,7 @@ import { PacketHandler } from './packet-handler';
 import { Peer } from '../btp/btp-client';
 import { RoutingTableEntry, ILPAddress } from '@agent-runtime/shared';
 import { ConnectorConfig, SettlementConfig } from '../config/types';
+import { PeerConfig as SettlementPeerConfig } from '../settlement/types';
 import { ConfigLoader, ConfigurationError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 import { AdminServer } from '../http/admin-server';
@@ -54,7 +55,9 @@ export class ConnectorNode implements HealthStatusProvider {
   private _paymentChannelSDK: PaymentChannelSDK | null = null;
   private _channelManager: ChannelManager | null = null;
   private _accountManager: AccountManager | null = null;
+  private _settlementMonitor: SettlementMonitor | null = null;
   private _settlementExecutor: SettlementExecutor | null = null;
+  private readonly _settlementPeers: Map<string, SettlementPeerConfig> = new Map();
   private _healthStatus: 'healthy' | 'unhealthy' | 'starting' = 'starting';
   private readonly _startTime: Date = new Date();
   private _btpServerStarted: boolean = false;
@@ -421,6 +424,7 @@ export class ConnectorNode implements HealthStatusProvider {
             accountManager,
             this._logger
           );
+          this._settlementMonitor = settlementMonitor;
 
           this._settlementExecutor = new SettlementExecutor(
             {
@@ -568,6 +572,11 @@ export class ConnectorNode implements HealthStatusProvider {
           nodeId: this._config.nodeId,
           config: adminConfig,
           logger: this._logger,
+          settlementPeers: this._settlementPeers,
+          channelManager: this._channelManager ?? undefined,
+          paymentChannelSDK: this._paymentChannelSDK ?? undefined,
+          accountManager: this._accountManager ?? undefined,
+          settlementMonitor: this._settlementMonitor ?? undefined,
         });
 
         await this._adminServer.start();
