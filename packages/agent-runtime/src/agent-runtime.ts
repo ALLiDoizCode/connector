@@ -210,6 +210,8 @@ export class AgentRuntime {
  * - CONNECTOR_BTP_URL: WebSocket URL of local connector BTP endpoint (optional)
  * - CONNECTOR_BTP_AUTH_TOKEN: Shared secret for BTP auth (required if CONNECTOR_BTP_URL is set)
  * - CONNECTOR_BTP_PEER_ID: Peer ID for BTP auth (default: agent-runtime)
+ * - CONNECTOR_BTP_MAX_RETRIES: Max reconnection retries (default: 5)
+ * - CONNECTOR_BTP_PACKET_TIMEOUT_MS: Per-packet send timeout in ms (default: 10000)
  */
 export async function startFromEnv(): Promise<AgentRuntime> {
   const config: AgentRuntimeConfig = {
@@ -245,11 +247,16 @@ export async function startFromEnv(): Promise<AgentRuntime> {
       level: config.logLevel ?? 'info',
     });
 
+    const maxRetries = parseInt(process.env['CONNECTOR_BTP_MAX_RETRIES'] ?? '', 10);
+    const packetTimeoutMs = parseInt(process.env['CONNECTOR_BTP_PACKET_TIMEOUT_MS'] ?? '', 10);
+
     sender = new OutboundBTPClient(
       {
         url: btpUrl,
         authToken: btpAuthToken,
         peerId: process.env['CONNECTOR_BTP_PEER_ID'] ?? 'agent-runtime',
+        ...(Number.isFinite(maxRetries) && maxRetries > 0 ? { maxRetries } : {}),
+        ...(Number.isFinite(packetTimeoutMs) && packetTimeoutMs > 0 ? { packetTimeoutMs } : {}),
       },
       btpLogger
     );

@@ -12,10 +12,9 @@
 #   5x peer{1..5}           — ILP connectors (routing, accounting, settlement)
 #
 # Startup Dependency Chain:
-#   tigerbeetle (service_started)
-#     -> agent-society-{N} (service_healthy)
-#       -> agent-runtime-{N} (service_healthy)
-#         -> peer{N} (service_healthy)
+#   tigerbeetle (service_started) + agent-society-{N} (service_healthy)
+#     -> peer{N} (service_healthy)
+#       -> agent-runtime-{N} (service_healthy)  [needs BTP to peer + BLS to agent-society]
 #
 # Port Mappings (host:internal):
 #   BTP (connector):     3000-3004 : 3000-3004
@@ -34,8 +33,6 @@
 #   Start: docker compose -f docker-compose-unified.yml --env-file .env.peers up -d
 #   Logs:  docker compose -f docker-compose-unified.yml logs -f
 #   Stop:  docker compose -f docker-compose-unified.yml down
-
-version: '3.8'
 
 services:
   # ===========================================================================
@@ -283,6 +280,8 @@ services:
       BUSINESS_LOGIC_URL: http://agent-society-1:3100
       CONNECTOR_BTP_URL: ws://peer1:3000
       CONNECTOR_BTP_AUTH_TOKEN: test-token
+      CONNECTOR_BTP_MAX_RETRIES: "20"
+      CONNECTOR_BTP_PACKET_TIMEOUT_MS: "30000"
       LOG_LEVEL: info
       NODE_ID: agent-runtime-1
     ports:
@@ -291,6 +290,8 @@ services:
       - agent-network
     depends_on:
       agent-society-1:
+        condition: service_healthy
+      peer1:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -310,6 +311,8 @@ services:
       BUSINESS_LOGIC_URL: http://agent-society-2:3100
       CONNECTOR_BTP_URL: ws://peer2:3001
       CONNECTOR_BTP_AUTH_TOKEN: test-token
+      CONNECTOR_BTP_MAX_RETRIES: "20"
+      CONNECTOR_BTP_PACKET_TIMEOUT_MS: "30000"
       LOG_LEVEL: info
       NODE_ID: agent-runtime-2
     ports:
@@ -318,6 +321,8 @@ services:
       - agent-network
     depends_on:
       agent-society-2:
+        condition: service_healthy
+      peer2:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -337,6 +342,8 @@ services:
       BUSINESS_LOGIC_URL: http://agent-society-3:3100
       CONNECTOR_BTP_URL: ws://peer3:3002
       CONNECTOR_BTP_AUTH_TOKEN: test-token
+      CONNECTOR_BTP_MAX_RETRIES: "20"
+      CONNECTOR_BTP_PACKET_TIMEOUT_MS: "30000"
       LOG_LEVEL: info
       NODE_ID: agent-runtime-3
     ports:
@@ -345,6 +352,8 @@ services:
       - agent-network
     depends_on:
       agent-society-3:
+        condition: service_healthy
+      peer3:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -364,6 +373,8 @@ services:
       BUSINESS_LOGIC_URL: http://agent-society-4:3100
       CONNECTOR_BTP_URL: ws://peer4:3003
       CONNECTOR_BTP_AUTH_TOKEN: test-token
+      CONNECTOR_BTP_MAX_RETRIES: "20"
+      CONNECTOR_BTP_PACKET_TIMEOUT_MS: "30000"
       LOG_LEVEL: info
       NODE_ID: agent-runtime-4
     ports:
@@ -372,6 +383,8 @@ services:
       - agent-network
     depends_on:
       agent-society-4:
+        condition: service_healthy
+      peer4:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -391,6 +404,8 @@ services:
       BUSINESS_LOGIC_URL: http://agent-society-5:3100
       CONNECTOR_BTP_URL: ws://peer5:3004
       CONNECTOR_BTP_AUTH_TOKEN: test-token
+      CONNECTOR_BTP_MAX_RETRIES: "20"
+      CONNECTOR_BTP_PACKET_TIMEOUT_MS: "30000"
       LOG_LEVEL: info
       NODE_ID: agent-runtime-5
     ports:
@@ -399,6 +414,8 @@ services:
       - agent-network
     depends_on:
       agent-society-5:
+        condition: service_healthy
+      peer5:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -422,6 +439,7 @@ services:
       ILP_ADDRESS: g.peer1
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5173
       # Admin API
       ADMIN_API_ENABLED: "true"
       ADMIN_API_PORT: 8081
@@ -432,10 +450,15 @@ services:
       # TigerBeetle accounting
       TIGERBEETLE_CLUSTER_ID: "0"
       TIGERBEETLE_REPLICAS: tigerbeetle:3000
+      TIGERBEETLE_OPERATION_TIMEOUT: "15000"
+      SETTLEMENT_POLLING_INTERVAL: "120000"
+      BTP_SEND_TIMEOUT_MS: "30000"
       # BTP peer authentication
       BTP_PEER_PEER2_SECRET: secret-peer1-to-peer2
-      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
+      BTP_PEER_AGENT_RUNTIME_SECRET: test-token
       # Settlement
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      INITIAL_DEPOSIT_MULTIPLIER: ${INITIAL_DEPOSIT_MULTIPLIER:-1}
       SETTLEMENT_PREFERENCE: evm
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
@@ -459,8 +482,6 @@ services:
     depends_on:
       tigerbeetle:
         condition: service_started
-      agent-runtime-1:
-        condition: service_healthy
     restart: unless-stopped
     security_opt:
       - seccomp=unconfined
@@ -481,6 +502,8 @@ services:
       ILP_ADDRESS: g.peer2
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      # Explorer port must not conflict with btpServerPort (3001)
+      EXPLORER_PORT: 5174
       # Admin API
       ADMIN_API_ENABLED: "true"
       ADMIN_API_PORT: 8081
@@ -491,11 +514,16 @@ services:
       # TigerBeetle accounting
       TIGERBEETLE_CLUSTER_ID: "0"
       TIGERBEETLE_REPLICAS: tigerbeetle:3000
+      TIGERBEETLE_OPERATION_TIMEOUT: "15000"
+      SETTLEMENT_POLLING_INTERVAL: "120000"
+      BTP_SEND_TIMEOUT_MS: "30000"
       # BTP peer authentication
       BTP_PEER_PEER1_SECRET: secret-peer1-to-peer2
       BTP_PEER_PEER3_SECRET: secret-peer2-to-peer3
-      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
+      BTP_PEER_AGENT_RUNTIME_SECRET: test-token
       # Settlement
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      INITIAL_DEPOSIT_MULTIPLIER: ${INITIAL_DEPOSIT_MULTIPLIER:-1}
       SETTLEMENT_PREFERENCE: both
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
@@ -521,8 +549,6 @@ services:
     depends_on:
       tigerbeetle:
         condition: service_started
-      agent-runtime-2:
-        condition: service_healthy
     restart: unless-stopped
     security_opt:
       - seccomp=unconfined
@@ -543,6 +569,7 @@ services:
       ILP_ADDRESS: g.peer3
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5175
       # Admin API
       ADMIN_API_ENABLED: "true"
       ADMIN_API_PORT: 8081
@@ -553,11 +580,16 @@ services:
       # TigerBeetle accounting
       TIGERBEETLE_CLUSTER_ID: "0"
       TIGERBEETLE_REPLICAS: tigerbeetle:3000
+      TIGERBEETLE_OPERATION_TIMEOUT: "15000"
+      SETTLEMENT_POLLING_INTERVAL: "120000"
+      BTP_SEND_TIMEOUT_MS: "30000"
       # BTP peer authentication
       BTP_PEER_PEER2_SECRET: secret-peer2-to-peer3
       BTP_PEER_PEER4_SECRET: secret-peer3-to-peer4
-      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
+      BTP_PEER_AGENT_RUNTIME_SECRET: test-token
       # Settlement
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      INITIAL_DEPOSIT_MULTIPLIER: ${INITIAL_DEPOSIT_MULTIPLIER:-1}
       SETTLEMENT_PREFERENCE: both
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
@@ -583,8 +615,6 @@ services:
     depends_on:
       tigerbeetle:
         condition: service_started
-      agent-runtime-3:
-        condition: service_healthy
     restart: unless-stopped
     security_opt:
       - seccomp=unconfined
@@ -605,6 +635,7 @@ services:
       ILP_ADDRESS: g.peer4
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5176
       # Admin API
       ADMIN_API_ENABLED: "true"
       ADMIN_API_PORT: 8081
@@ -615,11 +646,16 @@ services:
       # TigerBeetle accounting
       TIGERBEETLE_CLUSTER_ID: "0"
       TIGERBEETLE_REPLICAS: tigerbeetle:3000
+      TIGERBEETLE_OPERATION_TIMEOUT: "15000"
+      SETTLEMENT_POLLING_INTERVAL: "120000"
+      BTP_SEND_TIMEOUT_MS: "30000"
       # BTP peer authentication
       BTP_PEER_PEER3_SECRET: secret-peer3-to-peer4
       BTP_PEER_PEER5_SECRET: secret-peer4-to-peer5
-      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
+      BTP_PEER_AGENT_RUNTIME_SECRET: test-token
       # Settlement
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      INITIAL_DEPOSIT_MULTIPLIER: ${INITIAL_DEPOSIT_MULTIPLIER:-1}
       SETTLEMENT_PREFERENCE: both
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
@@ -647,8 +683,6 @@ services:
     depends_on:
       tigerbeetle:
         condition: service_started
-      agent-runtime-4:
-        condition: service_healthy
     restart: unless-stopped
     security_opt:
       - seccomp=unconfined
@@ -669,6 +703,7 @@ services:
       ILP_ADDRESS: g.peer5
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5177
       # Admin API
       ADMIN_API_ENABLED: "true"
       ADMIN_API_PORT: 8081
@@ -679,10 +714,15 @@ services:
       # TigerBeetle accounting
       TIGERBEETLE_CLUSTER_ID: "0"
       TIGERBEETLE_REPLICAS: tigerbeetle:3000
+      TIGERBEETLE_OPERATION_TIMEOUT: "15000"
+      SETTLEMENT_POLLING_INTERVAL: "120000"
+      BTP_SEND_TIMEOUT_MS: "30000"
       # BTP peer authentication
       BTP_PEER_PEER4_SECRET: secret-peer4-to-peer5
-      BTP_PEER_SEND_PACKET_CLIENT_SECRET: test-token
+      BTP_PEER_AGENT_RUNTIME_SECRET: test-token
       # Settlement
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      INITIAL_DEPOSIT_MULTIPLIER: ${INITIAL_DEPOSIT_MULTIPLIER:-1}
       SETTLEMENT_PREFERENCE: evm
       SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
       SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
@@ -706,8 +746,6 @@ services:
     depends_on:
       tigerbeetle:
         condition: service_started
-      agent-runtime-5:
-        condition: service_healthy
     restart: unless-stopped
     security_opt:
       - seccomp=unconfined

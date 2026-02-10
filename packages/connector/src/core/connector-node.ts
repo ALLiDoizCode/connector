@@ -294,7 +294,10 @@ export class ConnectorNode implements HealthStatusProvider {
 
           // Initialize ChannelManager with TigerBeetle accounting if configured
           const defaultSettlementTimeout = 86400; // 24 hours
-          const initialDepositMultiplier = 10;
+          const initialDepositMultiplier = parseInt(
+            process.env.INITIAL_DEPOSIT_MULTIPLIER ?? '1',
+            10
+          );
 
           // Initialize TigerBeetle AccountManager if configured (Story 19.1-19.2)
           // When TigerBeetle is unavailable, falls back to mock AccountManager (graceful degradation)
@@ -334,12 +337,16 @@ export class ConnectorNode implements HealthStatusProvider {
               );
 
               // Create TigerBeetle client
+              const tbOperationTimeout = parseInt(
+                process.env.TIGERBEETLE_OPERATION_TIMEOUT ?? '15000',
+                10
+              );
               const tigerBeetleClient = new TigerBeetleClient(
                 {
                   clusterId: parseInt(tigerBeetleClusterId, 10),
                   replicaAddresses: resolvedAddresses,
                   connectionTimeout: 5000,
-                  operationTimeout: 5000,
+                  operationTimeout: tbOperationTimeout,
                 },
                 this._logger
               );
@@ -399,13 +406,17 @@ export class ConnectorNode implements HealthStatusProvider {
           // Build settlement threshold configuration
           // Use settlementThreshold from config or default to 1M (1,000,000)
           const settlementThreshold = BigInt(process.env.SETTLEMENT_THRESHOLD || '1000000');
+          const settlementPollingInterval = parseInt(
+            process.env.SETTLEMENT_POLLING_INTERVAL ?? '30000',
+            10
+          );
 
           this._logger.info(
             {
               event: 'settlement_monitor_config',
               peerIds,
               threshold: settlementThreshold.toString(),
-              pollingInterval: 30000,
+              pollingInterval: settlementPollingInterval,
             },
             'Initializing settlement monitor with peer list'
           );
@@ -414,7 +425,7 @@ export class ConnectorNode implements HealthStatusProvider {
             {
               thresholds: {
                 defaultThreshold: settlementThreshold,
-                pollingInterval: 30000, // 30 seconds
+                pollingInterval: settlementPollingInterval,
               },
               peers: peerIds,
               tokenIds: ['ILP'], // MVP: single token ID
@@ -464,7 +475,7 @@ export class ConnectorNode implements HealthStatusProvider {
                   event: 'settlement_monitor_started',
                   threshold: settlementThreshold.toString(),
                   peerCount: peerIds.length,
-                  pollingInterval: 30000,
+                  pollingInterval: settlementPollingInterval,
                 },
                 'Settlement threshold monitoring started'
               );

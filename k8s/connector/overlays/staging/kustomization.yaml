@@ -36,6 +36,7 @@ patches:
         XRPL_WSS_URL: "wss://s.altnet.rippletest.net:51233"
         APTOS_NODE_URL: "https://fullnode.testnet.aptoslabs.com/v1"
         # Staging settings
+        ENVIRONMENT: "staging"
         LOG_LEVEL: "debug"
         SETTLEMENT_ENABLED: "true"
     target:

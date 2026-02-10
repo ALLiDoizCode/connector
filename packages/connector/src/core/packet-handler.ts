@@ -651,32 +651,32 @@ export class PacketHandler {
     );
 
     try {
-      // Try forwarding via outbound peer connection first (BTPClientManager)
-      // If that fails, try incoming peer connection (BTPServer)
+      // Select transport connection upfront: prefer outbound client, fall back to server.
+      // We check connectivity BEFORE sending to avoid catch-and-retry, which risks
+      // duplicate packets if the first send times out but the packet was already received.
       let response: ILPFulfillPacket | ILPRejectPacket;
 
-      try {
+      const hasOutbound = this.btpClientManager.isConnected(nextHop);
+      const hasInbound = this.btpServer?.hasPeer(nextHop) ?? false;
+
+      if (hasOutbound) {
         response = await this.btpClientManager.sendToPeer(nextHop, packet);
         this.logger.debug(
           { correlationId, peerId: nextHop },
           'Forwarded via outbound peer connection'
         );
-      } catch (outboundError) {
-        // If outbound failed, try incoming peer if BTPServer is available
-        if (this.btpServer && this.btpServer.hasPeer(nextHop)) {
-          this.logger.debug(
-            { correlationId, peerId: nextHop },
-            'Outbound peer not available, trying incoming peer connection'
-          );
-          response = await this.btpServer.sendPacketToPeer(nextHop, packet);
-          this.logger.debug(
-            { correlationId, peerId: nextHop },
-            'Forwarded via incoming peer connection'
-          );
-        } else {
-          // Neither outbound nor incoming peer available
-          throw outboundError;
-        }
+      } else if (hasInbound) {
+        this.logger.debug(
+          { correlationId, peerId: nextHop },
+          'No outbound connection, using incoming peer connection'
+        );
+        response = await this.btpServer!.sendPacketToPeer(nextHop, packet);
+        this.logger.debug(
+          { correlationId, peerId: nextHop },
+          'Forwarded via incoming peer connection'
+        );
+      } else {
+        throw new BTPConnectionError(`No active BTP connection to peer ${nextHop}`);
       }
 
       this.logger.info(

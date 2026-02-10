@@ -243,12 +243,23 @@ export class BTPServer {
     // Serialize BTP message
     const btpBuffer = serializeBTPMessage(btpMessage);
 
+    // Derive timeout from the ILP packet's expiresAt — the protocol-level timeout.
+    // This ensures BTP waits as long as the packet is valid, regardless of hop count.
+    // Fall back to 10s only if expiresAt is missing (shouldn't happen for valid packets).
+    let timeoutMs: number;
+    if (packet.expiresAt) {
+      const remaining = packet.expiresAt.getTime() - Date.now();
+      timeoutMs = Math.max(remaining - 500, 1000);
+    } else {
+      timeoutMs = 10000;
+    }
+
     // Create promise for response
     return new Promise<ILPFulfillPacket | ILPRejectPacket>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(requestId);
-        reject(new Error(`Timeout waiting for response from peer ${peerId}`));
-      }, 10000); // 10 second timeout
+        reject(new Error(`Timeout waiting for response from peer ${peerId} (${timeoutMs}ms)`));
+      }, timeoutMs);
 
       // Register pending request
       this.pendingRequests.set(requestId, { resolve, reject, timeout });

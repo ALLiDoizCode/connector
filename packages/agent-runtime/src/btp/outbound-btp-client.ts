@@ -162,6 +162,9 @@ export class OutboundBTPClient implements IPacketSender {
         this._ws = new WebSocket(this._config.url);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (!this._explicitDisconnect) {
+          this._scheduleReconnect();
+        }
         reject(new BTPConnectionError(`Failed to create WebSocket: ${msg}`));
         return;
       }
@@ -169,6 +172,9 @@ export class OutboundBTPClient implements IPacketSender {
       const onOpen = async (): Promise<void> => {
         try {
           await this._authenticate();
+
+          // Remove temp connect handlers before wiring permanent ones
+          cleanup();
 
           // Auth succeeded — wire up permanent handlers
           this._ws?.on('message', this._boundHandleMessage);
@@ -187,6 +193,12 @@ export class OutboundBTPClient implements IPacketSender {
           );
           resolve();
         } catch (err) {
+          // Auth failed — close the WebSocket and schedule reconnection
+          this._ws?.removeAllListeners();
+          this._ws?.close();
+          if (!this._explicitDisconnect) {
+            this._scheduleReconnect();
+          }
           reject(err);
         }
       };
@@ -197,11 +209,17 @@ export class OutboundBTPClient implements IPacketSender {
           { error: error.message, url: this._config.url },
           'WebSocket connection error'
         );
+        if (!this._explicitDisconnect) {
+          this._scheduleReconnect();
+        }
         reject(new BTPConnectionError(`WebSocket error: ${error.message}`));
       };
 
       const onClose = (): void => {
         cleanup();
+        if (!this._explicitDisconnect) {
+          this._scheduleReconnect();
+        }
         reject(new BTPConnectionError('WebSocket closed before auth completed'));
       };
 
@@ -247,11 +265,22 @@ export class OutboundBTPClient implements IPacketSender {
 
     this._ws.send(btpBuffer);
 
+    // Derive timeout from the ILP packet's expiresAt — the protocol-level timeout.
+    // This ensures the BTP layer waits as long as the packet is valid,
+    // regardless of how many hops remain in the path.
+    let timeoutMs: number;
+    if (prepare.expiresAt) {
+      const remaining = prepare.expiresAt.getTime() - Date.now();
+      timeoutMs = Math.max(remaining - 500, 1000);
+    } else {
+      timeoutMs = this._config.packetTimeoutMs;
+    }
+
     return new Promise<ILPFulfillPacket | ILPRejectPacket>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         this._pendingRequests.delete(requestId);
-        reject(new BTPConnectionError(`Packet send timeout (${this._config.packetTimeoutMs}ms)`));
-      }, this._config.packetTimeoutMs);
+        reject(new BTPConnectionError(`Packet send timeout (${timeoutMs}ms)`));
+      }, timeoutMs);
 
       this._pendingRequests.set(requestId, { resolve, reject, timeoutId });
     });
@@ -462,7 +491,7 @@ export class OutboundBTPClient implements IPacketSender {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         this._logger.error({ error: msg }, 'Reconnection attempt failed');
-        // _handleClose on the new connection will schedule the next retry
+        // connect() schedules the next reconnect attempt on failure
       }
     }, backoffMs);
   }

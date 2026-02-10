@@ -27,10 +27,19 @@ data:
   HEALTH_CHECK_PORT: "8080"
   EXPLORER_PORT: "5173"
 
+  # Environment Mode (development | staging | production)
+  ENVIRONMENT: "production"
+
   # Settlement Configuration
   SETTLEMENT_PREFERENCE: "evm"
   SETTLEMENT_ENABLED: "true"
   SETTLEMENT_THRESHOLD: "1000000"
+  INITIAL_DEPOSIT_MULTIPLIER: "1"
+  SETTLEMENT_POLLING_INTERVAL: "30000"
+
+  # Operational Timeouts
+  TIGERBEETLE_OPERATION_TIMEOUT: "15000"
+  BTP_SEND_TIMEOUT_MS: "10000"
 
   # TigerBeetle Connection
   # Update based on your TigerBeetle deployment

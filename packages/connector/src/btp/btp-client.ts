@@ -94,7 +94,10 @@ export class BTPClient extends EventEmitter {
   private readonly _pingIntervalMs = 30000; // 30 seconds
   private readonly _pongTimeoutMs = 10000; // 10 seconds
   private _explicitDisconnect = false; // Track if disconnect was intentional
-  private readonly _packetSendTimeoutMs = 10000; // 10 seconds
+  private readonly _defaultPacketSendTimeoutMs = parseInt(
+    process.env.BTP_SEND_TIMEOUT_MS ?? '30000',
+    10
+  ); // Fallback timeout when packet has no expiresAt
 
   private readonly _nodeId: string;
   private _packetHandler: PacketHandler | null = null;
@@ -386,12 +389,22 @@ export class BTPClient extends EventEmitter {
       throw new BTPConnectionError(`Failed to send message: ${errorMessage}`);
     }
 
+    // Derive timeout from the ILP packet's expiresAt — the protocol-level timeout.
+    // This ensures BTP waits as long as the packet is valid, regardless of hop count.
+    let timeoutMs: number;
+    if (packet.expiresAt) {
+      const remaining = packet.expiresAt.getTime() - Date.now();
+      timeoutMs = Math.max(remaining - 500, 1000);
+    } else {
+      timeoutMs = this._defaultPacketSendTimeoutMs;
+    }
+
     // Wait for response
     return new Promise<ILPFulfillPacket | ILPRejectPacket>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         this._pendingRequests.delete(requestId);
-        reject(new BTPConnectionError('Packet send timeout'));
-      }, this._packetSendTimeoutMs);
+        reject(new BTPConnectionError(`Packet send timeout (${timeoutMs}ms)`));
+      }, timeoutMs);
 
       this._pendingRequests.set(requestId, {
         resolve,

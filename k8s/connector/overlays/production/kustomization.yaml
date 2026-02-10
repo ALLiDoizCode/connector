@@ -59,6 +59,7 @@ patches:
         XRPL_WSS_URL: "wss://xrplcluster.com"
         APTOS_NODE_URL: "https://fullnode.mainnet.aptoslabs.com/v1"
         # Production settings
+        ENVIRONMENT: "production"
         LOG_LEVEL: "info"
         SETTLEMENT_ENABLED: "true"
         PROMETHEUS_ENABLED: "true"

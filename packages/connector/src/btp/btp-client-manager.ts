@@ -175,11 +175,20 @@ export class BTPClientManager {
     }
 
     try {
-      // Implement 10s timeout for packet sending per architecture
-      const timeoutMs = 10000;
+      // Derive timeout from the ILP packet's expiresAt — the protocol-level timeout.
+      // This ensures BTP waits as long as the packet is valid, regardless of hop count.
+      // Fall back to env var only if expiresAt is missing (shouldn't happen for valid packets).
+      let timeoutMs: number;
+      if (packet.expiresAt) {
+        const remaining = packet.expiresAt.getTime() - Date.now();
+        // Use remaining time with a small buffer (500ms) for local processing
+        timeoutMs = Math.max(remaining - 500, 1000);
+      } else {
+        timeoutMs = parseInt(process.env.BTP_SEND_TIMEOUT_MS ?? '30000', 10);
+      }
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
-          reject(new BTPConnectionError(`BTP send timeout to ${peerId}`));
+          reject(new BTPConnectionError(`BTP send timeout to ${peerId} (${timeoutMs}ms)`));
         }, timeoutMs);
       });
 

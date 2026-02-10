@@ -21,6 +21,8 @@ data:
   SPSP_ENABLED: "true"
   # Session TTL (1 hour)
   SESSION_TTL_MS: "3600000"
+  # BTP client timeout (ms) — increase for multi-hop paths
+  CONNECTOR_BTP_PACKET_TIMEOUT_MS: "10000"
   # Logging
   LOG_LEVEL: "info"
   NODE_ID: "agent-runtime"

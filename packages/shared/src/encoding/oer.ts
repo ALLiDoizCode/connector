@@ -662,8 +662,8 @@ export function deserializeReject(buffer: Buffer): ILPRejectPacket {
 
   const triggeredBy = triggeredByBuffer.toString('utf8');
 
-  // Validate triggeredBy ILP address format
-  if (!isValidILPAddress(triggeredBy)) {
+  // Validate triggeredBy ILP address format (empty string is allowed per ILPv4 spec)
+  if (triggeredBy.length > 0 && !isValidILPAddress(triggeredBy)) {
     throw new InvalidPacketError(`Invalid triggeredBy ILP address format: ${triggeredBy}`);
   }
 
