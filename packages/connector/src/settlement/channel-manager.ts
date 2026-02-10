@@ -8,6 +8,7 @@ import type {
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
 } from '@agent-runtime/shared';
+import type { AdminChannelStatus } from './types';
 
 /**
  * ChannelManager configuration
@@ -37,7 +38,7 @@ export interface ChannelMetadata {
   chain: string; // Chain identifier (e.g., "evm:base:8453")
   createdAt: Date; // When channel was opened
   lastActivityAt: Date; // Last settlement or balance update
-  status: 'opening' | 'active' | 'closing' | 'settling' | 'closed';
+  status: AdminChannelStatus;
 }
 
 /**
@@ -47,6 +48,7 @@ export interface ChannelOpenOptions {
   initialDeposit?: bigint; // Override default deposit
   settlementTimeout?: number; // Override default timeout
   chain?: string; // Chain identifier for metadata
+  peerAddress?: string; // Peer's blockchain address for channel opening
 }
 
 /**
@@ -201,10 +203,15 @@ export class ChannelManager extends EventEmitter {
       throw new Error(`Token address not found for tokenId: ${tokenId}`);
     }
 
-    const peerAddress = this.config.peerIdToAddressMap.get(peerId);
+    const peerAddress = options?.peerAddress || this.config.peerIdToAddressMap.get(peerId);
     if (!peerAddress) {
       throw new Error(`Peer address not found for peerId: ${peerId}`);
     }
+
+    this.logger.info(
+      { peerId, peerAddress, source: options?.peerAddress ? 'options' : 'config' },
+      'Resolved peer address for channel opening'
+    );
 
     // Use overrides if provided, otherwise fall back to defaults
     const settlementTimeout = options?.settlementTimeout ?? this.config.defaultSettlementTimeout;
@@ -240,7 +247,7 @@ export class ChannelManager extends EventEmitter {
       chain: options?.chain ?? '',
       createdAt: new Date(),
       lastActivityAt: new Date(),
-      status: 'active',
+      status: 'open',
     };
 
     // Store metadata
@@ -288,8 +295,8 @@ export class ChannelManager extends EventEmitter {
    */
   private async checkIdleChannels(): Promise<void> {
     for (const metadata of this.channelMetadata.values()) {
-      // Skip if not active
-      if (metadata.status !== 'active') {
+      // Skip if not open
+      if (metadata.status !== 'open') {
         continue;
       }
 

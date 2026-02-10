@@ -164,11 +164,12 @@ export interface IlpSendRequest {
  * Response body for `POST /ilp/send`.
  *
  * Both FULFILL and REJECT ILP responses return HTTP 200, distinguished by the
- * `fulfilled` boolean.
+ * `accepted` boolean.
  *
  * @example Fulfill response
  * ```json
  * {
+ *   "accepted": true,
  *   "fulfilled": true,
  *   "fulfillment": "base64...",
  *   "data": "base64..."
@@ -178,6 +179,7 @@ export interface IlpSendRequest {
  * @example Reject response
  * ```json
  * {
+ *   "accepted": false,
  *   "fulfilled": false,
  *   "code": "F02",
  *   "message": "No route to destination",
@@ -186,13 +188,15 @@ export interface IlpSendRequest {
  * ```
  */
 export interface IlpSendResponse {
-  /** Whether the ILP packet was fulfilled */
-  fulfilled: boolean;
-  /** Base64-encoded 32-byte fulfillment preimage (when fulfilled=true) */
+  /** Whether the ILP packet was accepted (fulfilled) */
+  accepted: boolean;
+  /** @deprecated Use `accepted` instead. Kept for backward compatibility. */
+  fulfilled?: boolean;
+  /** Base64-encoded 32-byte fulfillment preimage (when accepted=true) */
   fulfillment?: string;
-  /** ILP error code (when fulfilled=false) */
+  /** ILP error code (when accepted=false) */
   code?: string;
-  /** Human-readable error message (when fulfilled=false) */
+  /** Human-readable error message (when accepted=false) */
   message?: string;
   /** Base64-encoded response data (optional in both cases) */
   data?: string;

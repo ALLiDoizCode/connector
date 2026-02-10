@@ -156,6 +156,32 @@ Transform agent-runtime from a one-way inbound proxy into a bidirectional middle
 
 ---
 
+### Story 20.4: Fix IlpSendResponse Field Name and Make Peer Registration Idempotent
+
+**As a** BLS developer,
+**I want** the `POST /ilp/send` response to use `accepted` instead of `fulfilled` and `POST /admin/peers` to handle re-registration gracefully,
+**so that** agent-society can parse ILP send results correctly and update peer settlement config without 409 errors during bootstrap.
+
+**Scope:**
+
+- Rename `fulfilled` to `accepted` in `IlpSendResponse` (with backward-compat `fulfilled` field kept)
+- Make `POST /admin/peers` idempotent: return 200 with merged config on duplicate instead of 409
+- Add `PUT /admin/peers/:peerId` for explicit partial updates
+- Enhance EVM channel opening to use `settlementPeers` fallback for peer address
+
+**Acceptance Criteria:**
+
+1. `POST /ilp/send` response uses `accepted: true/false` field
+2. Response also includes deprecated `fulfilled` field for backward compatibility
+3. `POST /admin/peers` returns 200 (not 409) on re-registration, merges settlement and routes
+4. `PUT /admin/peers/:peerId` added for explicit updates (404 on unknown peer)
+5. EVM channel opening looks up `settlementPeers.get(peerId)?.evmAddress` as fallback
+6. Unit tests for all changes
+
+**Priority:** P0 — Critical (bootstrap broken without `accepted` field fix)
+
+---
+
 ## Compatibility Requirements
 
 - [x] **Existing APIs remain unchanged** — `POST /ilp/packets` and `/handle-payment` unmodified
@@ -183,7 +209,7 @@ Transform agent-runtime from a one-way inbound proxy into a bidirectional middle
 
 ## Definition of Done
 
-- [ ] All 3 stories completed with acceptance criteria met
+- [ ] All 4 stories completed with acceptance criteria met
 - [ ] BLS can send outbound ILP packets via `POST /ilp/send`
 - [ ] Admin API accepts settlement configuration on peer registration
 - [ ] Existing inbound flow unchanged (no regression)

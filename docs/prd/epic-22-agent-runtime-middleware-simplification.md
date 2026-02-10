@@ -190,6 +190,31 @@ The simplified fulfillment model (`SHA256(data)`) ties the fulfillment to the ex
 8. `PaymentRequest` interface retained — BLS still receives `paymentId`, `destination`, `amount`, `expiresAt`, `data`
 9. `PaymentResponse`, `LocalDeliveryRequest`, `LocalDeliveryResponse`, `IlpSendRequest`, `IlpSendResponse`, `IPacketSender`, `REJECT_CODE_MAP` all retained
 
+### Story 22.4: Validate BLS Response Data Before FULFILL Pass-Through
+
+**As a** connector operator,
+**I want** the agent-runtime middleware to validate BLS response data before passing it into ILP FULFILL packets,
+**so that** malformed or oversized data from the BLS doesn't produce invalid ILP packets.
+
+**Scope:**
+
+- Validate BLS `response.data` is valid base64 before FULFILL/REJECT pass-through
+- Validate decoded data size ≤ 32KB (ILP maximum)
+- Invalid/oversized data omitted with warning log (payment still fulfills)
+- Pure validation utility function for testability
+
+**Acceptance Criteria:**
+
+1. Invalid base64 data omitted from FULFILL with warning
+2. Oversized data (> 32KB) omitted with warning
+3. Validation applied to both FULFILL and REJECT paths
+4. Unit tests for all validation paths
+5. No change to fulfillment computation
+
+**Priority:** P2 — Medium (safety)
+
+---
+
 ## Compatibility Requirements
 
 - [x] **Connector contract unchanged** — `POST /ilp/packets` still accepts `LocalDeliveryRequest`, returns `LocalDeliveryResponse` with same fulfill/reject structure
@@ -225,7 +250,7 @@ The simplified fulfillment model (`SHA256(data)`) ties the fulfillment to the ex
 
 ## Definition of Done
 
-- [ ] All 3 stories completed with acceptance criteria met
+- [ ] All 4 stories completed with acceptance criteria met
 - [ ] PacketHandler uses `SHA256(data)` fulfillment without session lookup
 - [ ] SPSP server and session manager removed
 - [ ] Types cleaned up — no STREAM/SPSP interfaces exported

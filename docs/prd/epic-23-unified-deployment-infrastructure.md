@@ -241,6 +241,30 @@ Create the unified deployment infrastructure that orchestrates agent-runtime con
 10. `--unified` flag coexists with existing flags (`--with-agent`, etc.) without conflict
 11. Cleanup on `Ctrl+C` (SIGINT trap) tears down unified compose stack
 
+### Story 23.4: Fix Deploy Script — Remove Stale SPSP Test, Enhance Channel Verification, Verify Unified Compose
+
+**As a** developer,
+**I want** the deploy script to have accurate post-Epic-22 tests and robust channel verification,
+**so that** the `--with-agent` and `--unified` test suites produce reliable pass/fail results.
+
+**Scope:**
+
+- Remove stale SPSP endpoint test, replace with `POST /ilp/send` test
+- Enhance Phase 5 channel verification with JSON parsing (jq) and strict failure on zero channels
+- Validate `docker-compose-unified.yml` exists, validates, has 16 services, and resolves env vars
+
+**Acceptance Criteria:**
+
+1. Stale SPSP test removed, replaced with ILP send test
+2. Phase 5 uses `jq` for proper JSON validation and channel counting
+3. Phase 5 fails (not warns) on zero channels
+4. Unified compose file validated at script start
+5. All existing deploy flags continue to work
+
+**Priority:** P3 — Low (testing & documentation)
+
+---
+
 ## Compatibility Requirements
 
 - [x] **Existing Docker Compose files unchanged** — `docker-compose-5-peer-multihop.yml` and others are not modified
@@ -286,7 +310,7 @@ Create the unified deployment infrastructure that orchestrates agent-runtime con
 
 ## Definition of Done
 
-- [ ] All 3 stories completed with acceptance criteria met
+- [ ] All 4 stories completed with acceptance criteria met
 - [ ] `docker compose -f docker-compose-unified.yml up` starts 16 healthy services
 - [ ] Bootstrap completes: relay discovery, peer registration, SPSP handshakes, channel opening
 - [ ] End-to-end test packet fulfilled through full stack

@@ -44,6 +44,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     tokenNetwork: '0x1234567890abcdef1234567890abcdef12345678',
     initialDeposit: '1000000',
     settlementTimeout: 86400,
+    peerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28',
   };
 
   const validXrpRequest = {
@@ -66,7 +67,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     mockBTPClientManager = {
       addPeer: jest.fn().mockResolvedValue(undefined),
       removePeer: jest.fn().mockResolvedValue(undefined),
-      getPeerIds: jest.fn().mockReturnValue([]),
+      getPeerIds: jest.fn().mockReturnValue(['peer-b', 'peer-c', 'peer-d']),
       getPeerStatus: jest.fn().mockReturnValue(new Map()),
       isConnected: jest.fn().mockReturnValue(false),
       getConnectedPeers: jest.fn().mockReturnValue([]),
@@ -89,7 +90,33 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     mockChannelManager = {
       ensureChannelExists: jest.fn().mockResolvedValue('0xchannel123'),
       getAllChannels: jest.fn().mockReturnValue([]),
-      getChannelById: jest.fn().mockReturnValue(null),
+      getChannelById: jest.fn().mockImplementation((channelId: string) => {
+        if (channelId === '0xchannel123') {
+          return {
+            channelId: '0xchannel123',
+            peerId: 'peer-b',
+            tokenId: 'AGENT',
+            tokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+            chain: 'evm:base:8453',
+            createdAt: new Date(),
+            lastActivityAt: new Date(),
+            status: 'open',
+          };
+        }
+        if (channelId === 'XRP_CHANNEL_ABC') {
+          return {
+            channelId: 'XRP_CHANNEL_ABC',
+            peerId: 'peer-c',
+            tokenId: 'XRP',
+            tokenAddress: '',
+            chain: 'xrp:mainnet:0',
+            createdAt: new Date(),
+            lastActivityAt: new Date(),
+            status: 'open',
+          };
+        }
+        return null;
+      }),
       getChannelForPeer: jest.fn().mockReturnValue(null),
       markChannelActivity: jest.fn(),
       start: jest.fn(),
@@ -245,7 +272,12 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     it('should use AGENT as default tokenId when no token provided', async () => {
       const res = await request(app)
         .post('/admin/channels')
-        .send({ peerId: 'peer-b', chain: 'evm:base:8453', initialDeposit: '500' });
+        .send({
+          peerId: 'peer-b',
+          chain: 'evm:base:8453',
+          initialDeposit: '500',
+          peerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28',
+        });
 
       expect(res.status).toBe(201);
       expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith(
@@ -278,7 +310,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
       const res = await request(app).post('/admin/channels').send(validXrpRequest);
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain('XRP address');
+      expect(res.body.message).toContain('XRP address must be provided');
     });
 
     it('should return 501 for aptos chain (not yet implemented)', async () => {
@@ -379,7 +411,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
         chain: 'evm:base:8453',
         createdAt: new Date(),
         lastActivityAt: new Date(),
-        status: 'active',
+        status: 'open',
       };
       mockChannelManager.getChannelForPeer.mockReturnValue(existingChannel);
 
@@ -435,7 +467,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
           chain: 'evm:base:8453',
           createdAt: new Date('2026-01-01'),
           lastActivityAt: new Date('2026-01-02'),
-          status: 'active',
+          status: 'open',
         },
         {
           channelId: '0xchannel2',
@@ -468,7 +500,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
           chain: 'evm:base:8453',
           createdAt: new Date(),
           lastActivityAt: new Date(),
-          status: 'active',
+          status: 'open',
         },
         {
           channelId: '0xch2',
@@ -478,7 +510,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
           chain: 'evm:base:8453',
           createdAt: new Date(),
           lastActivityAt: new Date(),
-          status: 'active',
+          status: 'open',
         },
       ];
       mockChannelManager.getAllChannels.mockReturnValue(channels);
@@ -500,7 +532,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
           chain: 'evm:base:8453',
           createdAt: new Date(),
           lastActivityAt: new Date(),
-          status: 'active',
+          status: 'open',
         },
         {
           channelId: '0xch2',
@@ -544,7 +576,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
         chain: 'evm:base:8453',
         createdAt: new Date(),
         lastActivityAt: new Date(),
-        status: 'active',
+        status: 'open',
       };
       mockChannelManager.getChannelById.mockReturnValue(metadata);
 
@@ -570,7 +602,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
       expect(res.body.theirDeposit).toBe('0');
       expect(res.body.transferred).toBe('500000');
       expect(res.body.theirTransferred).toBe('200000');
-      expect(res.body.status).toBe('opened');
+      expect(res.body.status).toBe('open');
       expect(res.body.nonce).toBe(5);
     });
 
@@ -592,7 +624,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
         chain: 'evm:base:8453',
         createdAt: new Date(),
         lastActivityAt: new Date(),
-        status: 'active',
+        status: 'open',
       };
       mockChannelManager.getChannelById.mockReturnValue(metadata);
 
@@ -627,7 +659,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
         chain: 'evm:base:8453',
         createdAt: new Date(),
         lastActivityAt: new Date(),
-        status: 'active',
+        status: 'open',
       };
       mockChannelManager.getChannelById.mockReturnValue(metadata);
       mockPaymentChannelSDK.getChannelState.mockRejectedValue(new Error('RPC connection timeout'));
@@ -648,7 +680,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
         chain: 'xrp:mainnet:0',
         createdAt: new Date('2026-02-08T12:00:00Z'),
         lastActivityAt: new Date('2026-02-08T13:00:00Z'),
-        status: 'active',
+        status: 'open',
       };
       mockChannelManager.getChannelById.mockReturnValue(metadata);
 
@@ -658,7 +690,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
       expect(res.body.channelId).toBe('0xxrp123');
       expect(res.body.peerId).toBe('peer-xrp');
       expect(res.body.chain).toBe('xrp:mainnet:0');
-      expect(res.body.status).toBe('active');
+      expect(res.body.status).toBe('open');
       expect(res.body.deposit).toBe('unknown');
       expect(res.body.tokenId).toBe('XRP');
       expect(res.body.createdAt).toBe('2026-02-08T12:00:00.000Z');
@@ -802,7 +834,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
     chain: 'evm:base:8453',
     createdAt: new Date('2026-02-01'),
     lastActivityAt: new Date('2026-02-07'),
-    status: 'active',
+    status: 'open',
   };
 
   const activeXrpChannel: ChannelMetadata = {
@@ -813,7 +845,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
     chain: 'xrp:mainnet:0',
     createdAt: new Date('2026-02-01'),
     lastActivityAt: new Date('2026-02-07'),
-    status: 'active',
+    status: 'open',
   };
 
   const activeAptosChannel: ChannelMetadata = {
@@ -824,7 +856,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
     chain: 'aptos:mainnet:1',
     createdAt: new Date('2026-02-01'),
     lastActivityAt: new Date('2026-02-07'),
-    status: 'active',
+    status: 'open',
   };
 
   const defaultChannelState = {
@@ -1812,7 +1844,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
       chain: 'evm:base:8453',
       createdAt: new Date('2026-02-01'),
       lastActivityAt: new Date('2026-02-07'),
-      status: 'active',
+      status: 'open',
     };
 
     const xrpChannel: ChannelMetadata = {
@@ -1823,7 +1855,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
       chain: 'xrp:mainnet:0',
       createdAt: new Date('2026-02-01'),
       lastActivityAt: new Date('2026-02-07'),
-      status: 'active',
+      status: 'open',
     };
 
     const evmClaim = {
@@ -1998,6 +2030,683 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
         .set('X-API-Key', 'test-secret-key');
 
       expect(res.status).toBe(404);
+    });
+  });
+});
+
+// ============================================================
+// Story 21.4 — Channel Opening Integration Fixes
+// ============================================================
+
+describe('Admin API Channel Opening Integration Fixes (Story 21.4)', () => {
+  let app: Express;
+  let mockRoutingTable: jest.Mocked<RoutingTable>;
+  let mockBTPClientManager: jest.Mocked<BTPClientManager>;
+  let mockLogger: jest.Mocked<Logger>;
+  let mockChannelManager: jest.Mocked<ChannelManager>;
+  let mockPaymentChannelSDK: jest.Mocked<PaymentChannelSDK>;
+  let mockXrpLifecycleManager: jest.Mocked<XRPChannelLifecycleManager>;
+  let settlementPeers: Map<string, SettlementPeerConfig>;
+
+  const validEvmAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28';
+  const validXrpAddress = 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW';
+
+  beforeEach(() => {
+    settlementPeers = new Map();
+
+    mockRoutingTable = {
+      addRoute: jest.fn(),
+      removeRoute: jest.fn(),
+      getAllRoutes: jest.fn().mockReturnValue([]),
+      lookup: jest.fn(),
+      removeRoutesForPeer: jest.fn(),
+    } as unknown as jest.Mocked<RoutingTable>;
+
+    mockBTPClientManager = {
+      addPeer: jest.fn().mockResolvedValue(undefined),
+      removePeer: jest.fn().mockResolvedValue(undefined),
+      getPeerIds: jest.fn().mockReturnValue(['peer-b', 'peer-c']),
+      getPeerStatus: jest.fn().mockReturnValue(new Map()),
+      isConnected: jest.fn().mockReturnValue(false),
+      getConnectedPeers: jest.fn().mockReturnValue([]),
+      getClientForPeer: jest.fn(),
+    } as unknown as jest.Mocked<BTPClientManager>;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockLogger = {
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      child: jest.fn().mockReturnThis(),
+      fatal: jest.fn(),
+      trace: jest.fn(),
+      level: 'info',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    mockChannelManager = {
+      ensureChannelExists: jest.fn().mockResolvedValue('0xchannel123'),
+      getAllChannels: jest.fn().mockReturnValue([]),
+      getChannelById: jest.fn().mockImplementation((channelId: string) => {
+        if (channelId === '0xchannel123') {
+          return {
+            channelId: '0xchannel123',
+            peerId: 'peer-b',
+            tokenId: 'AGENT',
+            tokenAddress: '0xtoken',
+            chain: 'evm:base:8453',
+            createdAt: new Date(),
+            lastActivityAt: new Date(),
+            status: 'open',
+          };
+        }
+        if (channelId === 'XRP_CHANNEL_ABC') {
+          return {
+            channelId: 'XRP_CHANNEL_ABC',
+            peerId: 'peer-c',
+            tokenId: 'XRP',
+            tokenAddress: '',
+            chain: 'xrp:mainnet:0',
+            createdAt: new Date(),
+            lastActivityAt: new Date(),
+            status: 'open',
+          };
+        }
+        return null;
+      }),
+      getChannelForPeer: jest.fn().mockReturnValue(null),
+      markChannelActivity: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+      on: jest.fn(),
+      emit: jest.fn(),
+    } as unknown as jest.Mocked<ChannelManager>;
+
+    mockPaymentChannelSDK = {
+      openChannel: jest.fn(),
+      getChannelState: jest.fn(),
+      getMyChannels: jest.fn(),
+      signBalanceProof: jest.fn().mockResolvedValue('0x' + 'ab'.repeat(65)),
+      closeChannel: jest.fn().mockResolvedValue(undefined),
+      cooperativeSettle: jest.fn().mockResolvedValue(undefined),
+      settleChannel: jest.fn(),
+      deposit: jest.fn().mockResolvedValue(undefined),
+      removeAllListeners: jest.fn(),
+    } as unknown as jest.Mocked<PaymentChannelSDK>;
+
+    mockXrpLifecycleManager = {
+      getOrCreateChannel: jest.fn().mockResolvedValue('XRP_CHANNEL_ABC'),
+      getChannelForPeer: jest.fn().mockReturnValue(null),
+      fundChannel: jest.fn().mockResolvedValue(undefined),
+      closeChannel: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<XRPChannelLifecycleManager>;
+
+    const config: AdminAPIConfig = {
+      routingTable: mockRoutingTable,
+      btpClientManager: mockBTPClientManager,
+      logger: mockLogger,
+      nodeId: 'test-node',
+      settlementPeers,
+      channelManager: mockChannelManager,
+      paymentChannelSDK: mockPaymentChannelSDK,
+      xrpChannelLifecycleManager: mockXrpLifecycleManager,
+    };
+
+    app = express();
+    app.use('/admin', createAdminRouter(config));
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // --- peerAddress propagation (AC: 10) ---
+
+  describe('peerAddress propagation (AC: 1, 10)', () => {
+    it('should pass peerAddress from request body through to ensureChannelExists options', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: validEvmAddress,
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith(
+        'peer-b',
+        'AGENT',
+        expect.objectContaining({
+          peerAddress: validEvmAddress,
+        })
+      );
+    });
+
+    it('should fall back to settlementPeers when peerAddress not in request', async () => {
+      settlementPeers.set('peer-b', {
+        peerId: 'peer-b',
+        address: 'g.peer-b',
+        settlementPreference: 'evm',
+        settlementTokens: ['EVM'],
+        evmAddress: '0xFallbackAddress1234567890abcdef12345678',
+      });
+
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith(
+        'peer-b',
+        'AGENT',
+        expect.objectContaining({
+          peerAddress: '0xFallbackAddress1234567890abcdef12345678',
+        })
+      );
+    });
+
+    it('should return 400 when neither peerAddress nor settlementPeers has EVM address', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Peer EVM address must be provided');
+    });
+  });
+
+  // --- XRP peerAddress resolution (AC: 11) ---
+
+  describe('XRP peerAddress resolution (AC: 3, 11)', () => {
+    it('should use peerAddress from request for XRP channel (no settlementPeers needed)', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+        peerAddress: validXrpAddress,
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockXrpLifecycleManager.getOrCreateChannel).toHaveBeenCalledWith(
+        'peer-c',
+        validXrpAddress
+      );
+    });
+
+    it('should fall back to peerConfig.xrpAddress when no peerAddress in request', async () => {
+      settlementPeers.set('peer-c', {
+        peerId: 'peer-c',
+        address: 'g.peer-c',
+        settlementPreference: 'xrp',
+        settlementTokens: ['XRP'],
+        xrpAddress: 'rFallbackXrpAddress1234567890',
+      });
+
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockXrpLifecycleManager.getOrCreateChannel).toHaveBeenCalledWith(
+        'peer-c',
+        'rFallbackXrpAddress1234567890'
+      );
+    });
+
+    it('should return 400 when neither peerAddress nor peerConfig has XRP address', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('XRP address must be provided');
+    });
+  });
+
+  // --- peer existence validation (AC: 12) ---
+
+  describe('peer existence validation (AC: 4, 5, 12)', () => {
+    it('should return 404 for unknown peerId', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'unknown-peer',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: validEvmAddress,
+      });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Not found');
+      expect(res.body.message).toContain("Peer 'unknown-peer' must be registered");
+    });
+
+    it('should proceed to channel opening for known peerId', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: validEvmAddress,
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockChannelManager.ensureChannelExists).toHaveBeenCalled();
+    });
+  });
+
+  // --- response status accuracy (AC: 13) ---
+
+  describe('response status accuracy (AC: 6, 7, 8, 13)', () => {
+    it('should return normalized metadata.status for EVM', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: validEvmAddress,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('open');
+    });
+
+    it('should return normalized metadata.status for XRP channel', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+        peerAddress: validXrpAddress,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('open');
+    });
+
+    it('should return 500 when EVM metadata unavailable after creation', async () => {
+      mockChannelManager.getChannelById.mockReturnValue(null);
+
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: validEvmAddress,
+      });
+
+      expect(res.status).toBe(500);
+      expect(res.body.message).toContain('metadata unavailable');
+    });
+
+    it('should return 500 when XRP metadata unavailable after creation', async () => {
+      mockChannelManager.getChannelById.mockReturnValue(null);
+
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+        peerAddress: validXrpAddress,
+      });
+
+      expect(res.status).toBe(500);
+      expect(res.body.message).toContain('metadata unavailable');
+    });
+  });
+
+  // --- peerAddress format validation (AC: 9) ---
+
+  describe('peerAddress format validation (AC: 9)', () => {
+    it('should return 400 for invalid EVM address format (too short)', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: '0x1234',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Invalid EVM address format');
+    });
+
+    it('should return 400 for invalid EVM address format (no 0x prefix)', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: '742d35Cc6634C0532925a3b844Bc9e7595f2bD28',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Invalid EVM address format');
+    });
+
+    it('should return 400 for invalid EVM address format (non-hex chars)', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: '0xGGGd35Cc6634C0532925a3b844Bc9e7595f2bD28',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Invalid EVM address format');
+    });
+
+    it('should accept valid EVM address format', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '1000000',
+        peerAddress: validEvmAddress,
+      });
+
+      expect(res.status).toBe(201);
+    });
+
+    it('should return 400 for invalid XRP address format (does not start with r)', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+        peerAddress: 'xN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Invalid XRP address format');
+    });
+
+    it('should return 400 for invalid XRP address format (too short)', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+        peerAddress: 'rShort',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Invalid XRP address format');
+    });
+
+    it('should return 400 for invalid XRP address format (too long)', async () => {
+      const res = await request(app)
+        .post('/admin/channels')
+        .send({
+          peerId: 'peer-c',
+          chain: 'xrp:mainnet:0',
+          initialDeposit: '5000000',
+          peerAddress: 'r' + 'A'.repeat(35),
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Invalid XRP address format');
+    });
+
+    it('should accept valid XRP address format', async () => {
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-c',
+        chain: 'xrp:mainnet:0',
+        initialDeposit: '5000000',
+        peerAddress: validXrpAddress,
+      });
+
+      expect(res.status).toBe(201);
+    });
+  });
+});
+
+describe('Admin API Channel Status Normalization (Story 21.5)', () => {
+  let app: Express;
+  let mockRoutingTable: jest.Mocked<RoutingTable>;
+  let mockBTPClientManager: jest.Mocked<BTPClientManager>;
+  let mockLogger: jest.Mocked<Logger>;
+  let mockChannelManager: jest.Mocked<ChannelManager>;
+  let mockPaymentChannelSDK: jest.Mocked<PaymentChannelSDK>;
+  let settlementPeers: Map<string, SettlementPeerConfig>;
+
+  beforeEach(() => {
+    settlementPeers = new Map();
+
+    mockRoutingTable = {
+      addRoute: jest.fn(),
+      removeRoute: jest.fn(),
+      getAllRoutes: jest.fn().mockReturnValue([]),
+      lookup: jest.fn(),
+      removeRoutesForPeer: jest.fn(),
+    } as unknown as jest.Mocked<RoutingTable>;
+
+    mockBTPClientManager = {
+      addPeer: jest.fn().mockResolvedValue(undefined),
+      removePeer: jest.fn().mockResolvedValue(undefined),
+      getPeerIds: jest.fn().mockReturnValue(['peer-b']),
+      getPeerStatus: jest.fn().mockReturnValue(new Map()),
+      isConnected: jest.fn().mockReturnValue(false),
+      getConnectedPeers: jest.fn().mockReturnValue([]),
+      getClientForPeer: jest.fn(),
+    } as unknown as jest.Mocked<BTPClientManager>;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockLogger = {
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      child: jest.fn().mockReturnThis(),
+      fatal: jest.fn(),
+      trace: jest.fn(),
+      level: 'info',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    mockChannelManager = {
+      ensureChannelExists: jest.fn().mockResolvedValue('0xchannel123'),
+      getAllChannels: jest.fn().mockReturnValue([]),
+      getChannelById: jest.fn().mockReturnValue(null),
+      getChannelForPeer: jest.fn().mockReturnValue(null),
+      markChannelActivity: jest.fn(),
+      start: jest.fn(),
+      stop: jest.fn(),
+      on: jest.fn(),
+      emit: jest.fn(),
+    } as unknown as jest.Mocked<ChannelManager>;
+
+    mockPaymentChannelSDK = {
+      openChannel: jest.fn(),
+      getChannelState: jest.fn(),
+      getMyChannels: jest.fn(),
+      signBalanceProof: jest.fn().mockResolvedValue('0x' + 'ab'.repeat(65)),
+      closeChannel: jest.fn().mockResolvedValue(undefined),
+      cooperativeSettle: jest.fn().mockResolvedValue(undefined),
+      settleChannel: jest.fn(),
+      deposit: jest.fn().mockResolvedValue(undefined),
+      removeAllListeners: jest.fn(),
+    } as unknown as jest.Mocked<PaymentChannelSDK>;
+
+    const config: AdminAPIConfig = {
+      routingTable: mockRoutingTable,
+      btpClientManager: mockBTPClientManager,
+      logger: mockLogger,
+      nodeId: 'test-node',
+      settlementPeers,
+      channelManager: mockChannelManager,
+      paymentChannelSDK: mockPaymentChannelSDK,
+    };
+
+    app = express();
+    app.use('/admin', createAdminRouter(config));
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('GET /admin/channels — status normalization in list response (AC: 7, 14)', () => {
+    it('should normalize internal "active" status to "open" in list response', async () => {
+      // Simulate legacy ChannelMetadata with 'active' status (untyped mock)
+      mockChannelManager.getAllChannels.mockReturnValue([
+        {
+          channelId: '0xlegacy',
+          peerId: 'peer-b',
+          tokenId: 'AGENT',
+          tokenAddress: '0xtoken',
+          chain: 'evm:base:8453',
+          createdAt: new Date(),
+          lastActivityAt: new Date(),
+          status: 'active',
+        },
+      ] as unknown as ChannelMetadata[]);
+
+      const res = await request(app).get('/admin/channels');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].status).toBe('open');
+    });
+
+    it('should match ?status=open filter against channels with internal "active" status', async () => {
+      mockChannelManager.getAllChannels.mockReturnValue([
+        {
+          channelId: '0xlegacy',
+          peerId: 'peer-b',
+          tokenId: 'AGENT',
+          tokenAddress: '0xtoken',
+          chain: 'evm:base:8453',
+          createdAt: new Date(),
+          lastActivityAt: new Date(),
+          status: 'active',
+        },
+      ] as unknown as ChannelMetadata[]);
+
+      const res = await request(app).get('/admin/channels?status=open');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].status).toBe('open');
+    });
+
+    it('should match ?status=active filter (alias) against channels with "open" status', async () => {
+      mockChannelManager.getAllChannels.mockReturnValue([
+        {
+          channelId: '0xcanonical',
+          peerId: 'peer-b',
+          tokenId: 'AGENT',
+          tokenAddress: '0xtoken',
+          chain: 'evm:base:8453',
+          createdAt: new Date(),
+          lastActivityAt: new Date(),
+          status: 'open',
+        },
+      ]);
+
+      const res = await request(app).get('/admin/channels?status=active');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].status).toBe('open');
+    });
+  });
+
+  describe('GET /admin/channels/:channelId — on-chain SDK normalization (AC: 6, 14)', () => {
+    it('should normalize on-chain SDK "opened" status to "open" in detail response', async () => {
+      mockChannelManager.getChannelById.mockReturnValue({
+        channelId: '0xonchain',
+        peerId: 'peer-b',
+        tokenId: 'AGENT',
+        tokenAddress: '0xtoken',
+        chain: 'evm:base:8453',
+        createdAt: new Date(),
+        lastActivityAt: new Date(),
+        status: 'open',
+      });
+
+      mockPaymentChannelSDK.getChannelState.mockResolvedValue({
+        channelId: '0xonchain',
+        participants: ['0xA', '0xB'] as [string, string],
+        myDeposit: BigInt('1000000'),
+        theirDeposit: BigInt('0'),
+        myNonce: 1,
+        theirNonce: 0,
+        myTransferred: BigInt('0'),
+        theirTransferred: BigInt('0'),
+        status: 'opened',
+        settlementTimeout: 86400,
+        openedAt: 100,
+      });
+
+      const res = await request(app).get('/admin/channels/0xonchain');
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('open');
+    });
+
+    it('should pass through canonical "closed" status from on-chain SDK', async () => {
+      mockChannelManager.getChannelById.mockReturnValue({
+        channelId: '0xclosed',
+        peerId: 'peer-b',
+        tokenId: 'AGENT',
+        tokenAddress: '0xtoken',
+        chain: 'evm:base:8453',
+        createdAt: new Date(),
+        lastActivityAt: new Date(),
+        status: 'closed',
+      });
+
+      mockPaymentChannelSDK.getChannelState.mockResolvedValue({
+        channelId: '0xclosed',
+        participants: ['0xA', '0xB'] as [string, string],
+        myDeposit: BigInt('0'),
+        theirDeposit: BigInt('0'),
+        myNonce: 0,
+        theirNonce: 0,
+        myTransferred: BigInt('0'),
+        theirTransferred: BigInt('0'),
+        status: 'closed',
+        settlementTimeout: 86400,
+        openedAt: 100,
+      });
+
+      const res = await request(app).get('/admin/channels/0xclosed');
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('closed');
+    });
+  });
+
+  describe('POST /admin/channels/:channelId/deposit — normalized status in response (AC: 9)', () => {
+    it('should return normalized status from metadata instead of hardcoded "open"', async () => {
+      mockChannelManager.getChannelById.mockReturnValue({
+        channelId: '0xdeposit',
+        peerId: 'peer-b',
+        tokenId: 'AGENT',
+        tokenAddress: '0xtoken',
+        chain: 'evm:base:8453',
+        createdAt: new Date(),
+        lastActivityAt: new Date(),
+        status: 'open',
+      });
+
+      mockPaymentChannelSDK.getChannelState.mockResolvedValue({
+        channelId: '0xdeposit',
+        participants: ['0xA', '0xB'] as [string, string],
+        myDeposit: BigInt('2000000'),
+        theirDeposit: BigInt('0'),
+        myNonce: 1,
+        theirNonce: 0,
+        myTransferred: BigInt('0'),
+        theirTransferred: BigInt('0'),
+        status: 'opened',
+        settlementTimeout: 86400,
+        openedAt: 100,
+      });
+
+      const res = await request(app)
+        .post('/admin/channels/0xdeposit/deposit')
+        .send({ amount: '500000' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('open');
     });
   });
 });

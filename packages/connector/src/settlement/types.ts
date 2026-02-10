@@ -14,6 +14,39 @@
  * @module settlement/types
  */
 
+import type { Logger } from 'pino';
+
+/**
+ * Canonical Admin API channel status values shared between agent-runtime and agent-society.
+ * Named AdminChannelStatus to avoid collision with the on-chain ChannelStatus
+ * ('opened' | 'closed' | 'settled') exported from @agent-runtime/shared.
+ */
+export type AdminChannelStatus = 'opening' | 'open' | 'closing' | 'closed' | 'settling' | 'settled';
+
+const CANONICAL_STATUSES: readonly string[] = [
+  'opening',
+  'open',
+  'closing',
+  'closed',
+  'settling',
+  'settled',
+];
+
+/**
+ * Normalize any channel status string to the canonical AdminChannelStatus.
+ * Handles aliases from two sources:
+ * - ChannelMetadata (internal): 'active' → 'open'
+ * - PaymentChannelSDK (on-chain): 'opened' → 'open'
+ */
+export function normalizeChannelStatus(status: string, logger?: Logger): AdminChannelStatus {
+  if (status === 'active' || status === 'opened') return 'open';
+  if (CANONICAL_STATUSES.includes(status)) {
+    return status as AdminChannelStatus;
+  }
+  logger?.warn({ status }, 'Unknown channel status, defaulting to opening');
+  return 'opening';
+}
+
 /**
  * Account type enum defining the two sides of a double-entry account pair.
  *

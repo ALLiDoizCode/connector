@@ -14,7 +14,7 @@
  * ```
  *
  * HTTP Response Codes:
- * - 200: Both FULFILL and REJECT ILP responses (distinguished by `fulfilled` boolean)
+ * - 200: Both FULFILL and REJECT ILP responses (distinguished by `accepted` boolean)
  * - 400: Validation failure (invalid ILP address, negative amount, non-base64 data, data > 64KB)
  * - 408: No response within timeoutMs
  * - 503: BTP sender not connected or not configured
@@ -198,6 +198,7 @@ export class IlpSendHandler {
       // Map response
       if (response.type === PacketType.FULFILL) {
         const fulfillResponse: IlpSendResponse = {
+          accepted: true,
           fulfilled: true,
           fulfillment: response.fulfillment.toString('base64'),
           data: response.data.length > 0 ? response.data.toString('base64') : undefined,
@@ -209,6 +210,7 @@ export class IlpSendHandler {
         res.status(200).json(fulfillResponse);
       } else {
         const rejectResponse: IlpSendResponse = {
+          accepted: false,
           fulfilled: false,
           code: response.code,
           message: response.message,

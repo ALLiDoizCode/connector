@@ -36,7 +36,9 @@ import {
   isValidXrpAddress,
   isValidAptosAddress,
   isValidNonNegativeIntegerString,
+  normalizeChannelStatus,
 } from '../settlement/types';
+import type { AdminChannelStatus } from '../settlement/types';
 import type { ChannelManager } from '../settlement/channel-manager';
 import type { PaymentChannelSDK } from '../settlement/payment-channel-sdk';
 import type { XRPChannelLifecycleManager } from '../settlement/xrp-channel-lifecycle';
@@ -329,15 +331,9 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         return;
       }
 
-      // Check if peer already exists
+      // Check if peer already exists (idempotent re-registration)
       const existingPeers = btpClientManager.getPeerIds();
-      if (existingPeers.includes(body.id)) {
-        res.status(409).json({
-          error: 'Conflict',
-          message: `Peer with id '${body.id}' already exists`,
-        });
-        return;
-      }
+      const isUpdate = existingPeers.includes(body.id);
 
       // Validate routes if provided
       if (body.routes) {
@@ -359,122 +355,39 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         }
       }
 
-      // Create peer object
-      const peer: Peer = {
-        id: body.id,
-        url: body.url,
-        authToken: body.authToken,
-        connected: false,
-        lastSeen: new Date(),
-      };
-
-      // Add peer to BTP client manager
-      await btpClientManager.addPeer(peer);
-
-      log.info(
-        { event: 'admin_peer_added', peerId: body.id, url: body.url },
-        `Added peer: ${body.id}`
-      );
-
       // Validate settlement config if provided
       if (body.settlement) {
-        const s = body.settlement;
-        const VALID_PREFERENCES = ['evm', 'xrp', 'aptos', 'any'];
-
-        if (!s.preference || !VALID_PREFERENCES.includes(s.preference)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.preference must be one of: evm, xrp, aptos, any',
-          });
-          return;
-        }
-
-        // Validate required addresses based on preference
-        if (s.preference === 'evm' && !s.evmAddress) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.evmAddress required when preference is evm',
-          });
-          return;
-        }
-        if (s.preference === 'xrp' && !s.xrpAddress) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.xrpAddress required when preference is xrp',
-          });
-          return;
-        }
-        if (s.preference === 'aptos' && !s.aptosAddress) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.aptosAddress required when preference is aptos',
-          });
-          return;
-        }
-        if (s.preference === 'any' && !s.evmAddress && !s.xrpAddress && !s.aptosAddress) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement: at least one address required when preference is any',
-          });
-          return;
-        }
-
-        // Validate address formats
-        if (s.evmAddress && !isValidEvmAddress(s.evmAddress)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.evmAddress must be a valid 0x-prefixed address (42 chars)',
-          });
-          return;
-        }
-        if (s.xrpAddress && !isValidXrpAddress(s.xrpAddress)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.xrpAddress must start with r and be 25-35 characters',
-          });
-          return;
-        }
-        if (s.aptosAddress && !isValidAptosAddress(s.aptosAddress)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.aptosAddress must be a valid 0x-prefixed address (66 chars)',
-          });
-          return;
-        }
-
-        // Validate optional fields
-        if (s.tokenAddress && !isValidEvmAddress(s.tokenAddress)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.tokenAddress must be a valid 0x-prefixed address (42 chars)',
-          });
-          return;
-        }
-        if (s.tokenNetworkAddress && !isValidEvmAddress(s.tokenNetworkAddress)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message:
-              'settlement.tokenNetworkAddress must be a valid 0x-prefixed address (42 chars)',
-          });
-          return;
-        }
-        if (s.chainId !== undefined && (!Number.isInteger(s.chainId) || s.chainId <= 0)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.chainId must be a positive integer',
-          });
-          return;
-        }
-        if (s.initialDeposit !== undefined && !isValidNonNegativeIntegerString(s.initialDeposit)) {
-          res.status(400).json({
-            error: 'Bad request',
-            message: 'settlement.initialDeposit must be a non-negative integer string',
-          });
+        const settlementError = validateSettlementConfig(body.settlement);
+        if (settlementError) {
+          res.status(400).json({ error: 'Bad request', message: settlementError });
           return;
         }
       }
 
-      // Add routes if provided
+      // Only add BTP peer on initial registration (BTP connection doesn't change on re-registration)
+      if (!isUpdate) {
+        const peer: Peer = {
+          id: body.id,
+          url: body.url,
+          authToken: body.authToken,
+          connected: false,
+          lastSeen: new Date(),
+        };
+
+        await btpClientManager.addPeer(peer);
+
+        log.info(
+          { event: 'admin_peer_added', peerId: body.id, url: body.url },
+          `Added peer: ${body.id}`
+        );
+      } else {
+        log.info(
+          { event: 'admin_peer_reregistered', peerId: body.id },
+          `Re-registering peer: ${body.id}`
+        );
+      }
+
+      // Add routes if provided (addRoute replaces existing same-prefix routes, no duplicates)
       const addedRoutes: string[] = [];
       if (body.routes) {
         for (const route of body.routes) {
@@ -487,7 +400,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         }
       }
 
-      // Create and store PeerConfig if settlement provided and settlementPeers available
+      // Create/merge PeerConfig if settlement provided and settlementPeers available
       if (body.settlement && settlementPeers) {
         const s = body.settlement;
         const ilpAddress = body.routes && body.routes.length > 0 ? body.routes[0]!.prefix : '';
@@ -502,7 +415,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           if (s.aptosAddress) settlementTokens.push('APT');
         }
 
-        const peerConfig: SettlementPeerConfig = {
+        const newConfig: SettlementPeerConfig = {
           peerId: body.id,
           address: ilpAddress,
           settlementPreference: s.preference,
@@ -518,33 +431,74 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           initialDeposit: s.initialDeposit,
         };
 
-        settlementPeers.set(body.id, peerConfig);
-        log.info(
-          {
-            event: 'admin_settlement_config_added',
-            peerId: body.id,
-            preference: s.preference,
-          },
-          `Added settlement config for peer: ${body.id}`
-        );
+        if (isUpdate) {
+          // Merge: spread existing config, overwrite with new non-undefined fields
+          const existingConfig = settlementPeers.get(body.id);
+          if (existingConfig) {
+            const mergedConfig: SettlementPeerConfig = { ...existingConfig };
+            for (const [key, value] of Object.entries(newConfig)) {
+              if (value !== undefined) {
+                (mergedConfig as unknown as Record<string, unknown>)[key] = value;
+              }
+            }
+            settlementPeers.set(body.id, mergedConfig);
+          } else {
+            settlementPeers.set(body.id, newConfig);
+          }
+          log.info(
+            {
+              event: 'admin_settlement_config_merged',
+              peerId: body.id,
+              preference: s.preference,
+            },
+            `Merged settlement config for peer: ${body.id}`
+          );
+        } else {
+          settlementPeers.set(body.id, newConfig);
+          log.info(
+            {
+              event: 'admin_settlement_config_added',
+              peerId: body.id,
+              preference: s.preference,
+            },
+            `Added settlement config for peer: ${body.id}`
+          );
+        }
       }
 
-      // Check connection status after a brief delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const connected = btpClientManager.isConnected(body.id);
+      if (isUpdate) {
+        // Return 200 for re-registration
+        const connected = btpClientManager.isConnected(body.id);
+        res.status(200).json({
+          success: true,
+          peer: {
+            id: body.id,
+            url: body.url,
+            connected,
+          },
+          routes: addedRoutes,
+          updated: true,
+          message: `Peer '${body.id}' updated`,
+        });
+      } else {
+        // Check connection status after a brief delay for new peers
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const connected = btpClientManager.isConnected(body.id);
 
-      res.status(201).json({
-        success: true,
-        peer: {
-          id: body.id,
-          url: body.url,
-          connected,
-        },
-        routes: addedRoutes,
-        message: connected
-          ? `Peer '${body.id}' added and connected`
-          : `Peer '${body.id}' added (connection pending)`,
-      });
+        res.status(201).json({
+          success: true,
+          peer: {
+            id: body.id,
+            url: body.url,
+            connected,
+          },
+          routes: addedRoutes,
+          created: true,
+          message: connected
+            ? `Peer '${body.id}' added and connected`
+            : `Peer '${body.id}' added (connection pending)`,
+        });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error({ event: 'admin_api_error', error: errorMessage }, 'Failed to add peer');
@@ -612,6 +566,133 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error({ event: 'admin_api_error', error: errorMessage }, 'Failed to remove peer');
+      res.status(500).json({ error: 'Internal server error', message: errorMessage });
+    }
+  });
+
+  /**
+   * PUT /admin/peers/:peerId
+   * Update an existing peer's settlement config and/or routes
+   */
+  router.put('/peers/:peerId', (req: Request, res: Response) => {
+    try {
+      const peerId = req.params.peerId;
+      if (!peerId) {
+        res.status(400).json({ error: 'Bad request', message: 'Missing peerId parameter' });
+        return;
+      }
+
+      // Validate peerId exists
+      const existingPeers = btpClientManager.getPeerIds();
+      if (!existingPeers.includes(peerId)) {
+        res.status(404).json({
+          error: 'Not found',
+          message: 'Peer not found',
+        });
+        return;
+      }
+
+      const body = req.body as {
+        settlement?: AdminSettlementConfig;
+        routes?: Array<{ prefix: string; priority?: number }>;
+      };
+
+      // Validate settlement config if provided
+      if (body.settlement) {
+        const settlementError = validateSettlementConfig(body.settlement);
+        if (settlementError) {
+          res.status(400).json({ error: 'Bad request', message: settlementError });
+          return;
+        }
+      }
+
+      // Validate routes if provided
+      if (body.routes) {
+        for (const route of body.routes) {
+          if (!route.prefix || typeof route.prefix !== 'string') {
+            res.status(400).json({
+              error: 'Bad request',
+              message: 'Invalid route: missing prefix',
+            });
+            return;
+          }
+          if (!isValidILPAddress(route.prefix)) {
+            res.status(400).json({
+              error: 'Bad request',
+              message: `Invalid ILP address prefix: ${route.prefix}`,
+            });
+            return;
+          }
+        }
+      }
+
+      // Update settlement config if provided
+      if (body.settlement && settlementPeers) {
+        const s = body.settlement;
+        const existingConfig = settlementPeers.get(peerId);
+
+        const settlementTokens: string[] = [];
+        if (s.tokenAddress) {
+          settlementTokens.push(s.tokenAddress);
+        } else {
+          if (s.evmAddress) settlementTokens.push('EVM');
+          if (s.xrpAddress) settlementTokens.push('XRP');
+          if (s.aptosAddress) settlementTokens.push('APT');
+        }
+
+        const newConfig: SettlementPeerConfig = {
+          peerId,
+          address: existingConfig?.address ?? '',
+          settlementPreference: s.preference,
+          settlementTokens,
+          evmAddress: s.evmAddress,
+          xrpAddress: s.xrpAddress,
+          aptosAddress: s.aptosAddress,
+          aptosPubkey: s.aptosPubkey,
+          tokenAddress: s.tokenAddress,
+          tokenNetworkAddress: s.tokenNetworkAddress,
+          chainId: s.chainId,
+          channelId: s.channelId,
+          initialDeposit: s.initialDeposit,
+        };
+
+        if (existingConfig) {
+          const mergedConfig: SettlementPeerConfig = { ...existingConfig };
+          for (const [key, value] of Object.entries(newConfig)) {
+            if (value !== undefined) {
+              (mergedConfig as unknown as Record<string, unknown>)[key] = value;
+            }
+          }
+          settlementPeers.set(peerId, mergedConfig);
+        } else {
+          settlementPeers.set(peerId, newConfig);
+        }
+
+        log.info(
+          { event: 'admin_peer_settlement_updated', peerId, preference: s.preference },
+          `Updated settlement config for peer: ${peerId}`
+        );
+      }
+
+      // Add routes if provided
+      if (body.routes) {
+        for (const route of body.routes) {
+          routingTable.addRoute(route.prefix as ILPAddress, peerId, route.priority ?? 0);
+          log.info(
+            { event: 'admin_route_added', prefix: route.prefix, nextHop: peerId },
+            `Added route: ${route.prefix} -> ${peerId}`
+          );
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        peerId,
+        updated: true,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log.error({ event: 'admin_api_error', error: errorMessage }, 'Failed to update peer');
       res.status(500).json({ error: 'Internal server error', message: errorMessage });
     }
   });
@@ -765,11 +846,48 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
       }
 
       const body = req.body as OpenChannelRequest;
+
+      // Validate peer exists before opening channels
+      const existingPeers = btpClientManager.getPeerIds();
+      if (!existingPeers.includes(body.peerId)) {
+        res.status(404).json({
+          error: 'Not found',
+          message: `Peer '${body.peerId}' must be registered before opening channels`,
+        });
+        return;
+      }
+
       const chainPrefix = body.chain.split(':')[0];
 
       if (chainPrefix === 'evm') {
         // Derive tokenId from request
         const tokenId = body.token ?? 'AGENT';
+
+        // Resolve peer EVM address: explicit request field, then settlementPeers fallback
+        const peerConfig = settlementPeers?.get(body.peerId);
+        const peerAddress = body.peerAddress || peerConfig?.evmAddress;
+        if (!peerAddress) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'Peer EVM address must be provided in request or peer registration',
+          });
+          return;
+        }
+
+        // Validate EVM address format if provided in request
+        if (body.peerAddress && !/^0x[0-9a-fA-F]{40}$/.test(body.peerAddress)) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'Invalid EVM address format: must be 0x-prefixed 42-char hex',
+          });
+          return;
+        }
+
+        const addressSource = body.peerAddress ? 'request' : 'registration';
+        log.info(
+          { peerId: body.peerId, peerAddress, source: addressSource },
+          `Resolved peer EVM address from ${addressSource}`
+        );
 
         // Check for existing channel
         const existing = channelManager.getChannelForPeer(body.peerId, tokenId);
@@ -785,6 +903,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           initialDeposit: BigInt(body.initialDeposit),
           settlementTimeout: body.settlementTimeout,
           chain: body.chain,
+          peerAddress,
         });
 
         log.info(
@@ -792,10 +911,19 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           'Channel opened via Admin API'
         );
 
+        const metadata = channelManager.getChannelById(channelId);
+        if (!metadata) {
+          res.status(500).json({
+            error: 'Internal error',
+            message: 'Channel created but metadata unavailable',
+          });
+          return;
+        }
+
         res.status(201).json({
           channelId,
           chain: body.chain,
-          status: 'open',
+          status: normalizeChannelStatus(metadata.status, log),
           deposit: body.initialDeposit,
         } satisfies OpenChannelResponse);
       } else if (chainPrefix === 'xrp') {
@@ -807,19 +935,34 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           return;
         }
 
-        // Resolve XRP destination from settlementPeers
+        // Resolve XRP destination: explicit request field, then settlementPeers fallback
         const peerConfig = settlementPeers?.get(body.peerId);
-        if (!peerConfig?.xrpAddress) {
+        const peerXrpAddress = body.peerAddress || peerConfig?.xrpAddress;
+        if (!peerXrpAddress) {
           res.status(400).json({
             error: 'Bad request',
-            message: 'Peer has no XRP address configured',
+            message: 'Peer XRP address must be provided in request or peer registration',
+          });
+          return;
+        }
+
+        // Validate XRP address format if provided in request
+        if (
+          body.peerAddress &&
+          (!/^r/.test(body.peerAddress) ||
+            body.peerAddress.length < 25 ||
+            body.peerAddress.length > 35)
+        ) {
+          res.status(400).json({
+            error: 'Bad request',
+            message: 'Invalid XRP address format: must start with r and be 25-35 characters',
           });
           return;
         }
 
         const channelId = await xrpChannelLifecycleManager.getOrCreateChannel(
           body.peerId,
-          peerConfig.xrpAddress
+          peerXrpAddress
         );
 
         log.info(
@@ -827,10 +970,19 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           'XRP channel opened via Admin API'
         );
 
+        const metadata = channelManager.getChannelById(channelId);
+        if (!metadata) {
+          res.status(500).json({
+            error: 'Internal error',
+            message: 'XRP channel created but metadata unavailable',
+          });
+          return;
+        }
+
         res.status(201).json({
           channelId,
           chain: body.chain,
-          status: 'open',
+          status: normalizeChannelStatus(metadata.status, log),
           deposit: body.initialDeposit,
         } satisfies OpenChannelResponse);
       } else if (chainPrefix === 'aptos') {
@@ -892,7 +1044,10 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         channels = channels.filter((ch) => ch.chain === filterChain);
       }
       if (filterStatus) {
-        channels = channels.filter((ch) => ch.status === filterStatus);
+        const normalizedFilter = normalizeChannelStatus(filterStatus, log);
+        channels = channels.filter(
+          (ch) => normalizeChannelStatus(ch.status, log) === normalizedFilter
+        );
       }
 
       // Map to response format
@@ -900,7 +1055,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         channelId: ch.channelId,
         peerId: ch.peerId,
         chain: ch.chain,
-        status: ch.status,
+        status: normalizeChannelStatus(ch.status, log),
         deposit: 'unknown',
         lastActivity: ch.lastActivityAt.toISOString(),
       }));
@@ -970,7 +1125,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
           theirDeposit: state.theirDeposit.toString(),
           transferred: state.myTransferred.toString(),
           theirTransferred: state.theirTransferred.toString(),
-          status: state.status,
+          status: normalizeChannelStatus(state.status, log),
           nonce: state.myNonce,
           theirNonce: state.theirNonce,
           settlementTimeout: state.settlementTimeout,
@@ -985,7 +1140,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         channelId: metadata.channelId,
         peerId: metadata.peerId,
         chain: metadata.chain,
-        status: metadata.status,
+        status: normalizeChannelStatus(metadata.status, log),
         deposit: 'unknown',
         tokenId: metadata.tokenId,
         createdAt: metadata.createdAt.toISOString(),
@@ -1025,7 +1180,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         return;
       }
 
-      if (metadata.status !== 'active') {
+      if (normalizeChannelStatus(metadata.status, log) !== 'open') {
         res.status(400).json({
           error: 'Bad request',
           message: 'Channel is not in open state',
@@ -1059,7 +1214,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         res.json({
           channelId: reqChannelId,
           newDeposit: state.myDeposit.toString(),
-          status: 'open',
+          status: normalizeChannelStatus(metadata.status, log),
         } satisfies DepositResponse);
       } else if (chainPrefix === 'xrp') {
         if (!xrpChannelLifecycleManager) {
@@ -1082,7 +1237,7 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         res.json({
           channelId: reqChannelId,
           newDeposit: amount,
-          status: 'open',
+          status: normalizeChannelStatus(metadata.status, log),
         } satisfies DepositResponse);
       } else if (chainPrefix === 'aptos') {
         returnNotImplemented(res, 'aptos', 'Channel deposit');
@@ -1120,7 +1275,8 @@ export function createAdminRouter(config: AdminAPIConfig): Router {
         return;
       }
 
-      if (metadata.status !== 'active' && metadata.status !== 'opening') {
+      const normalizedStatus = normalizeChannelStatus(metadata.status, log);
+      if (normalizedStatus !== 'open' && normalizedStatus !== 'opening') {
         res.status(400).json({
           error: 'Bad request',
           message: 'Channel is not in a closeable state',
@@ -1431,13 +1587,19 @@ export interface OpenChannelRequest {
   tokenNetwork?: string;
   initialDeposit: string;
   settlementTimeout?: number;
+  /** Peer's blockchain address (e.g., EVM address). Falls back to settlementPeers if omitted. */
+  peerAddress?: string;
 }
 
-/** POST /admin/channels response */
+/** POST /admin/channels response.
+ *  Superset of agent-society's OpenChannelResult — includes `chain` and `deposit`
+ *  fields that agent-society ignores but are useful for debugging.
+ *  Agent-society expects: { channelId: string, status: string }
+ */
 export interface OpenChannelResponse {
   channelId: string;
   chain: string;
-  status: string;
+  status: AdminChannelStatus;
   deposit: string;
 }
 
@@ -1446,15 +1608,18 @@ export interface ChannelSummary {
   channelId: string;
   peerId: string;
   chain: string;
-  status: string;
+  status: AdminChannelStatus;
   deposit: string;
   lastActivity: string;
 }
 
-/** GET /admin/channels/:channelId response — base fields present in all responses */
+/** GET /admin/channels/:channelId response.
+ *  Agent-society's ChannelState expects: { channelId, status, chain }
+ *  This response is a superset — additional fields (deposit, etc.) are safe to ignore.
+ */
 export interface ChannelDetailResponse {
   channelId: string;
-  status: string;
+  status: AdminChannelStatus;
   deposit: string;
   [key: string]: unknown;
 }
@@ -1474,7 +1639,7 @@ export interface DepositResponse {
    * Callers should be aware of this semantic difference when interpreting values across chain types.
    */
   newDeposit: string;
-  status: string;
+  status: AdminChannelStatus;
 }
 
 /** POST /admin/channels/:channelId/close request body */
@@ -1485,7 +1650,7 @@ export interface CloseChannelRequest {
 /** POST /admin/channels/:channelId/close response */
 export interface CloseChannelResponse {
   channelId: string;
-  status: string;
+  status: AdminChannelStatus;
   txHash?: string;
 }
 
@@ -1524,6 +1689,55 @@ function returnNotImplemented(res: Response, chain: string, operation: string): 
     error: 'Not Implemented',
     message: `${operation} not yet implemented for ${chain}`,
   });
+}
+
+/**
+ * Validate settlement configuration fields.
+ * @returns Error message string if invalid, or null if valid
+ */
+export function validateSettlementConfig(s: AdminSettlementConfig): string | null {
+  const VALID_PREFERENCES = ['evm', 'xrp', 'aptos', 'any'];
+
+  if (!s.preference || !VALID_PREFERENCES.includes(s.preference)) {
+    return 'settlement.preference must be one of: evm, xrp, aptos, any';
+  }
+
+  if (s.preference === 'evm' && !s.evmAddress) {
+    return 'settlement.evmAddress required when preference is evm';
+  }
+  if (s.preference === 'xrp' && !s.xrpAddress) {
+    return 'settlement.xrpAddress required when preference is xrp';
+  }
+  if (s.preference === 'aptos' && !s.aptosAddress) {
+    return 'settlement.aptosAddress required when preference is aptos';
+  }
+  if (s.preference === 'any' && !s.evmAddress && !s.xrpAddress && !s.aptosAddress) {
+    return 'settlement: at least one address required when preference is any';
+  }
+
+  if (s.evmAddress && !isValidEvmAddress(s.evmAddress)) {
+    return 'settlement.evmAddress must be a valid 0x-prefixed address (42 chars)';
+  }
+  if (s.xrpAddress && !isValidXrpAddress(s.xrpAddress)) {
+    return 'settlement.xrpAddress must start with r and be 25-35 characters';
+  }
+  if (s.aptosAddress && !isValidAptosAddress(s.aptosAddress)) {
+    return 'settlement.aptosAddress must be a valid 0x-prefixed address (66 chars)';
+  }
+  if (s.tokenAddress && !isValidEvmAddress(s.tokenAddress)) {
+    return 'settlement.tokenAddress must be a valid 0x-prefixed address (42 chars)';
+  }
+  if (s.tokenNetworkAddress && !isValidEvmAddress(s.tokenNetworkAddress)) {
+    return 'settlement.tokenNetworkAddress must be a valid 0x-prefixed address (42 chars)';
+  }
+  if (s.chainId !== undefined && (!Number.isInteger(s.chainId) || s.chainId <= 0)) {
+    return 'settlement.chainId must be a positive integer';
+  }
+  if (s.initialDeposit !== undefined && !isValidNonNegativeIntegerString(s.initialDeposit)) {
+    return 'settlement.initialDeposit must be a non-negative integer string';
+  }
+
+  return null;
 }
 
 /**

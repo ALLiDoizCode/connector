@@ -11,6 +11,45 @@ import { BusinessClient } from '../business/business-client';
 import { LocalDeliveryRequest, LocalDeliveryResponse, PaymentRequest } from '../types';
 import { computeFulfillmentFromData, generatePaymentId } from '../stream/fulfillment';
 
+/** Maximum ILP data field size per RFC-0027 (32KB) */
+const ILP_MAX_DATA_BYTES = 32768;
+
+/**
+ * Validate BLS response data before inclusion in ILP FULFILL/REJECT packets.
+ *
+ * - Returns data unchanged if valid base64 and within 32KB limit
+ * - Returns undefined (with warning log) if invalid base64 or oversized
+ * - Passes through falsy values (null/undefined/empty) without validation
+ */
+export function validateIlpResponseData(
+  data: string | undefined,
+  logger: Logger
+): string | undefined {
+  if (!data) return data;
+
+  // Validate base64
+  try {
+    const decoded = Buffer.from(data, 'base64');
+    // Verify round-trip (catches non-base64 strings that Buffer.from silently decodes)
+    if (decoded.toString('base64') !== data) {
+      logger.warn('BLS response data is not valid base64, omitting from ILP response');
+      return undefined;
+    }
+    // Validate size
+    if (decoded.length > ILP_MAX_DATA_BYTES) {
+      logger.warn(
+        { size: decoded.length, limit: ILP_MAX_DATA_BYTES },
+        'BLS response data exceeds 32KB ILP limit, omitting from ILP response'
+      );
+      return undefined;
+    }
+    return data;
+  } catch {
+    logger.warn('BLS response data failed base64 decode, omitting from ILP response');
+    return undefined;
+  }
+}
+
 export interface PacketHandlerConfig {
   /** ILP address for this agent (used in reject responses) */
   baseAddress: string;
@@ -83,7 +122,7 @@ export class PacketHandler {
         return {
           fulfill: {
             fulfillment: fulfillment.toString('base64'),
-            data: response.data,
+            data: validateIlpResponseData(response.data, this.logger),
           },
         };
       } else {
@@ -95,7 +134,7 @@ export class PacketHandler {
 
         this.logger.info({ paymentId, code: ilpCode, message }, 'Payment rejected');
 
-        return this.reject(ilpCode, message, response.data);
+        return this.reject(ilpCode, message, validateIlpResponseData(response.data, this.logger));
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

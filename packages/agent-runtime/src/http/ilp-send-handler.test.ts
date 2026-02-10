@@ -281,7 +281,7 @@ describe('IlpSendHandler', () => {
   });
 
   describe('FULFILL response mapping', () => {
-    it('should return 200 with fulfilled=true for FULFILL response', async () => {
+    it('should return accepted: true on FULFILL response', async () => {
       const responseData = Buffer.from('response data');
       const fulfillmentBuf = Buffer.alloc(32, 0xaa);
 
@@ -295,9 +295,59 @@ describe('IlpSendHandler', () => {
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
       expect(res.status).toBe(200);
-      expect(res.body.fulfilled).toBe(true);
+      expect(res.body.accepted).toBe(true);
       expect(res.body.fulfillment).toBe(fulfillmentBuf.toString('base64'));
       expect(res.body.data).toBe(responseData.toString('base64'));
+    });
+
+    it('should return accepted: false on REJECT response', async () => {
+      const rejectPacket: ILPRejectPacket = {
+        type: PacketType.REJECT,
+        code: ILPErrorCode.F02_UNREACHABLE,
+        triggeredBy: 'g.connector',
+        message: 'No route to destination',
+        data: Buffer.from('error details'),
+      };
+      mockSender.sendPacket.mockResolvedValue(rejectPacket);
+
+      const res = await request(app).post('/ilp/send').send(validRequestBody());
+
+      expect(res.status).toBe(200);
+      expect(res.body.accepted).toBe(false);
+      expect(res.body.code).toBe('F02');
+      expect(res.body.message).toBe('No route to destination');
+      expect(res.body.data).toBe(Buffer.from('error details').toString('base64'));
+    });
+
+    it('should include deprecated fulfilled field matching accepted value', async () => {
+      const fulfillPacket: ILPFulfillPacket = {
+        type: PacketType.FULFILL,
+        fulfillment: Buffer.alloc(32, 0xaa),
+        data: Buffer.alloc(0),
+      };
+      mockSender.sendPacket.mockResolvedValue(fulfillPacket);
+
+      const res = await request(app).post('/ilp/send').send(validRequestBody());
+
+      expect(res.body.accepted).toBe(true);
+      expect(res.body.fulfilled).toBe(true);
+      expect(res.body.accepted).toBe(res.body.fulfilled);
+
+      // Also verify on reject
+      const rejectPacket: ILPRejectPacket = {
+        type: PacketType.REJECT,
+        code: ILPErrorCode.F02_UNREACHABLE,
+        triggeredBy: 'g.connector',
+        message: 'No route',
+        data: Buffer.alloc(0),
+      };
+      mockSender.sendPacket.mockResolvedValue(rejectPacket);
+
+      const res2 = await request(app).post('/ilp/send').send(validRequestBody());
+
+      expect(res2.body.accepted).toBe(false);
+      expect(res2.body.fulfilled).toBe(false);
+      expect(res2.body.accepted).toBe(res2.body.fulfilled);
     });
 
     it('should omit data field when response data is empty', async () => {
@@ -311,31 +361,12 @@ describe('IlpSendHandler', () => {
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
       expect(res.status).toBe(200);
-      expect(res.body.fulfilled).toBe(true);
+      expect(res.body.accepted).toBe(true);
       expect(res.body.data).toBeUndefined();
     });
   });
 
   describe('REJECT response mapping', () => {
-    it('should return 200 with fulfilled=false for REJECT response', async () => {
-      const rejectPacket: ILPRejectPacket = {
-        type: PacketType.REJECT,
-        code: ILPErrorCode.F02_UNREACHABLE,
-        triggeredBy: 'g.connector',
-        message: 'No route to destination',
-        data: Buffer.from('error details'),
-      };
-      mockSender.sendPacket.mockResolvedValue(rejectPacket);
-
-      const res = await request(app).post('/ilp/send').send(validRequestBody());
-
-      expect(res.status).toBe(200);
-      expect(res.body.fulfilled).toBe(false);
-      expect(res.body.code).toBe('F02');
-      expect(res.body.message).toBe('No route to destination');
-      expect(res.body.data).toBe(Buffer.from('error details').toString('base64'));
-    });
-
     it('should omit data field when reject data is empty', async () => {
       const rejectPacket: ILPRejectPacket = {
         type: PacketType.REJECT,
@@ -349,7 +380,7 @@ describe('IlpSendHandler', () => {
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
       expect(res.status).toBe(200);
-      expect(res.body.fulfilled).toBe(false);
+      expect(res.body.accepted).toBe(false);
       expect(res.body.data).toBeUndefined();
     });
   });

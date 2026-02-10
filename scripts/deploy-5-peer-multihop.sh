@@ -324,6 +324,14 @@ if ! docker compose --version > /dev/null 2>&1; then
 fi
 echo -e "${GREEN}✓ Docker Compose is available (via OrbStack)${NC}"
 
+# Check jq for JSON parsing (used by channel verification and ILP send tests)
+if ! command -v jq > /dev/null 2>&1; then
+  echo -e "${RED}✗ jq not found — required for JSON parsing in test verification${NC}"
+  echo "Install jq: brew install jq (macOS) or apt-get install jq (Linux)"
+  exit 1
+fi
+echo -e "${GREEN}✓ jq is available${NC}"
+
 # Check connector image (uses OrbStack's docker CLI)
 if ! docker images agent-runtime:latest --format "{{.Repository}}" | grep -q "agent-runtime"; then
   echo -e "${YELLOW}⚠ Connector image not found. Building with OrbStack...${NC}"
@@ -368,6 +376,33 @@ if [ "${WITH_UNIFIED}" = true ]; then
     exit 1
   fi
   echo -e "${GREEN}✓ docker-compose-unified.yml exists${NC}"
+
+  # Validate compose file parses correctly
+  echo ""
+  echo "Validating unified compose file..."
+  if ! docker compose -f "${COMPOSE_FILE_UNIFIED}" config --quiet 2>/dev/null; then
+    echo -e "${RED}ERROR: docker-compose-unified.yml validation failed${NC}"
+    docker compose -f "${COMPOSE_FILE_UNIFIED}" config 2>&1 | head -20
+    exit 1
+  fi
+  echo -e "${GREEN}✓ Unified compose file validates successfully${NC}"
+
+  # Count services
+  SERVICE_COUNT=$(docker compose -f "${COMPOSE_FILE_UNIFIED}" config --services | wc -l | tr -d ' ')
+  if [ "${SERVICE_COUNT}" -lt "16" ]; then
+    echo -e "${YELLOW}WARNING: Expected 16 services, found ${SERVICE_COUNT}${NC}"
+  else
+    echo -e "${GREEN}✓ Unified compose: ${SERVICE_COUNT} services defined${NC}"
+  fi
+
+  # Check for unresolved env vars
+  UNRESOLVED=$(docker compose -f "${COMPOSE_FILE_UNIFIED}" config 2>&1 | grep -c 'variable is not set' || true)
+  if [ "${UNRESOLVED}" -gt "0" ]; then
+    echo -e "${YELLOW}WARNING: ${UNRESOLVED} unresolved environment variable(s)${NC}"
+    docker compose -f "${COMPOSE_FILE_UNIFIED}" config 2>&1 | grep 'variable is not set' | head -5
+  else
+    echo -e "${GREEN}✓ All environment variables resolved${NC}"
+  fi
 
   # Build connector image (agent-runtime)
   echo ""
@@ -749,27 +784,44 @@ if [ "${WITH_UNIFIED}" = true ]; then
   echo ""
 
   TOTAL_CHANNELS=0
+  TOTAL_OPEN=0
   for i in {1..5}; do
     ADMIN_PORT=$((8180 + i))
     echo -n "  peer${i} (port ${ADMIN_PORT})... "
 
-    CHANNELS_RESPONSE=$(curl -s "http://localhost:${ADMIN_PORT}/admin/channels" 2>/dev/null || echo "[]")
+    CHANNELS_RESPONSE=$(curl -s "http://localhost:${ADMIN_PORT}/admin/channels" 2>/dev/null)
 
-    # Count channels (simple JSON array length heuristic)
-    CHANNEL_COUNT=$(echo "${CHANNELS_RESPONSE}" | grep -o '"channelId"' 2>/dev/null | wc -l | tr -d ' ')
+    # Validate JSON response
+    if ! echo "${CHANNELS_RESPONSE}" | jq -e '.' > /dev/null 2>&1; then
+      echo -e "${RED}✗ Invalid response from channels endpoint${NC}"
+      continue
+    fi
+
+    # Count channels using jq
+    CHANNEL_COUNT=$(echo "${CHANNELS_RESPONSE}" | jq 'length' 2>/dev/null || echo "0")
+
+    # Check for open/active/opening channels
+    OPEN_COUNT=$(echo "${CHANNELS_RESPONSE}" | jq '[.[] | select(.status == "open" or .status == "active" or .status == "opening")] | length' 2>/dev/null || echo "0")
 
     if [ "${CHANNEL_COUNT}" -gt "0" ] 2>/dev/null; then
-      echo -e "${GREEN}✓ ${CHANNEL_COUNT} channel(s)${NC}"
+      echo -e "${GREEN}✓ ${CHANNEL_COUNT} channel(s) (${OPEN_COUNT} open/active)${NC}"
+      # Report channel details
+      echo "${CHANNELS_RESPONSE}" | jq -r '.[] | "    Channel: \(.channelId) | Peer: \(.peerId // "unknown") | Chain: \(.chain // "unknown") | Status: \(.status)"'
       TOTAL_CHANNELS=$((TOTAL_CHANNELS + CHANNEL_COUNT))
+      TOTAL_OPEN=$((TOTAL_OPEN + OPEN_COUNT))
     else
       echo -e "${YELLOW}⚠ 0 channels${NC}"
     fi
   done
 
-  if [ "${TOTAL_CHANNELS}" -gt "0" ]; then
+  if [ "${TOTAL_CHANNELS}" -eq "0" ]; then
+    UNIFIED_PHASE5_PASS=false
+    echo -e "  ${RED}✗ No channels found across any peer — Phase 5 FAILED${NC}"
+  elif [ "${TOTAL_OPEN}" -gt "0" ]; then
     UNIFIED_PHASE5_PASS=true
   else
-    UNIFIED_PHASE5_PASS="warn"
+    UNIFIED_PHASE5_PASS=false
+    echo -e "  ${RED}✗ ${TOTAL_CHANNELS} channel(s) found but none are open/active/opening — Phase 5 FAILED${NC}"
   fi
   echo ""
   print_phase_result 5 "Payment Channels" "${UNIFIED_PHASE5_PASS}"
@@ -1444,36 +1496,36 @@ AGENT_COMPOSE_EOF
 
   echo ""
 
-  # Step AR-3: Test SPSP Endpoint
-  echo -e "${BLUE}[AR-3/5]${NC} Testing SPSP (Simple Payment Setup Protocol) endpoint..."
+  # Step AR-3: Test ILP Send via agent-runtime
+  echo -e "${BLUE}[AR-3/5]${NC} Testing ILP send endpoint..."
   echo ""
   AGENT_TESTS_TOTAL=$((AGENT_TESTS_TOTAL + 1))
 
-  # Query SPSP endpoint with Accept header
-  SPSP_RESPONSE=$(curl -s -H "Accept: application/spsp4+json" http://localhost:3100/.well-known/pay)
+  # Encode test data as base64
+  TEST_DATA=$(echo -n "test-packet" | base64)
 
-  if echo "${SPSP_RESPONSE}" | grep -q "destination_account" && echo "${SPSP_RESPONSE}" | grep -q "shared_secret"; then
-    echo -e "  ${GREEN}✓ SPSP endpoint: OK${NC}"
-    echo "    Response contains destination_account and shared_secret"
+  ILP_SEND_RESPONSE=$(curl -s -X POST http://localhost:3100/ilp/send \
+    -H "Content-Type: application/json" \
+    -d "{\"destination\": \"g.peer5.agent\", \"amount\": \"0\", \"data\": \"${TEST_DATA}\", \"timeoutMs\": 10000}")
 
-    # Extract and display SPSP details
-    DEST_ACCOUNT=$(echo "${SPSP_RESPONSE}" | grep -o '"destination_account":"[^"]*"' | cut -d'"' -f4)
-    echo "    Destination: ${DEST_ACCOUNT}"
+  if echo "${ILP_SEND_RESPONSE}" | jq -e '.accepted == true' > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✓ ILP send: FULFILL received${NC}"
+    AGENT_TESTS_PASSED=$((AGENT_TESTS_PASSED + 1))
+  elif echo "${ILP_SEND_RESPONSE}" | jq -e '.accepted == false' > /dev/null 2>&1; then
+    echo -e "  ${YELLOW}⚠ ILP send: REJECT received (expected during test)${NC}"
+    echo "    Code: $(echo "${ILP_SEND_RESPONSE}" | jq -r '.code // "unknown"')"
     AGENT_TESTS_PASSED=$((AGENT_TESTS_PASSED + 1))
   else
-    echo -e "  ${RED}✗ SPSP endpoint: FAILED${NC}"
-    echo "    Response: ${SPSP_RESPONSE}"
+    echo -e "  ${RED}✗ ILP send: FAILED${NC}"
+    echo "    Response: ${ILP_SEND_RESPONSE}"
   fi
 
   echo ""
 
-  # Step AR-4: Test Direct Packet Handling
-  echo -e "${BLUE}[AR-4/5]${NC} Testing direct packet handling via /ilp/packets endpoint..."
+  # Step AR-4: Test Packet Handling
+  echo -e "${BLUE}[AR-4/5]${NC} Testing packet handling via /ilp/packets endpoint..."
   echo ""
   AGENT_TESTS_TOTAL=$((AGENT_TESTS_TOTAL + 2))
-
-  # First get SPSP details to get a valid shared secret
-  SPSP_RESPONSE=$(curl -s -H "Accept: application/spsp4+json" http://localhost:3100/.well-known/pay)
 
   # Test with invalid packet (should be rejected with T00 error)
   echo "Test 1: Sending packet without valid session (expect rejection)"
@@ -1602,7 +1654,7 @@ AGENT_COMPOSE_EOF
   echo "Agent Runtime Endpoints:"
   echo "  Health:   http://localhost:3100/health"
   echo "  Ready:    http://localhost:3100/ready"
-  echo "  SPSP:     http://localhost:3100/.well-known/pay"
+  echo "  ILP Send: POST http://localhost:3100/ilp/send"
   echo "  Packets:  POST http://localhost:3100/ilp/packets"
   echo ""
   echo "Business Logic Endpoints:"
@@ -1824,7 +1876,7 @@ if [ "${WITH_AGENT}" = true ]; then
   else
     echo -e "${RED}✗ Agent Runtime tests: ${AGENT_TESTS_PASSED}/${AGENT_TESTS_TOTAL} PASSED${NC}"
   fi
-  echo "  - SPSP endpoint: Payment setup protocol working"
+  echo "  - ILP send: Bidirectional packet sending"
   echo "  - Packet handling: Local delivery processing"
   echo "  - Business Logic: Custom payment decisions"
   echo ""
@@ -1920,8 +1972,8 @@ if [ "${WITH_AGENT}" = true ]; then
   echo "View Agent Runtime logs:"
   echo "  docker compose -f ${COMPOSE_FILE_AGENT} logs -f"
   echo ""
-  echo "Test SPSP endpoint:"
-  echo "  curl -H 'Accept: application/spsp4+json' http://localhost:3100/.well-known/pay"
+  echo "Test ILP send endpoint:"
+  echo "  curl -s -X POST http://localhost:3100/ilp/send -H 'Content-Type: application/json' -d '{\"destination\": \"g.peer5.agent\", \"amount\": \"0\", \"data\": \"dGVzdA==\", \"timeoutMs\": 10000}'"
   echo ""
   echo "Check Agent Runtime health:"
   echo "  curl http://localhost:3100/health"

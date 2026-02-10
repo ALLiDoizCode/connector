@@ -4,7 +4,7 @@
  * Tests for the simplified PacketHandler with SHA256(data) fulfillment.
  */
 
-import { PacketHandler, PacketHandlerConfig } from './packet-handler';
+import { PacketHandler, PacketHandlerConfig, validateIlpResponseData } from './packet-handler';
 import { BusinessClient } from '../business/business-client';
 import { computeFulfillmentFromData } from '../stream/fulfillment';
 import { computeConditionFromData } from '../http/ilp-send-handler';
@@ -14,6 +14,19 @@ import pino from 'pino';
 
 // Create a silent logger for tests
 const logger = pino({ level: 'silent' });
+
+// Create a logger that captures warnings for validation tests
+function createSpyLogger(): { spyLogger: pino.Logger; warnSpy: jest.Mock } {
+  const warnSpy = jest.fn();
+  const spyLogger = {
+    warn: warnSpy,
+    info: jest.fn(),
+    debug: jest.fn(),
+    error: jest.fn(),
+    child: () => spyLogger,
+  } as unknown as pino.Logger;
+  return { spyLogger, warnSpy };
+}
 
 function createMockBusinessClient(): jest.Mocked<BusinessClient> {
   return {
@@ -76,12 +89,13 @@ describe('PacketHandler', () => {
 
     it('should include BLS data in FULFILL response', async () => {
       const request = createValidRequest();
-      const blsResponse: PaymentResponse = { accept: true, data: 'bls-fulfill-data' };
+      const validBase64Data = Buffer.from('bls-fulfill-data').toString('base64');
+      const blsResponse: PaymentResponse = { accept: true, data: validBase64Data };
       mockBusinessClient.handlePayment.mockResolvedValue(blsResponse);
 
       const result = await handler.handlePacket(request);
 
-      expect(result.fulfill!.data).toBe('bls-fulfill-data');
+      expect(result.fulfill!.data).toBe(validBase64Data);
     });
 
     it('should reject with mapped ILP error code when BLS rejects', async () => {
@@ -104,9 +118,10 @@ describe('PacketHandler', () => {
 
     it('should include BLS data in REJECT response (AC: 5)', async () => {
       const request = createValidRequest();
+      const validBase64Data = Buffer.from('rejection-details').toString('base64');
       const blsResponse: PaymentResponse = {
         accept: false,
-        data: 'rejection-details',
+        data: validBase64Data,
         rejectReason: { code: 'policy', message: 'Rejected by policy' },
       };
       mockBusinessClient.handlePayment.mockResolvedValue(blsResponse);
@@ -115,7 +130,7 @@ describe('PacketHandler', () => {
       const result = await handler.handlePacket(request);
 
       expect(result.reject).toBeDefined();
-      expect(result.reject!.data).toBe('rejection-details');
+      expect(result.reject!.data).toBe(validBase64Data);
     });
 
     it('should reject R00 for expired packet without calling BLS', async () => {
@@ -212,5 +227,116 @@ describe('PacketHandler', () => {
       expect(result.reject!.code).toBe('T00');
       expect(result.reject!.message).toBe('Internal error processing payment');
     });
+
+    it('should validate BLS response data in FULFILL path (omits invalid base64)', async () => {
+      const request = createValidRequest();
+      const blsResponse: PaymentResponse = { accept: true, data: 'not-valid-!!!base64' };
+      mockBusinessClient.handlePayment.mockResolvedValue(blsResponse);
+
+      const result = await handler.handlePacket(request);
+
+      expect(result.fulfill).toBeDefined();
+      expect(result.fulfill!.data).toBeUndefined();
+    });
+
+    it('should validate BLS response data in REJECT path (omits invalid base64)', async () => {
+      const request = createValidRequest();
+      const blsResponse: PaymentResponse = {
+        accept: false,
+        data: 'not-valid-!!!base64',
+        rejectReason: { code: 'policy', message: 'Rejected' },
+      };
+      mockBusinessClient.handlePayment.mockResolvedValue(blsResponse);
+      mockBusinessClient.mapRejectCode.mockReturnValue('F99');
+
+      const result = await handler.handlePacket(request);
+
+      expect(result.reject).toBeDefined();
+      expect(result.reject!.data).toBeUndefined();
+    });
+  });
+});
+
+describe('validateIlpResponseData', () => {
+  it('should pass through valid base64 data unchanged', () => {
+    const { spyLogger } = createSpyLogger();
+    const validData = Buffer.from('hello world').toString('base64');
+
+    const result = validateIlpResponseData(validData, spyLogger);
+
+    expect(result).toBe(validData);
+    expect(spyLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('should return undefined and warn for invalid base64 data', () => {
+    const { spyLogger, warnSpy } = createSpyLogger();
+
+    const result = validateIlpResponseData('not-valid-!!!base64', spyLogger);
+
+    expect(result).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      'BLS response data is not valid base64, omitting from ILP response'
+    );
+  });
+
+  it('should return undefined and warn for oversized data (> 32KB decoded)', () => {
+    const { spyLogger, warnSpy } = createSpyLogger();
+    const oversizedData = Buffer.alloc(32769).toString('base64');
+
+    const result = validateIlpResponseData(oversizedData, spyLogger);
+
+    expect(result).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      { size: 32769, limit: 32768 },
+      'BLS response data exceeds 32KB ILP limit, omitting from ILP response'
+    );
+  });
+
+  it('should return undefined for undefined data (no validation)', () => {
+    const { spyLogger } = createSpyLogger();
+
+    const result = validateIlpResponseData(undefined, spyLogger);
+
+    expect(result).toBeUndefined();
+    expect(spyLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('should return null for null data (no validation, runtime safety)', () => {
+    const { spyLogger } = createSpyLogger();
+
+    // At runtime BLS may return null even though types say string | undefined
+    const result = validateIlpResponseData(null as unknown as string | undefined, spyLogger);
+
+    expect(result).toBeNull();
+    expect(spyLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('should return empty string for empty string data (falsy short-circuit)', () => {
+    const { spyLogger } = createSpyLogger();
+
+    const result = validateIlpResponseData('', spyLogger);
+
+    expect(result).toBe('');
+    expect(spyLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('should pass through exactly 32KB data (boundary)', () => {
+    const { spyLogger } = createSpyLogger();
+    const exactData = Buffer.alloc(32768).toString('base64');
+
+    const result = validateIlpResponseData(exactData, spyLogger);
+
+    expect(result).toBe(exactData);
+    expect(spyLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('should omit 32KB + 1 byte data (boundary)', () => {
+    const { spyLogger, warnSpy } = createSpyLogger();
+    const overByOneData = Buffer.alloc(32769).toString('base64');
+
+    const result = validateIlpResponseData(overByOneData, spyLogger);
+
+    expect(result).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
   });
 });

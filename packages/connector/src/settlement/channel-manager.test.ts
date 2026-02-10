@@ -109,7 +109,7 @@ describe('ChannelManager', () => {
       expect(metadata).toBeDefined();
       expect(metadata?.peerId).toBe('peer-a');
       expect(metadata?.tokenId).toBe('TEST_TOKEN');
-      expect(metadata?.status).toBe('active');
+      expect(metadata?.status).toBe('open');
     });
 
     it('should reuse existing channel', async () => {

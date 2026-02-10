@@ -175,6 +175,58 @@ Expose payment channel management and balance query endpoints on the connector A
 
 ---
 
+### Story 21.4: Channel Opening Integration Fixes — peerAddress Propagation, Validation, and Error Handling
+
+**As a** BLS developer,
+**I want** `POST /admin/channels` to propagate the `peerAddress` parameter through to the SDK, validate peer existence, and return accurate channel status,
+**so that** the BLS can open payment channels during SPSP handshakes without circular dependency on prior peer settlement registration.
+
+**Scope:**
+
+- Fix `openChannelForPeer()` to use `options.peerAddress` (core fix — currently ignores it)
+- Update XRP path to use `body.peerAddress` with `peerConfig?.xrpAddress` fallback (EVM path already done)
+- Validate peer exists before opening channels (404 if unknown)
+- Return actual channel status from metadata, not hardcoded `'open'`
+- Add peerAddress format validation (chain-specific, after routing)
+- Note: `OpenChannelRequest.peerAddress` and `ChannelOpenOptions.peerAddress` already exist
+
+**Acceptance Criteria:**
+
+1. `openChannelForPeer()` resolves address from `options.peerAddress` first, falls back to config map
+2. XRP path uses `body.peerAddress` with `peerConfig?.xrpAddress` fallback
+3. Peer existence validated — 404 if unknown peerId
+4. Actual channel status returned (not hardcoded)
+5. peerAddress format validation (EVM and XRP)
+6. Unit tests for all new paths
+
+**Priority:** P0/P1 — Critical + High (channel opening broken without `peerAddress` propagation)
+
+---
+
+### Story 21.5: Standardize Channel Status Enum and Response Types
+
+**As a** BLS developer,
+**I want** channel status values and response types to be consistent between agent-runtime and agent-society,
+**so that** the BLS can reliably parse channel state responses and make correct decisions based on status transitions.
+
+**Scope:**
+
+- Define canonical `ChannelStatus` type: `'opening' | 'open' | 'closing' | 'closed' | 'settled'`
+- Normalize `'active'` → `'open'` in all API responses
+- Document `OpenChannelResponse` as superset of agent-society's `OpenChannelResult`
+- Unit tests for status normalization
+
+**Acceptance Criteria:**
+
+1. Canonical `ChannelStatus` enum defined and used in all channel endpoints
+2. `'active'` normalized to `'open'` in API responses
+3. Response types documented with agent-society mapping
+4. Unit tests for normalization
+
+**Priority:** P2 — Medium (polish)
+
+---
+
 ## Compatibility Requirements
 
 - [x] **Existing Admin API unchanged** — `/admin/peers` and `/admin/routes` unmodified
@@ -211,7 +263,7 @@ Expose payment channel management and balance query endpoints on the connector A
 
 ## Definition of Done
 
-- [ ] All 3 stories completed with acceptance criteria met
+- [ ] All 5 stories completed with acceptance criteria met
 - [ ] BLS can open, deposit, close, and query channels via Admin API
 - [ ] BLS can query peer balances for pricing decisions
 - [ ] Existing Admin API and automatic settlement flow unchanged
