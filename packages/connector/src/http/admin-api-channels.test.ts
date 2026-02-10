@@ -270,14 +270,12 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     });
 
     it('should use AGENT as default tokenId when no token provided', async () => {
-      const res = await request(app)
-        .post('/admin/channels')
-        .send({
-          peerId: 'peer-b',
-          chain: 'evm:base:8453',
-          initialDeposit: '500',
-          peerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28',
-        });
+      const res = await request(app).post('/admin/channels').send({
+        peerId: 'peer-b',
+        chain: 'evm:base:8453',
+        initialDeposit: '500',
+        peerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28',
+      });
 
       expect(res.status).toBe(201);
       expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith(
