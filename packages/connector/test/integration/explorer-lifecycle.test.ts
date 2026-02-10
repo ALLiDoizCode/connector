@@ -247,6 +247,8 @@ describe('Explorer Lifecycle Integration', () => {
     it('should initialize explorer in standalone mode when TelemetryEmitter is not available', async () => {
       // Arrange
       const btpPort = basePort + 600;
+      const explorerPort = btpPort + 10;
+      process.env.EXPLORER_PORT = explorerPort.toString();
       delete process.env.DASHBOARD_TELEMETRY_URL; // Remove telemetry URL
       configPath = createTempConfig('test-no-telemetry', btpPort);
       const logger = createTestLogger();

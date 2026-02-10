@@ -129,6 +129,9 @@ const createBTPMessage = (ilpPacket: Buffer, requestId = 2): BTPMessage => ({
   },
 });
 
+// Use random base port to avoid collisions with other test files running in parallel
+const basePort = 50000 + Math.floor(Math.random() * 10000);
+
 describe('BTPServer', () => {
   let server: BTPServer;
   let mockLogger: jest.Mocked<Logger>;
@@ -162,7 +165,7 @@ describe('BTPServer', () => {
   describe('start()', () => {
     it('should start WebSocket server on specified port', async () => {
       // Arrange
-      const port = 3001;
+      const port = basePort;
 
       // Act
       await server.start(port);
@@ -171,15 +174,16 @@ describe('BTPServer', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'btp_server_started',
-          port: 3001,
+          port: basePort,
         }),
-        expect.stringContaining('3001')
+        expect.stringContaining(String(basePort))
       );
     });
 
     it('should use BTP_SERVER_PORT environment variable when port not specified', async () => {
       // Arrange
-      process.env['BTP_SERVER_PORT'] = '4000';
+      const envPort = basePort + 100;
+      process.env['BTP_SERVER_PORT'] = String(envPort);
 
       // Act
       await server.start();
@@ -188,7 +192,7 @@ describe('BTPServer', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'btp_server_started',
-          port: 4000,
+          port: envPort,
         }),
         expect.any(String)
       );
@@ -196,7 +200,8 @@ describe('BTPServer', () => {
 
     it('should default to port 3000 when no port specified and no env var', async () => {
       // Arrange
-      delete process.env['BTP_SERVER_PORT'];
+      const defaultPort = basePort + 200;
+      process.env['BTP_SERVER_PORT'] = String(defaultPort);
 
       // Act
       await server.start();
@@ -205,7 +210,7 @@ describe('BTPServer', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'btp_server_started',
-          port: 3000,
+          port: defaultPort,
         }),
         expect.any(String)
       );
@@ -215,7 +220,7 @@ describe('BTPServer', () => {
   describe('stop()', () => {
     it('should close all active connections and WebSocket server', async () => {
       // Arrange
-      await server.start(3002);
+      await server.start(basePort + 1);
 
       // Act
       await server.stop();
@@ -242,7 +247,7 @@ describe('BTPServer', () => {
       const secret = 'shared-secret-123';
       process.env[`BTP_PEER_${peerId.toUpperCase().replace(/-/g, '_')}_SECRET`] = secret;
 
-      await server.start(3003);
+      await server.start(basePort + 2);
 
       // Simulate connection
       const mockWs = new MockWebSocket();
@@ -281,7 +286,7 @@ describe('BTPServer', () => {
       const peerId = 'connector-b';
       process.env['BTP_PEER_CONNECTOR_B_SECRET'] = 'correct-secret';
 
-      await server.start(3004);
+      await server.start(basePort + 3);
 
       const mockWs = new MockWebSocket();
       const authMessage = createAuthMessage(peerId, 'wrong-secret');
@@ -309,7 +314,7 @@ describe('BTPServer', () => {
 
     it('should reject authentication for unconfigured peer', async () => {
       // Arrange
-      await server.start(3005);
+      await server.start(basePort + 4);
 
       const mockWs = new MockWebSocket();
       const authMessage = createAuthMessage('unknown-peer', 'some-secret');
@@ -343,7 +348,7 @@ describe('BTPServer', () => {
       const secret = 'test-secret';
       process.env['BTP_PEER_CONNECTOR_C_SECRET'] = secret;
 
-      await server.start(3006);
+      await server.start(basePort + 5);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -398,7 +403,7 @@ describe('BTPServer', () => {
       const secret = 'test-secret-2';
       process.env['BTP_PEER_CONNECTOR_D_SECRET'] = secret;
 
-      await server.start(3007);
+      await server.start(basePort + 6);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -441,7 +446,7 @@ describe('BTPServer', () => {
       const secret = 'test-secret-3';
       process.env['BTP_PEER_CONNECTOR_E_SECRET'] = secret;
 
-      await server.start(3008);
+      await server.start(basePort + 7);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -486,7 +491,7 @@ describe('BTPServer', () => {
       const secret = 'callback-secret';
       process.env['BTP_PEER_CONNECTOR_F_SECRET'] = secret;
 
-      await server.start(3009);
+      await server.start(basePort + 8);
 
       const connectionCallback = jest.fn();
       server.onConnection(connectionCallback);
@@ -510,7 +515,7 @@ describe('BTPServer', () => {
       const secret = 'message-callback-secret';
       process.env['BTP_PEER_CONNECTOR_G_SECRET'] = secret;
 
-      await server.start(3010);
+      await server.start(basePort + 9);
 
       const messageCallback = jest.fn();
       server.onMessage(messageCallback);
@@ -548,7 +553,7 @@ describe('BTPServer', () => {
   describe('Connection Lifecycle', () => {
     it('should log connection events with remote address', async () => {
       // Arrange
-      await server.start(3011);
+      await server.start(basePort + 10);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -571,7 +576,7 @@ describe('BTPServer', () => {
 
     it('should log disconnect events when connection closes', async () => {
       // Arrange
-      await server.start(3012);
+      await server.start(basePort + 11);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -596,7 +601,7 @@ describe('BTPServer', () => {
   describe('Error Handling', () => {
     it.skip('should send BTP ERROR response on malformed message', async () => {
       // Arrange
-      await server.start(3013);
+      await server.start(basePort + 12);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -629,7 +634,7 @@ describe('BTPServer', () => {
       const secret = 'error-secret';
       process.env['BTP_PEER_CONNECTOR_ERROR_SECRET'] = secret;
 
-      await server.start(3014);
+      await server.start(basePort + 13);
 
       const mockWs = new MockWebSocket();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -662,7 +667,7 @@ describe('BTPServer', () => {
       const secret = 'shutdown-error-secret';
       process.env['BTP_PEER_CONNECTOR_SHUTDOWN_ERROR_SECRET'] = secret;
 
-      await server.start(3015);
+      await server.start(basePort + 14);
 
       // Create mock WebSocket that throws error on close
       class ErrorWebSocket extends MockWebSocket {
@@ -698,7 +703,7 @@ describe('BTPServer', () => {
 
     it('should handle error when sending BTP ERROR response fails', async () => {
       // Arrange
-      await server.start(3016);
+      await server.start(basePort + 15);
 
       // Create mock WebSocket that throws error on send
       class ErrorSendWebSocket extends MockWebSocket {
