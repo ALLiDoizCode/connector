@@ -45,6 +45,7 @@ const createMockBTPClientManager = (): jest.Mocked<BTPClientManager> =>
     }),
     getPeerStatus: jest.fn().mockReturnValue(new Map()),
     getPeerIds: jest.fn().mockReturnValue([]),
+    isConnected: jest.fn().mockReturnValue(true),
   }) as unknown as jest.Mocked<BTPClientManager>;
 
 /**

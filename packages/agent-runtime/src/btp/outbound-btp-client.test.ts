@@ -154,11 +154,11 @@ function buildBTPError(requestId: number): Buffer {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function createTestPrepare() {
+function createTestPrepare(overrides?: { expiresAt?: Date }) {
   return {
     type: PacketType.PREPARE as const,
     amount: BigInt(1000),
-    expiresAt: new Date(Date.now() + 30000),
+    expiresAt: overrides?.expiresAt ?? new Date(Date.now() + 30000),
     executionCondition: Buffer.alloc(32, 0xcc),
     destination: 'g.connector.peer1',
     data: Buffer.from('test'),
@@ -347,14 +347,16 @@ describe('OutboundBTPClient', () => {
     it('should reject with timeout error when no response arrives', async () => {
       await connectClient(client);
 
-      // packetTimeoutMs = 150
-      await expect(client.sendPacket(createTestPrepare())).rejects.toThrow('timeout');
-    }, 2000);
+      // Use a short expiresAt so the derived timeout (expiresAt - 500ms, min 1000ms) fires quickly
+      const shortExpiry = createTestPrepare({ expiresAt: new Date(Date.now() + 1500) });
+      await expect(client.sendPacket(shortExpiry)).rejects.toThrow('timeout');
+    }, 5000);
 
     it('should clean up pending request on timeout', async () => {
       await connectClient(client);
 
-      const sendPromise = client.sendPacket(createTestPrepare()).catch(() => {
+      const shortExpiry = createTestPrepare({ expiresAt: new Date(Date.now() + 1500) });
+      const sendPromise = client.sendPacket(shortExpiry).catch(() => {
         // expected timeout
       });
       await tick();
@@ -367,7 +369,7 @@ describe('OutboundBTPClient', () => {
 
       // Late response should not throw
       expect(() => ws.simulateMessage(buildFulfillResponse(requestId))).not.toThrow();
-    }, 2000);
+    }, 5000);
   });
 
   // -------------------------------------------------------------------------

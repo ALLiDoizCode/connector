@@ -65,6 +65,7 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
       } as ILPFulfillPacket),
       connect: jest.fn(),
       disconnect: jest.fn(),
+      isConnected: jest.fn().mockReturnValue(true),
     };
     return mockClientManager as unknown as jest.Mocked<BTPClientManager>;
   };
