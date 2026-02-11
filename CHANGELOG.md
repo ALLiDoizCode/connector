@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.10.0...v1.11.0) (2026-02-11)
+
+### Features
+
+- **epic-24:** connector library API — config object, local delivery handler, sendPacket, admin methods ([fb3ab01](https://github.com/ALLiDoizCode/agent-runtime/commit/fb3ab01bcae250cd103db21e2be44c6411cffcf1))
+
+### Bug Fixes
+
+- derive BTP timeouts from ILP packet expiresAt, sync deployment configs ([f88f618](https://github.com/ALLiDoizCode/agent-runtime/commit/f88f618f9d26258b29194ed859b0a72a3aee6c45))
+- **epics-20-23:** resolve integration gaps — field names, channel types, deploy script ([6cdc389](https://github.com/ALLiDoizCode/agent-runtime/commit/6cdc389f62eea696fdbaa114a194d7727c965299))
+- **telemetry:** suppress WebSocket error on terminate during CONNECTING state ([3395bad](https://github.com/ALLiDoizCode/agent-runtime/commit/3395badf3395d6ce53fad45870e9259cb3e42057))
+- **tests:** add missing isConnected mock, fix BTP timeout test timing ([f874c1e](https://github.com/ALLiDoizCode/agent-runtime/commit/f874c1e6c9d4b5c18a1404861b823ad3eb9e5d21))
+- **tests:** increase claim-sender retry test timeout from 50ms to 10s ([3fb9528](https://github.com/ALLiDoizCode/agent-runtime/commit/3fb95284407c36ab0915c146d0d4c08427c4c5f9))
+- **tests:** increase log-telemetry hook timeouts, use random port ([eae5ed5](https://github.com/ALLiDoizCode/agent-runtime/commit/eae5ed59359f07435455388cfe4b7ec6d270aee2))
+- **tests:** use random ports to eliminate EADDRINUSE flakiness ([5d7be0f](https://github.com/ALLiDoizCode/agent-runtime/commit/5d7be0f4676361ff1089917ac3e2799a81675203))
+
 ## [1.10.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.9.0...v1.10.0) (2026-02-09)
 
 ### Features
