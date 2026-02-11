@@ -138,4 +138,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # - NODE_ID: Connector identifier (default: 'connector-node')
 # - BTP_SERVER_PORT: BTP server listening port (default: 3000)
 # - LOG_LEVEL: Pino log level (default: 'info', options: debug|info|warn|error)
-CMD ["node", "packages/connector/dist/index.js"]
+CMD ["node", "packages/connector/dist/main.js"]

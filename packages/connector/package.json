@@ -2,8 +2,15 @@
   "name": "@agent-runtime/connector",
   "version": "0.1.0",
   "description": "Connector with BTP support and tri-chain settlement",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/lib.js",
+  "types": "dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/lib.js",
+      "require": "./dist/lib.js",
+      "types": "./dist/lib.d.ts"
+    }
+  },
   "bin": {
     "agent-runtime": "./dist/cli/index.js"
   },
@@ -11,7 +18,7 @@
     "build": "npm run build:ui && tsc",
     "build:ui": "cd explorer-ui && NODE_ENV=development npm install && npm run build",
     "build:connector-only": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/main.js",
     "dev:ui": "cd explorer-ui && npm run dev",
     "test": "jest",
     "test:coverage": "jest --coverage",

@@ -374,9 +374,17 @@ describe('ConnectorNode', () => {
   });
 
   describe('stop()', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       connectorNode = new ConnectorNode(testConfigPath, mockLogger);
       jest.clearAllMocks();
+      await connectorNode.start();
+      jest.clearAllMocks();
+      // Re-apply default mock return values after clearing
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockBTPClientManager.getPeerStatus.mockReturnValue(new Map([['peerA', true]]));
+      mockBTPClientManager.removePeer.mockResolvedValue(undefined);
+      mockHealthServer.stop.mockResolvedValue(undefined);
+      mockBTPServer.stop.mockResolvedValue(undefined);
     });
 
     it('should disconnect all BTP clients', async () => {
@@ -438,9 +446,7 @@ describe('ConnectorNode', () => {
     });
 
     it('should reset status to starting after successful stop', async () => {
-      // Arrange
-      await connectorNode.start();
-      jest.clearAllMocks();
+      // Arrange — connector already started in beforeEach
 
       // Act
       await connectorNode.stop();
@@ -1364,6 +1370,132 @@ describe('ConnectorNode', () => {
       // Act & Assert
       expect(() => connectorNode.removeRoute('g.nonexistent')).toThrow(
         'Route not found: g.nonexistent'
+      );
+    });
+  });
+
+  describe('Lifecycle — reentrant and idempotent', () => {
+    beforeEach(() => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+    });
+
+    it('stop() is idempotent — calling stop() twice does not throw', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+
+      // Act — stop twice in sequence
+      await connectorNode.stop();
+      await connectorNode.stop();
+
+      // Assert — no error thrown, second call is a no-op
+    });
+
+    it('stop() on never-started connector does not throw', async () => {
+      // Act & Assert — stop without start, should return without error
+      await expect(connectorNode.stop()).resolves.toBeUndefined();
+    });
+
+    it('start() → stop() → start() lifecycle works (reentrant)', async () => {
+      // Arrange & Act — full lifecycle cycle
+      await connectorNode.start();
+      await connectorNode.stop();
+      await connectorNode.start();
+
+      // Assert — healthy after second start
+      const healthStatus = connectorNode.getHealthStatus();
+      expect(healthStatus.status).toBe('healthy');
+    });
+
+    it('start() throws on BTP server failure and sets health to unhealthy', async () => {
+      // Arrange
+      const testError = new Error('BTP server start failed');
+      mockBTPServer.start.mockRejectedValue(testError);
+
+      // Act & Assert
+      await expect(connectorNode.start()).rejects.toThrow('BTP server start failed');
+      const healthStatus = connectorNode.getHealthStatus();
+      expect(healthStatus.status).toBe('unhealthy');
+    });
+
+    it('stop() shuts down SettlementMonitor when active', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+
+      const mockSettlementMonitor = {
+        stop: jest.fn().mockResolvedValue(undefined),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._settlementMonitor = mockSettlementMonitor;
+
+      // Act
+      await connectorNode.stop();
+
+      // Assert
+      expect(mockSettlementMonitor.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it('stop() shuts down SettlementExecutor when active', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+
+      const mockSettlementExecutor = {
+        stop: jest.fn(),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._settlementExecutor = mockSettlementExecutor;
+
+      // Act
+      await connectorNode.stop();
+
+      // Assert
+      expect(mockSettlementExecutor.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it('stop() closes TigerBeetle client when connected', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+
+      const mockTigerBeetleClient = {
+        close: jest.fn().mockResolvedValue(undefined),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._tigerBeetleClient = mockTigerBeetleClient;
+
+      // Act
+      await connectorNode.stop();
+
+      // Assert
+      expect(mockTigerBeetleClient.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('stop() shuts down SettlementExecutor before ChannelManager', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+
+      const callOrder: string[] = [];
+      const mockSettlementExecutor = {
+        stop: jest.fn(() => callOrder.push('settlementExecutor')),
+      };
+      const mockChannelManager = {
+        stop: jest.fn(() => callOrder.push('channelManager')),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._settlementExecutor = mockSettlementExecutor;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      // Act
+      await connectorNode.stop();
+
+      // Assert — executor must be stopped before channel manager
+      expect(callOrder.indexOf('settlementExecutor')).toBeLessThan(
+        callOrder.indexOf('channelManager')
       );
     });
   });

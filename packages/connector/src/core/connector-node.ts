@@ -81,6 +81,7 @@ export class ConnectorNode implements HealthStatusProvider {
   private _accountManager: AccountManager | null = null;
   private _settlementMonitor: SettlementMonitor | null = null;
   private _settlementExecutor: SettlementExecutor | null = null;
+  private _tigerBeetleClient: TigerBeetleClient | null = null;
   private readonly _settlementPeers: Map<string, SettlementPeerConfig> = new Map();
   private _healthStatus: 'healthy' | 'unhealthy' | 'starting' = 'starting';
   private readonly _startTime: Date = new Date();
@@ -446,6 +447,7 @@ export class ConnectorNode implements HealthStatusProvider {
 
               // Initialize TigerBeetle connection
               await tigerBeetleClient.initialize();
+              this._tigerBeetleClient = tigerBeetleClient;
 
               // Create AccountManager with telemetry
               accountManager = new AccountManager(
@@ -985,6 +987,15 @@ export class ConnectorNode implements HealthStatusProvider {
    * Gracefully shuts down all components
    */
   async stop(): Promise<void> {
+    // Idempotent guard: if already stopped, return immediately
+    if (!this._btpServerStarted && !this._adminServer && !this._explorerServer) {
+      this._logger.debug(
+        { event: 'connector_already_stopped' },
+        'Connector already stopped, ignoring'
+      );
+      return;
+    }
+
     this._logger.info(
       {
         event: 'connector_stopping',
@@ -994,6 +1005,20 @@ export class ConnectorNode implements HealthStatusProvider {
     );
 
     try {
+      // Stop settlement executor if running (before channel manager)
+      if (this._settlementExecutor) {
+        this._settlementExecutor.stop();
+        this._logger.info({ event: 'settlement_executor_stopped' }, 'Settlement executor stopped');
+        this._settlementExecutor = null;
+      }
+
+      // Stop settlement monitor if running (after executor)
+      if (this._settlementMonitor) {
+        await this._settlementMonitor.stop();
+        this._logger.info({ event: 'settlement_monitor_stopped' }, 'Settlement monitor stopped');
+        this._settlementMonitor = null;
+      }
+
       // Stop Aptos SDK auto-refresh if running
       if (this._aptosChannelSDK) {
         this._aptosChannelSDK.stopAutoRefresh();
@@ -1014,6 +1039,14 @@ export class ConnectorNode implements HealthStatusProvider {
         this._logger.info({ event: 'payment_channel_sdk_stopped' }, 'Payment channel SDK stopped');
         this._paymentChannelSDK = null;
       }
+
+      // Close TigerBeetle client if connected
+      if (this._tigerBeetleClient) {
+        await this._tigerBeetleClient.close();
+        this._logger.info({ event: 'tigerbeetle_client_closed' }, 'TigerBeetle client closed');
+        this._tigerBeetleClient = null;
+      }
+      this._accountManager = null;
 
       // Stop explorer server if running (before health server)
       if (this._explorerServer) {

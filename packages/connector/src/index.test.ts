@@ -1,5 +1,4 @@
 import {
-  main,
   ConnectorNode,
   RoutingTable,
   PacketHandler,
@@ -9,10 +8,6 @@ import {
 } from './index';
 
 describe('connector package', () => {
-  it('should export main function', () => {
-    expect(typeof main).toBe('function');
-  });
-
   it('should export ConnectorNode class', () => {
     expect(ConnectorNode).toBeDefined();
   });
