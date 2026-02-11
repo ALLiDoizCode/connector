@@ -769,6 +769,182 @@ describe('PacketHandler', () => {
     });
   });
 
+  describe('setLocalDeliveryHandler() - Function Handler Delivery Path', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable([
+        { prefix: 'g.alice', nextHop: 'peer-alice' },
+        { prefix: 'g.local', nextHop: 'test.connector' },
+      ]);
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should call function handler with correct LocalDeliveryRequest and sourcePeerId when packet is local', async () => {
+      // Arrange
+      const mockHandler = jest.fn().mockResolvedValue({
+        fulfill: { fulfillment: Buffer.alloc(32).toString('base64'), data: '' },
+      });
+      handler.setLocalDeliveryHandler(mockHandler);
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert
+      expect(mockHandler).toHaveBeenCalledTimes(1);
+      const [request, sourcePeerId] = mockHandler.mock.calls[0];
+      expect(sourcePeerId).toBe('source-peer-1');
+      expect(request).toEqual(
+        expect.objectContaining({
+          destination: 'g.local.wallet',
+          amount: '1000',
+          sourcePeer: 'source-peer-1',
+        })
+      );
+      expect(request.executionCondition).toBeDefined();
+      expect(request.expiresAt).toBeDefined();
+      expect(request.data).toBeDefined();
+    });
+
+    it('should produce ILPFulfillPacket when function handler returns fulfill', async () => {
+      // Arrange
+      const fulfillment = Buffer.alloc(32, 0xab).toString('base64');
+      const responseData = Buffer.from('response-data').toString('base64');
+      const mockHandler = jest.fn().mockResolvedValue({
+        fulfill: { fulfillment, data: responseData },
+      });
+      handler.setLocalDeliveryHandler(mockHandler);
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert
+      expect(result.type).toBe(PacketType.FULFILL);
+      const fulfill = result as ILPFulfillPacket;
+      expect(fulfill.fulfillment).toEqual(Buffer.from(fulfillment, 'base64'));
+      expect(fulfill.data).toEqual(Buffer.from(responseData, 'base64'));
+    });
+
+    it('should produce ILPRejectPacket when function handler returns reject', async () => {
+      // Arrange
+      const mockHandler = jest.fn().mockResolvedValue({
+        reject: {
+          code: 'F99',
+          message: 'Application error from handler',
+        },
+      });
+      handler.setLocalDeliveryHandler(mockHandler);
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe('F99');
+      expect(reject.message).toBe('Application error from handler');
+      expect(reject.triggeredBy).toBe('test.connector');
+    });
+
+    it('should produce ILP Reject T00_INTERNAL_ERROR when function handler throws an Error', async () => {
+      // Arrange
+      const mockHandler = jest.fn().mockRejectedValue(new Error('Handler crashed'));
+      handler.setLocalDeliveryHandler(mockHandler);
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.T00_INTERNAL_ERROR);
+      expect(reject.message).toContain('Handler crashed');
+      expect(reject.triggeredBy).toBe('test.connector');
+    });
+
+    it('should produce ILP Reject T00_INTERNAL_ERROR when function handler returns neither fulfill nor reject', async () => {
+      // Arrange
+      const mockHandler = jest.fn().mockResolvedValue({});
+      handler.setLocalDeliveryHandler(mockHandler);
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.T00_INTERNAL_ERROR);
+      expect(reject.message).toContain('Invalid response from local delivery handler');
+    });
+
+    it('should use HTTP path when no function handler set but HTTP LocalDeliveryClient enabled (backward compat)', async () => {
+      // Arrange - set up HTTP local delivery, no function handler
+      handler.setLocalDelivery({
+        enabled: true,
+        handlerUrl: 'http://agent-runtime:3100',
+        timeout: 5000,
+      });
+      // Do NOT set function handler
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert - should not crash; HTTP client will attempt fetch (may fail in test env)
+      // The key check is that it doesn't use function handler path
+      expect(result.type).toBeDefined();
+    });
+
+    it('should use auto-fulfill stub when neither function handler nor HTTP client set (backward compat)', async () => {
+      // Arrange - no function handler, no HTTP local delivery
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert - auto-fulfill stub
+      expect(result.type).toBe(PacketType.FULFILL);
+    });
+
+    it('should use function handler over HTTP LocalDeliveryClient when both are configured', async () => {
+      // Arrange - set up both HTTP client and function handler
+      handler.setLocalDelivery({
+        enabled: true,
+        handlerUrl: 'http://agent-runtime:3100',
+        timeout: 5000,
+      });
+      const mockHandler = jest.fn().mockResolvedValue({
+        fulfill: { fulfillment: Buffer.alloc(32, 0xcd).toString('base64') },
+      });
+      handler.setLocalDeliveryHandler(mockHandler);
+
+      const packet = createValidPreparePacket({ destination: 'g.local.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(packet, 'source-peer-1');
+
+      // Assert - function handler should have been called
+      expect(mockHandler).toHaveBeenCalledTimes(1);
+      expect(result.type).toBe(PacketType.FULFILL);
+      const fulfill = result as ILPFulfillPacket;
+      expect(fulfill.fulfillment).toEqual(Buffer.alloc(32, 0xcd));
+    });
+  });
+
   describe('handlePreparePacket() - Expiry Decrement Integration', () => {
     it('should decrement packet expiry before forwarding', async () => {
       // Arrange

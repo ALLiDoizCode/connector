@@ -5,7 +5,7 @@
  */
 
 import { ConnectorNode } from './core/connector-node';
-import { ConfigurationError } from './config/config-loader';
+import { ConfigLoader, ConfigurationError, ConnectorNotStartedError } from './config/config-loader';
 import { createLogger } from './utils/logger';
 import { RoutingTable } from './routing/routing-table';
 import { PacketHandler } from './core/packet-handler';
@@ -17,6 +17,9 @@ import type { Logger } from 'pino';
 // Export public API
 export {
   ConnectorNode,
+  ConfigLoader,
+  ConfigurationError,
+  ConnectorNotStartedError,
   RoutingTable,
   PacketHandler,
   BTPServer,
@@ -26,7 +29,25 @@ export {
 };
 
 // Export configuration types
-export type { LocalDeliveryConfig } from './config/types';
+export type {
+  ConnectorConfig,
+  LocalDeliveryConfig,
+  LocalDeliveryHandler,
+  LocalDeliveryRequest,
+  LocalDeliveryResponse,
+  SendPacketParams,
+  PeerRegistrationRequest,
+  PeerInfo,
+  PeerAccountBalance,
+  RouteInfo,
+  RemovePeerResult,
+} from './config/types';
+
+// Re-export settlement types for library consumers
+export type { AdminSettlementConfig } from './settlement/types';
+
+// Re-export ILP packet types for library consumers
+export type { ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
 
 // Export main function for testing
 export { main };

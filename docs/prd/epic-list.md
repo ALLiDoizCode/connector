@@ -69,11 +69,20 @@ Strip STREAM session management, SPSP HTTP endpoints, and HMAC-based fulfillment
 **Epic 23: Unified Deployment Infrastructure**
 Create the unified deployment infrastructure that orchestrates connector, agent-runtime middleware, and agent-society BLS containers into a single deployable stack. Delivers a 16-service Docker Compose file (`docker-compose-unified.yml`), K8s manifests for agent-society (`k8s/agent-society/`), an updated deploy script with `--unified` flag and 7-phase bootstrap verification, and environment configuration for Nostr keypairs and settlement contract addresses. Implements Phases 3-6 of the Unified Deployment Plan.
 
+**Epic 24: Connector Library API**
+Refactor `ConnectorNode` to accept a config object (not a file path), expose `sendPacket()` as a public method, add `setLocalDeliveryHandler()` for direct in-process packet delivery, and surface admin operations as callable methods. Enables `@agent-runtime/connector` to run embedded inside an ElizaOS Service without HTTP between components. Required for ElizaOS in-process integration.
+
+**Epic 25: CLI/Library Separation & Lifecycle Cleanup**
+Separate the CLI entrypoint from library exports, remove `process.exit()` calls and signal handlers from library code, export all types needed for in-process composition, and ensure `ConnectorNode` has clean reentrant lifecycle methods. Makes `@agent-runtime/connector` safe to import and embed without side effects.
+
+**Epic 26: npm Publishing Readiness**
+Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publication. Trim connector dependencies to minimize install footprint (core consumers pull ~5 packages instead of 30+), configure package.json for dual library/CLI usage, add publish automation with correct build ordering, and validate packages install and import correctly in a clean consumer project.
+
 ---
 
 ## Project Status
 
-Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. Epics 22-23 implement the Unified Deployment Plan for full agent-runtime + agent-society integration. The connector is feature-complete with:
+Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. Epics 22-23 implement the Unified Deployment Plan for full agent-runtime + agent-society integration. Epics 24-26 implement the ElizaOS integration refactoring — transforming the connector from a standalone CLI application into an importable npm library for in-process composition. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering

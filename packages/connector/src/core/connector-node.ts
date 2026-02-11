@@ -9,10 +9,34 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPServer } from '../btp/btp-server';
 import { PacketHandler } from './packet-handler';
 import { Peer } from '../btp/btp-client';
-import { RoutingTableEntry, ILPAddress } from '@agent-runtime/shared';
-import { ConnectorConfig, SettlementConfig } from '../config/types';
-import { PeerConfig as SettlementPeerConfig } from '../settlement/types';
-import { ConfigLoader, ConfigurationError } from '../config/config-loader';
+import {
+  RoutingTableEntry,
+  ILPAddress,
+  isValidILPAddress,
+  ILPPreparePacket,
+  ILPFulfillPacket,
+  ILPRejectPacket,
+  PacketType,
+  ILPErrorCode,
+} from '@agent-runtime/shared';
+import {
+  ConnectorConfig,
+  SettlementConfig,
+  LocalDeliveryHandler,
+  SendPacketParams,
+  PeerRegistrationRequest,
+  PeerInfo,
+  PeerAccountBalance,
+  RouteInfo,
+  RemovePeerResult,
+} from '../config/types';
+import { PeerConfig as SettlementPeerConfig, AdminSettlementConfig } from '../settlement/types';
+import { validateSettlementConfig } from '../http/admin-api';
+import {
+  ConfigLoader,
+  ConfigurationError,
+  ConnectorNotStartedError,
+} from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 import { AdminServer } from '../http/admin-server';
 import { HealthStatus, HealthStatusProvider } from '../http/types';
@@ -64,44 +88,42 @@ export class ConnectorNode implements HealthStatusProvider {
 
   /**
    * Create ConnectorNode instance
-   * @param configFilePath - Path to YAML configuration file
+   * @param config - ConnectorConfig object or path to YAML configuration file
    * @param logger - Pino logger instance
    * @throws ConfigurationError if configuration is invalid
    */
-  constructor(configFilePath: string, logger: Logger) {
-    // Load and validate configuration from YAML file
-    let config: ConnectorConfig;
+  constructor(config: ConnectorConfig | string, logger: Logger) {
+    // Load and validate configuration
+    let resolvedConfig: ConnectorConfig;
     try {
-      config = ConfigLoader.loadConfig(configFilePath);
+      if (typeof config === 'string') {
+        resolvedConfig = ConfigLoader.loadConfig(config);
+      } else {
+        resolvedConfig = ConfigLoader.validateConfig(config);
+      }
     } catch (error) {
       if (error instanceof ConfigurationError) {
-        logger.error(
-          {
-            event: 'config_load_failed',
-            filePath: configFilePath,
-            error: error.message,
-          },
-          'Failed to load configuration'
-        );
+        const logContext =
+          typeof config === 'string'
+            ? { event: 'config_load_failed', filePath: config, error: error.message }
+            : { event: 'config_load_failed', source: 'object', error: error.message };
+        logger.error(logContext, 'Failed to load configuration');
         throw error;
       }
       throw error;
     }
 
-    this._config = config;
-    this._logger = logger.child({ component: 'ConnectorNode', nodeId: config.nodeId });
+    this._config = resolvedConfig;
+    this._logger = logger.child({ component: 'ConnectorNode', nodeId: resolvedConfig.nodeId });
 
-    this._logger.info(
-      {
-        event: 'config_loaded',
-        filePath: configFilePath,
-        nodeId: config.nodeId,
-      },
-      'Configuration loaded successfully'
-    );
+    const loadedLogContext =
+      typeof config === 'string'
+        ? { event: 'config_loaded', filePath: config, nodeId: resolvedConfig.nodeId }
+        : { event: 'config_loaded', source: 'object', nodeId: resolvedConfig.nodeId };
+    this._logger.info(loadedLogContext, 'Configuration loaded successfully');
 
     // Convert RouteConfig[] to RoutingTableEntry[]
-    const routingTableEntries: RoutingTableEntry[] = config.routes.map((route) => ({
+    const routingTableEntries: RoutingTableEntry[] = resolvedConfig.routes.map((route) => ({
       prefix: route.prefix as ILPAddress,
       nextHop: route.nextHop,
       priority: route.priority,
@@ -115,7 +137,7 @@ export class ConnectorNode implements HealthStatusProvider {
 
     // Initialize BTP client manager
     this._btpClientManager = new BTPClientManager(
-      config.nodeId,
+      resolvedConfig.nodeId,
       logger.child({ component: 'BTPClientManager' })
     );
 
@@ -124,7 +146,7 @@ export class ConnectorNode implements HealthStatusProvider {
     if (dashboardUrl) {
       this._telemetryEmitter = new TelemetryEmitter(
         dashboardUrl,
-        config.nodeId,
+        resolvedConfig.nodeId,
         logger.child({ component: 'TelemetryEmitter' })
       );
       this._logger.info(
@@ -143,7 +165,7 @@ export class ConnectorNode implements HealthStatusProvider {
     this._packetHandler = new PacketHandler(
       this._routingTable,
       this._btpClientManager,
-      config.nodeId,
+      resolvedConfig.nodeId,
       logger.child({ component: 'PacketHandler' }),
       this._telemetryEmitter
     );
@@ -156,13 +178,14 @@ export class ConnectorNode implements HealthStatusProvider {
 
     // Configure local delivery if enabled (forwards local packets to agent runtime)
     const localDeliveryEnabled =
-      config.localDelivery?.enabled || process.env.LOCAL_DELIVERY_ENABLED === 'true';
+      resolvedConfig.localDelivery?.enabled || process.env.LOCAL_DELIVERY_ENABLED === 'true';
     if (localDeliveryEnabled) {
       const localDeliveryConfig = {
         enabled: true,
-        handlerUrl: config.localDelivery?.handlerUrl || process.env.LOCAL_DELIVERY_URL || '',
+        handlerUrl:
+          resolvedConfig.localDelivery?.handlerUrl || process.env.LOCAL_DELIVERY_URL || '',
         timeout:
-          config.localDelivery?.timeout ||
+          resolvedConfig.localDelivery?.timeout ||
           parseInt(process.env.LOCAL_DELIVERY_TIMEOUT || '30000', 10),
       };
       this._packetHandler.setLocalDelivery(localDeliveryConfig);
@@ -177,12 +200,82 @@ export class ConnectorNode implements HealthStatusProvider {
     this._logger.info(
       {
         event: 'connector_initialized',
-        nodeId: config.nodeId,
-        peersCount: config.peers.length,
-        routesCount: config.routes.length,
+        nodeId: resolvedConfig.nodeId,
+        peersCount: resolvedConfig.peers.length,
+        routesCount: resolvedConfig.routes.length,
       },
       'Connector node initialized'
     );
+  }
+
+  /**
+   * Register a direct in-process delivery handler for local ILP packets.
+   * Bypasses the HTTP LocalDeliveryClient when set, delivering packets
+   * directly to the handler function without an HTTP round-trip.
+   *
+   * @param handler - Function handler for local delivery, or null to clear and revert to HTTP fallback
+   */
+  setLocalDeliveryHandler(handler: LocalDeliveryHandler | null): void {
+    this._logger.info(
+      { event: 'local_delivery_handler_set', hasHandler: handler !== null },
+      handler
+        ? 'Local delivery function handler registered'
+        : 'Local delivery function handler cleared'
+    );
+    this._packetHandler.setLocalDeliveryHandler(handler);
+  }
+
+  /**
+   * Send an ILP Prepare packet through the connector's routing logic.
+   * Routes through PacketHandler using RoutingTable longest-prefix matching.
+   *
+   * @param params - Packet parameters (destination, amount, condition, expiry, data)
+   * @returns ILP Fulfill or Reject packet
+   * @throws ConnectorNotStartedError if connector has not been started
+   */
+  async sendPacket(params: SendPacketParams): Promise<ILPFulfillPacket | ILPRejectPacket> {
+    if (!this._btpServerStarted) {
+      throw new ConnectorNotStartedError();
+    }
+
+    const packet: ILPPreparePacket = {
+      type: PacketType.PREPARE,
+      destination: params.destination,
+      amount: params.amount,
+      executionCondition: params.executionCondition,
+      expiresAt: params.expiresAt,
+      data: params.data ?? Buffer.alloc(0),
+    };
+
+    this._logger.info(
+      {
+        event: 'send_packet',
+        destination: params.destination,
+        amount: params.amount.toString(),
+        expiresAt: params.expiresAt.toISOString(),
+      },
+      'Sending packet via public API'
+    );
+
+    try {
+      return await this._packetHandler.handlePreparePacket(packet, this._config.nodeId);
+    } catch (error) {
+      this._logger.error(
+        {
+          event: 'send_packet_error',
+          destination: params.destination,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Unexpected error sending packet'
+      );
+      return {
+        type: PacketType.REJECT,
+        code: ILPErrorCode.T00_INTERNAL_ERROR,
+        triggeredBy: this._config.nodeId,
+        message: 'Internal connector error',
+        data: Buffer.alloc(0),
+      } as ILPRejectPacket;
+    }
   }
 
   /**
@@ -1124,6 +1217,385 @@ export class ConnectorNode implements HealthStatusProvider {
         'Health status changed'
       );
       this._healthStatus = newStatus;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Admin Operations — direct method API (Story 24.4)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Register a new peer with BTP connection and optional routes/settlement config.
+   * Equivalent to POST /admin/peers — same validation and behavior.
+   *
+   * @param config - Peer registration parameters
+   * @returns PeerInfo with connection status
+   * @throws ConnectorNotStartedError if connector has not been started
+   * @throws Error('Missing or invalid peer id') if id is missing/empty
+   * @throws Error('URL must start with ws:// or wss://') if url format is invalid
+   * @throws Error('Invalid ILP address prefix: ...') if route prefix is invalid
+   * @throws Error (from validateSettlementConfig) if settlement config is invalid
+   */
+  async registerPeer(config: PeerRegistrationRequest): Promise<PeerInfo> {
+    if (!this._btpServerStarted) {
+      throw new ConnectorNotStartedError(
+        'Connector is not started. Call start() before registerPeer().'
+      );
+    }
+
+    // Validate required fields
+    if (!config.id || typeof config.id !== 'string') {
+      throw new Error('Missing or invalid peer id');
+    }
+    if (!config.url || typeof config.url !== 'string') {
+      throw new Error('Missing or invalid peer url');
+    }
+    if (!config.authToken || typeof config.authToken !== 'string') {
+      throw new Error('Missing or invalid authToken');
+    }
+
+    // Validate URL format
+    if (!config.url.startsWith('ws://') && !config.url.startsWith('wss://')) {
+      throw new Error('URL must start with ws:// or wss://');
+    }
+
+    // Validate routes if provided
+    if (config.routes) {
+      for (const route of config.routes) {
+        if (!route.prefix || typeof route.prefix !== 'string') {
+          throw new Error('Invalid route: missing prefix');
+        }
+        if (!isValidILPAddress(route.prefix)) {
+          throw new Error(`Invalid ILP address prefix: ${route.prefix}`);
+        }
+      }
+    }
+
+    // Validate settlement config if provided
+    if (config.settlement) {
+      const settlementError = validateSettlementConfig(config.settlement);
+      if (settlementError) {
+        throw new Error(settlementError);
+      }
+    }
+
+    // Check if peer already exists (idempotent re-registration)
+    const existingPeers = this._btpClientManager.getPeerIds();
+    const isUpdate = existingPeers.includes(config.id);
+
+    // Only add BTP peer on initial registration
+    if (!isUpdate) {
+      const peer: Peer = {
+        id: config.id,
+        url: config.url,
+        authToken: config.authToken,
+        connected: false,
+        lastSeen: new Date(),
+      };
+      await this._btpClientManager.addPeer(peer);
+      this._logger.info(
+        { event: 'peer_registered', peerId: config.id, url: config.url },
+        `Registered peer: ${config.id}`
+      );
+    } else {
+      this._logger.info(
+        { event: 'peer_reregistered', peerId: config.id },
+        `Re-registering peer: ${config.id}`
+      );
+    }
+
+    // Add routes if provided
+    if (config.routes) {
+      for (const route of config.routes) {
+        this._routingTable.addRoute(route.prefix as ILPAddress, config.id, route.priority ?? 0);
+        this._logger.info(
+          { event: 'route_added', prefix: route.prefix, nextHop: config.id },
+          `Added route: ${route.prefix} -> ${config.id}`
+        );
+      }
+    }
+
+    // Create/merge settlement config
+    if (config.settlement) {
+      this._applySettlementConfig(config.id, config.settlement, config.routes, isUpdate);
+    }
+
+    // Build PeerInfo response
+    const routes = this._routingTable.getAllRoutes();
+    const peerRoutes = routes.filter((r) => r.nextHop === config.id);
+    const connected = this._btpClientManager.isConnected(config.id);
+
+    const peerInfo: PeerInfo = {
+      id: config.id,
+      connected,
+      ilpAddresses: peerRoutes.map((r) => r.prefix),
+      routeCount: peerRoutes.length,
+    };
+
+    const peerConfig = this._settlementPeers.get(config.id);
+    if (peerConfig) {
+      peerInfo.settlement = {
+        preference: peerConfig.settlementPreference,
+        evmAddress: peerConfig.evmAddress,
+        xrpAddress: peerConfig.xrpAddress,
+        aptosAddress: peerConfig.aptosAddress,
+        tokenAddress: peerConfig.tokenAddress,
+        chainId: peerConfig.chainId,
+      };
+    }
+
+    return peerInfo;
+  }
+
+  /**
+   * Remove a peer, disconnect BTP connection, and optionally remove associated routes.
+   * Equivalent to DELETE /admin/peers/:peerId — same validation and behavior.
+   *
+   * @param peerId - Peer identifier to remove
+   * @param removeRoutes - Whether to remove routes associated with this peer (default: true)
+   * @returns RemovePeerResult with peerId and list of removed route prefixes
+   * @throws ConnectorNotStartedError if connector has not been started
+   * @throws Error('Peer not found: ...') if peer does not exist
+   */
+  async removePeer(peerId: string, removeRoutes: boolean = true): Promise<RemovePeerResult> {
+    if (!this._btpServerStarted) {
+      throw new ConnectorNotStartedError(
+        'Connector is not started. Call start() before removePeer().'
+      );
+    }
+
+    // Check peer exists
+    const existingPeers = this._btpClientManager.getPeerIds();
+    if (!existingPeers.includes(peerId)) {
+      throw new Error(`Peer not found: ${peerId}`);
+    }
+
+    // Remove BTP peer
+    await this._btpClientManager.removePeer(peerId);
+    this._logger.info({ event: 'peer_removed', peerId }, `Removed peer: ${peerId}`);
+
+    // Remove settlement config
+    if (this._settlementPeers.delete(peerId)) {
+      this._logger.info(
+        { event: 'settlement_config_removed', peerId },
+        `Removed settlement config for peer: ${peerId}`
+      );
+    }
+
+    // Remove routes if requested
+    const removedRoutes: string[] = [];
+    if (removeRoutes) {
+      const routes = this._routingTable.getAllRoutes();
+      for (const route of routes) {
+        if (route.nextHop === peerId) {
+          this._routingTable.removeRoute(route.prefix);
+          removedRoutes.push(route.prefix);
+          this._logger.info(
+            { event: 'route_removed', prefix: route.prefix },
+            `Removed route: ${route.prefix}`
+          );
+        }
+      }
+    }
+
+    return { peerId, removedRoutes };
+  }
+
+  /**
+   * List all peers with connection status and routing info.
+   * Equivalent to GET /admin/peers — same response shape.
+   *
+   * @returns Array of PeerInfo objects
+   */
+  listPeers(): PeerInfo[] {
+    const peerIds = this._btpClientManager.getPeerIds();
+    const peerStatus = this._btpClientManager.getPeerStatus();
+    const routes = this._routingTable.getAllRoutes();
+
+    return peerIds.map((peerId) => {
+      const peerRoutes = routes.filter((r) => r.nextHop === peerId);
+      const peerInfo: PeerInfo = {
+        id: peerId,
+        connected: peerStatus.get(peerId) ?? false,
+        ilpAddresses: peerRoutes.map((r) => r.prefix),
+        routeCount: peerRoutes.length,
+      };
+
+      const peerConfig = this._settlementPeers.get(peerId);
+      if (peerConfig) {
+        peerInfo.settlement = {
+          preference: peerConfig.settlementPreference,
+          evmAddress: peerConfig.evmAddress,
+          xrpAddress: peerConfig.xrpAddress,
+          aptosAddress: peerConfig.aptosAddress,
+          tokenAddress: peerConfig.tokenAddress,
+          chainId: peerConfig.chainId,
+        };
+      }
+
+      return peerInfo;
+    });
+  }
+
+  /**
+   * Get balance for a specific peer from TigerBeetle.
+   * Equivalent to GET /admin/balances/:peerId — same response shape.
+   *
+   * @param peerId - Peer identifier
+   * @param tokenId - Token identifier (default: 'ILP')
+   * @returns PeerAccountBalance with debit/credit/net balances
+   * @throws Error if account management is not enabled
+   */
+  async getBalance(peerId: string, tokenId: string = 'ILP'): Promise<PeerAccountBalance> {
+    if (!this._accountManager) {
+      throw new Error('Account management not enabled');
+    }
+
+    const balance = await this._accountManager.getAccountBalance(peerId, tokenId);
+    return {
+      peerId,
+      balances: [
+        {
+          tokenId,
+          debitBalance: balance.debitBalance.toString(),
+          creditBalance: balance.creditBalance.toString(),
+          netBalance: balance.netBalance.toString(),
+        },
+      ],
+    };
+  }
+
+  /**
+   * List all routes in the routing table.
+   * Equivalent to GET /admin/routes — same response shape.
+   *
+   * @returns Array of RouteInfo objects
+   */
+  listRoutes(): RouteInfo[] {
+    const routes = this._routingTable.getAllRoutes();
+    return routes.map((r) => ({
+      prefix: r.prefix,
+      nextHop: r.nextHop,
+      priority: r.priority ?? 0,
+    }));
+  }
+
+  /**
+   * Add a static route to the routing table.
+   * Equivalent to POST /admin/routes — same validation.
+   *
+   * @param route - Route configuration (prefix, nextHop, priority)
+   * @throws Error('Invalid ILP address prefix: ...') if prefix is not a valid ILP address
+   * @throws Error('Missing or invalid nextHop') if nextHop is empty
+   */
+  addRoute(route: RouteInfo): void {
+    // Validate prefix
+    if (!isValidILPAddress(route.prefix)) {
+      throw new Error(`Invalid ILP address prefix: ${route.prefix}`);
+    }
+
+    // Validate nextHop
+    if (!route.nextHop || typeof route.nextHop !== 'string') {
+      throw new Error('Missing or invalid nextHop');
+    }
+
+    // Warn if nextHop peer doesn't exist (but don't block)
+    const existingPeers = this._btpClientManager.getPeerIds();
+    if (!existingPeers.includes(route.nextHop)) {
+      this._logger.warn(
+        { event: 'route_nextHop_unknown', prefix: route.prefix, nextHop: route.nextHop },
+        `Adding route with unknown nextHop peer: ${route.nextHop}`
+      );
+    }
+
+    this._routingTable.addRoute(route.prefix as ILPAddress, route.nextHop, route.priority ?? 0);
+
+    this._logger.info(
+      { event: 'route_added', prefix: route.prefix, nextHop: route.nextHop },
+      `Added route: ${route.prefix} -> ${route.nextHop}`
+    );
+  }
+
+  /**
+   * Remove a route from the routing table by prefix.
+   * Equivalent to DELETE /admin/routes/:prefix — same validation.
+   *
+   * @param prefix - ILP address prefix of the route to remove
+   * @throws Error('Route not found: ...') if no route with the given prefix exists
+   */
+  removeRoute(prefix: string): void {
+    const routes = this._routingTable.getAllRoutes();
+    const exists = routes.some((r) => r.prefix === prefix);
+    if (!exists) {
+      throw new Error(`Route not found: ${prefix}`);
+    }
+
+    this._routingTable.removeRoute(prefix as ILPAddress);
+    this._logger.info({ event: 'route_removed', prefix }, `Removed route: ${prefix}`);
+  }
+
+  /**
+   * Apply settlement configuration for a peer.
+   * Converts AdminSettlementConfig to SettlementPeerConfig and stores/merges.
+   * @private
+   */
+  private _applySettlementConfig(
+    peerId: string,
+    s: AdminSettlementConfig,
+    routes: Array<{ prefix: string; priority?: number }> | undefined,
+    isUpdate: boolean
+  ): void {
+    const ilpAddress = routes && routes.length > 0 ? routes[0]!.prefix : '';
+
+    // Build settlementTokens
+    const settlementTokens: string[] = [];
+    if (s.tokenAddress) {
+      settlementTokens.push(s.tokenAddress);
+    } else {
+      if (s.evmAddress) settlementTokens.push('EVM');
+      if (s.xrpAddress) settlementTokens.push('XRP');
+      if (s.aptosAddress) settlementTokens.push('APT');
+    }
+
+    const newConfig: SettlementPeerConfig = {
+      peerId,
+      address: ilpAddress,
+      settlementPreference: s.preference,
+      settlementTokens,
+      evmAddress: s.evmAddress,
+      xrpAddress: s.xrpAddress,
+      aptosAddress: s.aptosAddress,
+      aptosPubkey: s.aptosPubkey,
+      tokenAddress: s.tokenAddress,
+      tokenNetworkAddress: s.tokenNetworkAddress,
+      chainId: s.chainId,
+      channelId: s.channelId,
+      initialDeposit: s.initialDeposit,
+    };
+
+    if (isUpdate) {
+      const existingConfig = this._settlementPeers.get(peerId);
+      if (existingConfig) {
+        const mergedConfig: SettlementPeerConfig = { ...existingConfig };
+        for (const [key, value] of Object.entries(newConfig)) {
+          if (value !== undefined) {
+            (mergedConfig as unknown as Record<string, unknown>)[key] = value;
+          }
+        }
+        this._settlementPeers.set(peerId, mergedConfig);
+      } else {
+        this._settlementPeers.set(peerId, newConfig);
+      }
+      this._logger.info(
+        { event: 'settlement_config_merged', peerId, preference: s.preference },
+        `Merged settlement config for peer: ${peerId}`
+      );
+    } else {
+      this._settlementPeers.set(peerId, newConfig);
+      this._logger.info(
+        { event: 'settlement_config_added', peerId, preference: s.preference },
+        `Added settlement config for peer: ${peerId}`
+      );
     }
   }
 

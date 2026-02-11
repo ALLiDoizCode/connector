@@ -380,6 +380,125 @@ describe('ConfigLoader', () => {
     });
   });
 
+  describe('validateConfig', () => {
+    it('should validate and return a proper ConnectorConfig from a raw object', () => {
+      // Arrange
+      const raw = {
+        nodeId: 'test-connector',
+        btpServerPort: 3000,
+        peers: [{ id: 'peer-a', url: 'ws://peer-a:3001', authToken: 'secret-a' }],
+        routes: [{ prefix: 'g.peera', nextHop: 'peer-a' }],
+      };
+
+      // Act
+      const config = ConfigLoader.validateConfig(raw);
+
+      // Assert
+      expect(config).toBeDefined();
+      expect(config.nodeId).toBe('test-connector');
+      expect(config.btpServerPort).toBe(3000);
+      expect(config.peers).toHaveLength(1);
+      expect(config.routes).toHaveLength(1);
+      expect(config.environment).toBe('development'); // Default from env
+      expect(config.logLevel).toBe('info'); // Default
+      expect(config.healthCheckPort).toBe(8080); // Default
+    });
+
+    it('should throw ConfigurationError on invalid input (missing nodeId)', () => {
+      // Arrange
+      const raw = { btpServerPort: 3000, peers: [], routes: [] };
+
+      // Act & Assert
+      expect(() => ConfigLoader.validateConfig(raw)).toThrow(ConfigurationError);
+      expect(() => ConfigLoader.validateConfig(raw)).toThrow('Missing required field: nodeId');
+    });
+
+    it('should throw ConfigurationError on non-object input', () => {
+      // Act & Assert
+      expect(() => ConfigLoader.validateConfig('not-an-object')).toThrow(ConfigurationError);
+      expect(() => ConfigLoader.validateConfig('not-an-object')).toThrow(
+        'Configuration must be a YAML object'
+      );
+    });
+
+    it('should throw ConfigurationError on null input', () => {
+      // Act & Assert
+      expect(() => ConfigLoader.validateConfig(null)).toThrow(ConfigurationError);
+      expect(() => ConfigLoader.validateConfig(null)).toThrow(
+        'Configuration must be a YAML object'
+      );
+    });
+
+    it('should pass through optional fields from input object', () => {
+      // Arrange
+      const raw = {
+        nodeId: 'test-connector',
+        btpServerPort: 3000,
+        peers: [],
+        routes: [],
+        settlement: {
+          connectorFeePercentage: 0.1,
+          enableSettlement: true,
+          tigerBeetleClusterId: 0,
+          tigerBeetleReplicas: ['localhost:3000'],
+        },
+        adminApi: { enabled: true, port: 8081 },
+        localDelivery: { enabled: true, handlerUrl: 'http://localhost:3100' },
+        mode: 'gateway' as const,
+        firstHopUrl: 'ws://connector:3000',
+        btpAuthToken: 'test-token',
+      };
+
+      // Act
+      const config = ConfigLoader.validateConfig(raw);
+
+      // Assert
+      expect(config.settlement).toBeDefined();
+      expect(config.settlement?.connectorFeePercentage).toBe(0.1);
+      expect(config.adminApi).toBeDefined();
+      expect(config.adminApi?.enabled).toBe(true);
+      expect(config.localDelivery).toBeDefined();
+      expect(config.localDelivery?.enabled).toBe(true);
+      expect(config.mode).toBe('gateway');
+      expect(config.firstHopUrl).toBe('ws://connector:3000');
+      expect(config.btpAuthToken).toBe('test-token');
+    });
+
+    it('should override environment/blockchain/explorer from env vars, not input', () => {
+      // Arrange
+      const raw = {
+        nodeId: 'test-connector',
+        btpServerPort: 3000,
+        peers: [],
+        routes: [],
+        environment: 'production', // Should be overridden by env var
+      };
+
+      // Act
+      const config = ConfigLoader.validateConfig(raw);
+
+      // Assert - environment comes from process.env.ENVIRONMENT (defaults to 'development')
+      expect(config.environment).toBe('development');
+    });
+  });
+
+  describe('loadConfig calls validateConfig internally', () => {
+    it('should load a valid config file and return validated ConnectorConfig', () => {
+      // Arrange
+      const configPath = path.join(FIXTURES_DIR, 'valid-config.yaml');
+
+      // Act
+      const config = ConfigLoader.loadConfig(configPath);
+
+      // Assert - same result as before refactoring
+      expect(config).toBeDefined();
+      expect(config.nodeId).toBe('test-connector');
+      expect(config.btpServerPort).toBe(3000);
+      expect(config.peers).toHaveLength(2);
+      expect(config.routes).toHaveLength(2);
+    });
+  });
+
   describe('Health Check Port Validation', () => {
     it('should throw ConfigurationError for invalid healthCheckPort type', () => {
       const configPath = path.join(FIXTURES_DIR, 'invalid-health-check-port-type.yaml');

@@ -10,8 +10,8 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPServer } from '../btp/btp-server';
 import { PacketHandler } from './packet-handler';
 import { Logger } from '../utils/logger';
-import { RoutingTableEntry } from '@agent-runtime/shared';
-import { ConfigLoader } from '../config/config-loader';
+import { RoutingTableEntry, PacketType, ILPErrorCode } from '@agent-runtime/shared';
+import { ConfigLoader, ConnectorNotStartedError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 
 // Mock all dependencies
@@ -19,8 +19,20 @@ jest.mock('../routing/routing-table');
 jest.mock('../btp/btp-client-manager');
 jest.mock('../btp/btp-server');
 jest.mock('./packet-handler');
-jest.mock('../config/config-loader');
+jest.mock('../config/config-loader', () => {
+  const actual = jest.requireActual('../config/config-loader');
+  return {
+    ...actual,
+    ConfigLoader: {
+      loadConfig: jest.fn(),
+      validateConfig: jest.fn(),
+    },
+  };
+});
 jest.mock('../http/health-server');
+jest.mock('../http/admin-api', () => ({
+  validateSettlementConfig: jest.fn().mockReturnValue(null),
+}));
 
 /**
  * Mock logger for testing
@@ -86,6 +98,8 @@ describe('ConnectorNode', () => {
     mockRoutingTable = {
       lookup: jest.fn(),
       getAllRoutes: jest.fn().mockReturnValue(config.routes),
+      addRoute: jest.fn(),
+      removeRoute: jest.fn(),
     } as unknown as jest.Mocked<RoutingTable>;
 
     mockBTPClientManager = {
@@ -94,6 +108,7 @@ describe('ConnectorNode', () => {
       sendToPeer: jest.fn(),
       getPeerStatus: jest.fn().mockReturnValue(new Map([['peerA', true]])),
       getPeerIds: jest.fn().mockReturnValue(['peerA']),
+      isConnected: jest.fn().mockReturnValue(true),
       getConnectedPeerCount: jest.fn().mockReturnValue(1),
       getTotalPeerCount: jest.fn().mockReturnValue(1),
       getConnectionHealth: jest.fn().mockReturnValue(100),
@@ -108,6 +123,8 @@ describe('ConnectorNode', () => {
     mockPacketHandler = {
       processPrepare: jest.fn(),
       setBTPServer: jest.fn(),
+      setLocalDeliveryHandler: jest.fn(),
+      handlePreparePacket: jest.fn(),
     } as unknown as jest.Mocked<PacketHandler>;
 
     mockHealthServer = {
@@ -649,6 +666,346 @@ describe('ConnectorNode', () => {
     });
   });
 
+  describe('Object-based Construction', () => {
+    it('should initialize successfully with a valid ConnectorConfig object', () => {
+      // Arrange
+      (ConfigLoader.validateConfig as jest.Mock) = jest.fn().mockReturnValue(config);
+
+      // Act
+      connectorNode = new ConnectorNode(config, mockLogger);
+
+      // Assert
+      expect(connectorNode).toBeDefined();
+      expect(connectorNode).toBeInstanceOf(ConnectorNode);
+      expect(ConfigLoader.validateConfig).toHaveBeenCalledWith(config);
+      expect(ConfigLoader.loadConfig).not.toHaveBeenCalled();
+    });
+
+    it('should call ConfigLoader.loadConfig when constructed with a string path', () => {
+      // Arrange & Act
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+
+      // Assert
+      expect(ConfigLoader.loadConfig).toHaveBeenCalledWith(testConfigPath);
+    });
+
+    it('should throw ConfigurationError for invalid config object missing nodeId', () => {
+      // Arrange - use the same ConfigurationError that ConnectorNode imports (mocked module)
+      const { ConfigurationError } = jest.requireActual('../config/config-loader');
+      (ConfigLoader.validateConfig as jest.Mock) = jest.fn().mockImplementation(() => {
+        throw new ConfigurationError('Missing required field: nodeId');
+      });
+      const invalidConfig = { btpServerPort: 3000, peers: [], routes: [] };
+
+      // Act & Assert
+      expect(
+        () => new ConnectorNode(invalidConfig as unknown as ConnectorConfig, mockLogger)
+      ).toThrow('Missing required field: nodeId');
+    });
+
+    it('should throw ConfigurationError for invalid config object missing peers', () => {
+      // Arrange
+      const { ConfigurationError: RealConfigError } = jest.requireActual('../config/config-loader');
+      (ConfigLoader.validateConfig as jest.Mock) = jest.fn().mockImplementation(() => {
+        throw new RealConfigError('Missing required field: peers');
+      });
+      const invalidConfig = { nodeId: 'test', btpServerPort: 3000, routes: [] };
+
+      // Act & Assert
+      expect(
+        () => new ConnectorNode(invalidConfig as unknown as ConnectorConfig, mockLogger)
+      ).toThrow('Missing required field: peers');
+    });
+
+    it('should throw ConfigurationError for invalid port range in config object', () => {
+      // Arrange
+      const { ConfigurationError: RealConfigError } = jest.requireActual('../config/config-loader');
+      (ConfigLoader.validateConfig as jest.Mock) = jest.fn().mockImplementation(() => {
+        throw new RealConfigError('BTP server port must be between 1-65535, got: 99999');
+      });
+      const invalidConfig = {
+        nodeId: 'test',
+        btpServerPort: 99999,
+        peers: [],
+        routes: [],
+      };
+
+      // Act & Assert
+      expect(
+        () => new ConnectorNode(invalidConfig as unknown as ConnectorConfig, mockLogger)
+      ).toThrow('BTP server port must be between 1-65535');
+    });
+
+    it('should log source as "object" when constructed with config object', () => {
+      // Arrange
+      (ConfigLoader.validateConfig as jest.Mock) = jest.fn().mockReturnValue(config);
+
+      // Act
+      connectorNode = new ConnectorNode(config, mockLogger);
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'config_loaded',
+          source: 'object',
+          nodeId: 'connector-test',
+        }),
+        expect.any(String)
+      );
+    });
+  });
+
+  describe('setLocalDeliveryHandler()', () => {
+    beforeEach(() => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+    });
+
+    it('should set the handler and propagate to PacketHandler', () => {
+      // Arrange
+      const handler = jest
+        .fn()
+        .mockResolvedValue({ fulfill: { fulfillment: 'dGVzdA==', data: '' } });
+
+      // Act
+      connectorNode.setLocalDeliveryHandler(handler);
+
+      // Assert
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(handler);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'local_delivery_handler_set',
+          hasHandler: true,
+        }),
+        'Local delivery function handler registered'
+      );
+    });
+
+    it('should be callable before start()', () => {
+      // Arrange
+      const handler = jest.fn().mockResolvedValue({ fulfill: { fulfillment: 'dGVzdA==' } });
+
+      // Act - call before start()
+      connectorNode.setLocalDeliveryHandler(handler);
+
+      // Assert - no errors, handler propagated
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(handler);
+    });
+
+    it('should be callable after construction (handler propagated to PacketHandler)', async () => {
+      // Arrange
+      const handler = jest.fn().mockResolvedValue({ fulfill: { fulfillment: 'dGVzdA==' } });
+      await connectorNode.start();
+      jest.clearAllMocks();
+
+      // Act
+      connectorNode.setLocalDeliveryHandler(handler);
+
+      // Assert
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(handler);
+    });
+
+    it('should clear the handler when called with null (reverts to HTTP fallback)', () => {
+      // Arrange
+      const handler = jest.fn().mockResolvedValue({ fulfill: { fulfillment: 'dGVzdA==' } });
+      connectorNode.setLocalDeliveryHandler(handler);
+      jest.clearAllMocks();
+
+      // Act
+      connectorNode.setLocalDeliveryHandler(null);
+
+      // Assert
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(null);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'local_delivery_handler_set',
+          hasHandler: false,
+        }),
+        'Local delivery function handler cleared'
+      );
+    });
+  });
+
+  describe('sendPacket()', () => {
+    const validParams = {
+      destination: 'g.peerA.alice',
+      amount: 1000n,
+      executionCondition: Buffer.alloc(32, 0xab),
+      expiresAt: new Date(Date.now() + 30000),
+    };
+
+    const createMockFulfill = () => ({
+      type: PacketType.FULFILL as const,
+      fulfillment: Buffer.alloc(32, 0xcd),
+      data: Buffer.alloc(0),
+    });
+
+    const createMockReject = (code = ILPErrorCode.F02_UNREACHABLE) => ({
+      type: PacketType.REJECT as const,
+      code,
+      triggeredBy: 'connector-test',
+      message: 'No route found',
+      data: Buffer.alloc(0),
+    });
+
+    beforeEach(() => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+    });
+
+    it('should route packet through PacketHandler.handlePreparePacket()', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      mockPacketHandler.handlePreparePacket.mockResolvedValue(createMockFulfill());
+
+      // Act
+      await connectorNode.sendPacket(validParams);
+
+      // Assert
+      expect(mockPacketHandler.handlePreparePacket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: PacketType.PREPARE,
+          destination: validParams.destination,
+          amount: validParams.amount,
+          executionCondition: validParams.executionCondition,
+          expiresAt: validParams.expiresAt,
+        }),
+        'connector-test' // nodeId as fromPeerId
+      );
+    });
+
+    it('should return Fulfill on successful routing', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      const mockFulfill = createMockFulfill();
+      mockPacketHandler.handlePreparePacket.mockResolvedValue(mockFulfill);
+
+      // Act
+      const result = await connectorNode.sendPacket(validParams);
+
+      // Assert
+      expect(result).toBe(mockFulfill);
+    });
+
+    it('should return Reject on routing failure (no route)', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      const mockReject = createMockReject();
+      mockPacketHandler.handlePreparePacket.mockResolvedValue(mockReject);
+
+      // Act
+      const result = await connectorNode.sendPacket(validParams);
+
+      // Assert
+      expect(result).toBe(mockReject);
+      expect(result.type).toBe(PacketType.REJECT);
+    });
+
+    it('should throw ConnectorNotStartedError before start()', async () => {
+      // Arrange - do NOT call start()
+
+      // Act & Assert
+      await expect(connectorNode.sendPacket(validParams)).rejects.toThrow(ConnectorNotStartedError);
+      await expect(connectorNode.sendPacket(validParams)).rejects.toThrow(
+        'Connector is not started. Call start() before sendPacket().'
+      );
+    });
+
+    it('should throw ConnectorNotStartedError after stop()', async () => {
+      // Arrange
+      await connectorNode.start();
+      await connectorNode.stop();
+
+      // Act & Assert
+      await expect(connectorNode.sendPacket(validParams)).rejects.toThrow(ConnectorNotStartedError);
+    });
+
+    it('should construct ILPPreparePacket with correct fields', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      mockPacketHandler.handlePreparePacket.mockResolvedValue(createMockFulfill());
+
+      // Act - send without optional data
+      await connectorNode.sendPacket(validParams);
+
+      // Assert
+      const calls = mockPacketHandler.handlePreparePacket.mock.calls;
+      expect(calls.length).toBe(1);
+      const packet = calls[0]![0];
+      expect(packet.type).toBe(PacketType.PREPARE);
+      expect(packet.destination).toBe(validParams.destination);
+      expect(packet.amount).toBe(validParams.amount);
+      expect(packet.executionCondition).toBe(validParams.executionCondition);
+      expect(packet.expiresAt).toBe(validParams.expiresAt);
+      expect(packet.data).toEqual(Buffer.alloc(0)); // default when not provided
+    });
+
+    it('should forward custom data payload', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      mockPacketHandler.handlePreparePacket.mockResolvedValue(createMockFulfill());
+      const customData = Buffer.from('test-payload');
+
+      // Act
+      await connectorNode.sendPacket({ ...validParams, data: customData });
+
+      // Assert
+      const calls = mockPacketHandler.handlePreparePacket.mock.calls;
+      expect(calls.length).toBe(1);
+      const packet = calls[0]![0];
+      expect(packet.data).toEqual(Buffer.from('test-payload'));
+    });
+
+    it('should return T00 Reject on unexpected handlePreparePacket error', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      mockPacketHandler.handlePreparePacket.mockRejectedValue(new Error('something broke'));
+
+      // Act
+      const result = await connectorNode.sendPacket(validParams);
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((result as any).code).toBe(ILPErrorCode.T00_INTERNAL_ERROR);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((result as any).triggeredBy).toBe('connector-test');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'send_packet_error',
+          destination: validParams.destination,
+        }),
+        expect.any(String)
+      );
+    });
+
+    it('should log send_packet event', async () => {
+      // Arrange
+      await connectorNode.start();
+      jest.clearAllMocks();
+      mockPacketHandler.handlePreparePacket.mockResolvedValue(createMockFulfill());
+
+      // Act
+      await connectorNode.sendPacket(validParams);
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'send_packet',
+          destination: validParams.destination,
+          amount: validParams.amount.toString(),
+        }),
+        'Sending packet via public API'
+      );
+    });
+  });
+
   describe('getRoutingTable()', () => {
     beforeEach(() => {
       connectorNode = new ConnectorNode(testConfigPath, mockLogger);
@@ -668,6 +1025,346 @@ describe('ConnectorNode', () => {
       // Assert
       expect(routes).toEqual(expectedRoutes);
       expect(mockRoutingTable.getAllRoutes).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('admin operations', () => {
+    beforeEach(async () => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+      // Re-apply mocks after clearAllMocks
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+      ]);
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockBTPClientManager.getPeerStatus.mockReturnValue(new Map([['peerA', true]]));
+      mockBTPClientManager.isConnected.mockReturnValue(true);
+      // Start connector to enable lifecycle checks
+      await connectorNode.start();
+      jest.clearAllMocks();
+      // Re-apply mocks after second clearAllMocks
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+      ]);
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockBTPClientManager.getPeerStatus.mockReturnValue(new Map([['peerA', true]]));
+      mockBTPClientManager.isConnected.mockReturnValue(true);
+    });
+
+    // ── registerPeer() ──
+
+    it('registerPeer() adds a new peer via BTPClientManager', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']); // peerB not in list yet
+      mockBTPClientManager.isConnected.mockReturnValue(false);
+      mockRoutingTable.getAllRoutes.mockReturnValue([]);
+
+      // Act
+      const result = await connectorNode.registerPeer({
+        id: 'peerB',
+        url: 'ws://peer-b:3000',
+        authToken: 'token-b',
+      });
+
+      // Assert
+      expect(mockBTPClientManager.addPeer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'peerB',
+          url: 'ws://peer-b:3000',
+          authToken: 'token-b',
+          connected: false,
+        })
+      );
+      expect(result.id).toBe('peerB');
+    });
+
+    it('registerPeer() adds routes for new peer', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue([]); // new peer
+      mockBTPClientManager.isConnected.mockReturnValue(false);
+      mockRoutingTable.getAllRoutes.mockReturnValue([]);
+
+      // Act
+      await connectorNode.registerPeer({
+        id: 'peerB',
+        url: 'ws://peer-b:3000',
+        authToken: 'token-b',
+        routes: [{ prefix: 'g.peerB', priority: 10 }, { prefix: 'g.peerB.sub' }],
+      });
+
+      // Assert
+      expect(mockRoutingTable.addRoute).toHaveBeenCalledTimes(2);
+      expect(mockRoutingTable.addRoute).toHaveBeenCalledWith('g.peerB', 'peerB', 10);
+      expect(mockRoutingTable.addRoute).toHaveBeenCalledWith('g.peerB.sub', 'peerB', 0);
+    });
+
+    it('registerPeer() throws ConnectorNotStartedError before start()', async () => {
+      // Arrange - create fresh connector, do NOT start
+      const freshConnector = new ConnectorNode(testConfigPath, mockLogger);
+
+      // Act & Assert
+      await expect(
+        freshConnector.registerPeer({
+          id: 'peerB',
+          url: 'ws://peer-b:3000',
+          authToken: 'token-b',
+        })
+      ).rejects.toThrow(ConnectorNotStartedError);
+    });
+
+    it('registerPeer() validates URL format', async () => {
+      // Act & Assert
+      await expect(
+        connectorNode.registerPeer({
+          id: 'peerB',
+          url: 'http://invalid',
+          authToken: 'token',
+        })
+      ).rejects.toThrow('URL must start with ws:// or wss://');
+    });
+
+    it('registerPeer() handles re-registration (idempotent)', async () => {
+      // Arrange - peerA already exists
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+      ]);
+
+      // Act
+      const result = await connectorNode.registerPeer({
+        id: 'peerA',
+        url: 'ws://connector-a:3000',
+        authToken: 'secret-a',
+        routes: [{ prefix: 'g.peerA.new' }],
+      });
+
+      // Assert - addPeer NOT called (re-registration)
+      expect(mockBTPClientManager.addPeer).not.toHaveBeenCalled();
+      // But routes ARE added
+      expect(mockRoutingTable.addRoute).toHaveBeenCalledWith('g.peerA.new', 'peerA', 0);
+      expect(result.id).toBe('peerA');
+    });
+
+    it('registerPeer() validates ILP address prefix in routes', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue([]);
+
+      // Act & Assert
+      await expect(
+        connectorNode.registerPeer({
+          id: 'peerB',
+          url: 'ws://peer-b:3000',
+          authToken: 'token',
+          routes: [{ prefix: 'INVALID PREFIX!!!' }],
+        })
+      ).rejects.toThrow('Invalid ILP address prefix: INVALID PREFIX!!!');
+    });
+
+    // ── removePeer() ──
+
+    it('removePeer() disconnects and removes a peer, returns RemovePeerResult', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+      ]);
+
+      // Act
+      const result = await connectorNode.removePeer('peerA');
+
+      // Assert
+      expect(mockBTPClientManager.removePeer).toHaveBeenCalledWith('peerA');
+      expect(result.peerId).toBe('peerA');
+      expect(result.removedRoutes).toContain('g.peerA');
+    });
+
+    it('removePeer() removes associated routes when removeRoutes=true and returns prefixes', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+        { prefix: 'g.peerA.sub', nextHop: 'peerA', priority: 0 },
+        { prefix: 'g.other', nextHop: 'otherPeer', priority: 0 },
+      ]);
+
+      // Act
+      const result = await connectorNode.removePeer('peerA', true);
+
+      // Assert
+      expect(mockRoutingTable.removeRoute).toHaveBeenCalledTimes(2);
+      expect(mockRoutingTable.removeRoute).toHaveBeenCalledWith('g.peerA');
+      expect(mockRoutingTable.removeRoute).toHaveBeenCalledWith('g.peerA.sub');
+      expect(result.removedRoutes).toEqual(['g.peerA', 'g.peerA.sub']);
+    });
+
+    it('removePeer() returns empty removedRoutes when removeRoutes=false', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+
+      // Act
+      const result = await connectorNode.removePeer('peerA', false);
+
+      // Assert
+      expect(mockRoutingTable.removeRoute).not.toHaveBeenCalled();
+      expect(result.removedRoutes).toEqual([]);
+    });
+
+    it('removePeer() throws Error for non-existent peer', async () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue([]);
+
+      // Act & Assert
+      await expect(connectorNode.removePeer('unknown')).rejects.toThrow('Peer not found: unknown');
+    });
+
+    it('removePeer() throws ConnectorNotStartedError before start()', async () => {
+      // Arrange
+      const freshConnector = new ConnectorNode(testConfigPath, mockLogger);
+
+      // Act & Assert
+      await expect(freshConnector.removePeer('peerA')).rejects.toThrow(ConnectorNotStartedError);
+    });
+
+    // ── listPeers() ──
+
+    it('listPeers() returns all peers with connection status', () => {
+      // Arrange
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA', 'peerB']);
+      mockBTPClientManager.getPeerStatus.mockReturnValue(
+        new Map([
+          ['peerA', true],
+          ['peerB', false],
+        ])
+      );
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+        { prefix: 'g.peerB', nextHop: 'peerB', priority: 0 },
+        { prefix: 'g.peerB.sub', nextHop: 'peerB', priority: 5 },
+      ]);
+
+      // Act
+      const peers = connectorNode.listPeers();
+
+      // Assert
+      expect(peers).toHaveLength(2);
+
+      const peerA = peers.find((p) => p.id === 'peerA');
+      expect(peerA).toBeDefined();
+      expect(peerA!.connected).toBe(true);
+      expect(peerA!.ilpAddresses).toEqual(['g.peerA']);
+      expect(peerA!.routeCount).toBe(1);
+
+      const peerB = peers.find((p) => p.id === 'peerB');
+      expect(peerB).toBeDefined();
+      expect(peerB!.connected).toBe(false);
+      expect(peerB!.ilpAddresses).toEqual(['g.peerB', 'g.peerB.sub']);
+      expect(peerB!.routeCount).toBe(2);
+    });
+
+    // ── getBalance() ──
+
+    it('getBalance() returns balance from AccountManager', async () => {
+      // Arrange - access private _accountManager and set mock
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._accountManager = {
+        getAccountBalance: jest.fn().mockResolvedValue({
+          debitBalance: 100n,
+          creditBalance: 200n,
+          netBalance: -100n,
+        }),
+      };
+
+      // Act
+      const result = await connectorNode.getBalance('peerA', 'ILP');
+
+      // Assert
+      expect(result.peerId).toBe('peerA');
+      expect(result.balances).toHaveLength(1);
+      expect(result.balances[0]).toEqual({
+        tokenId: 'ILP',
+        debitBalance: '100',
+        creditBalance: '200',
+        netBalance: '-100',
+      });
+    });
+
+    it('getBalance() throws when account management not enabled', async () => {
+      // Arrange - ensure _accountManager is null (default)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._accountManager = null;
+
+      // Act & Assert
+      await expect(connectorNode.getBalance('peerA')).rejects.toThrow(
+        'Account management not enabled'
+      );
+    });
+
+    // ── listRoutes() ──
+
+    it('listRoutes() returns all routes from routing table', () => {
+      // Arrange
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+        { prefix: 'g.peerB', nextHop: 'peerB', priority: 5 },
+      ]);
+
+      // Act
+      const routes = connectorNode.listRoutes();
+
+      // Assert
+      expect(routes).toEqual([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+        { prefix: 'g.peerB', nextHop: 'peerB', priority: 5 },
+      ]);
+    });
+
+    // ── addRoute() ──
+
+    it('addRoute() adds route to routing table', () => {
+      // Act
+      connectorNode.addRoute({ prefix: 'g.test', nextHop: 'peerA', priority: 10 });
+
+      // Assert
+      expect(mockRoutingTable.addRoute).toHaveBeenCalledWith('g.test', 'peerA', 10);
+    });
+
+    it('addRoute() validates ILP address format', () => {
+      // Act & Assert
+      expect(() =>
+        connectorNode.addRoute({ prefix: 'INVALID!!!', nextHop: 'peerA', priority: 0 })
+      ).toThrow('Invalid ILP address prefix: INVALID!!!');
+    });
+
+    it('addRoute() validates nextHop is not empty', () => {
+      // Act & Assert
+      expect(() => connectorNode.addRoute({ prefix: 'g.test', nextHop: '', priority: 0 })).toThrow(
+        'Missing or invalid nextHop'
+      );
+    });
+
+    // ── removeRoute() ──
+
+    it('removeRoute() removes route from routing table', () => {
+      // Arrange
+      mockRoutingTable.getAllRoutes.mockReturnValue([
+        { prefix: 'g.peerA', nextHop: 'peerA', priority: 0 },
+      ]);
+
+      // Act
+      connectorNode.removeRoute('g.peerA');
+
+      // Assert
+      expect(mockRoutingTable.removeRoute).toHaveBeenCalledWith('g.peerA');
+    });
+
+    it('removeRoute() throws Error for non-existent route', () => {
+      // Arrange
+      mockRoutingTable.getAllRoutes.mockReturnValue([]);
+
+      // Act & Assert
+      expect(() => connectorNode.removeRoute('g.nonexistent')).toThrow(
+        'Route not found: g.nonexistent'
+      );
     });
   });
 });

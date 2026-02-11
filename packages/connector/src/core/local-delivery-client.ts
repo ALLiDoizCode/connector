@@ -14,47 +14,10 @@ import {
   PacketType,
   ILPErrorCode,
 } from '@agent-runtime/shared';
-import { LocalDeliveryConfig } from '../config/types';
+import { LocalDeliveryConfig, LocalDeliveryRequest, LocalDeliveryResponse } from '../config/types';
 
-/**
- * Request sent to agent runtime for local delivery.
- */
-export interface LocalDeliveryRequest {
-  /** Full ILP destination address */
-  destination: string;
-  /** Amount in smallest unit (as string for precision) */
-  amount: string;
-  /** Execution condition (base64-encoded 32-byte hash) */
-  executionCondition: string;
-  /** ISO 8601 expiration timestamp */
-  expiresAt: string;
-  /** Prepare packet data (base64) */
-  data: string;
-  /** Peer that sent this packet */
-  sourcePeer: string;
-}
-
-/**
- * Response from agent runtime.
- */
-export interface LocalDeliveryResponse {
-  /** Fulfill response (mutually exclusive with reject) */
-  fulfill?: {
-    /** Fulfillment preimage (base64-encoded 32-byte value) */
-    fulfillment: string;
-    /** Optional response data (base64) */
-    data?: string;
-  };
-  /** Reject response (mutually exclusive with fulfill) */
-  reject?: {
-    /** ILP error code (F00-F99, T00-T99, R00-R99) */
-    code: string;
-    /** Human-readable error message */
-    message: string;
-    /** Optional error data (base64) */
-    data?: string;
-  };
-}
+// Re-export for backward compatibility
+export type { LocalDeliveryRequest, LocalDeliveryResponse } from '../config/types';
 
 /**
  * Default configuration values.

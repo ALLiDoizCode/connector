@@ -1543,6 +1543,139 @@ export interface LocalDeliveryConfig {
  *   apiKey: ${ADMIN_API_KEY}  # From environment variable
  * ```
  */
+/**
+ * Request sent to agent runtime for local delivery.
+ */
+export interface LocalDeliveryRequest {
+  /** Full ILP destination address */
+  destination: string;
+  /** Amount in smallest unit (as string for precision) */
+  amount: string;
+  /** Execution condition (base64-encoded 32-byte hash) */
+  executionCondition: string;
+  /** ISO 8601 expiration timestamp */
+  expiresAt: string;
+  /** Prepare packet data (base64) */
+  data: string;
+  /** Peer that sent this packet */
+  sourcePeer: string;
+}
+
+/**
+ * Response from agent runtime.
+ */
+export interface LocalDeliveryResponse {
+  /** Fulfill response (mutually exclusive with reject) */
+  fulfill?: {
+    /** Fulfillment preimage (base64-encoded 32-byte value) */
+    fulfillment: string;
+    /** Optional response data (base64) */
+    data?: string;
+  };
+  /** Reject response (mutually exclusive with fulfill) */
+  reject?: {
+    /** ILP error code (F00-F99, T00-T99, R00-R99) */
+    code: string;
+    /** Human-readable error message */
+    message: string;
+    /** Optional error data (base64) */
+    data?: string;
+  };
+}
+
+/**
+ * Function handler type for in-process local packet delivery.
+ * Bypasses HTTP LocalDeliveryClient when the connector is embedded as a library.
+ * Register via `ConnectorNode.setLocalDeliveryHandler()`.
+ */
+export type LocalDeliveryHandler = (
+  packet: LocalDeliveryRequest,
+  sourcePeerId: string
+) => Promise<LocalDeliveryResponse>;
+
+/**
+ * Parameters for sending an ILP Prepare packet via ConnectorNode.sendPacket().
+ * Flat params object that maps to ILPPreparePacket fields without requiring
+ * callers to construct the full packet type.
+ */
+export interface SendPacketParams {
+  /** ILP destination address (RFC-0015 format) */
+  destination: string;
+  /** Transfer amount in smallest currency unit */
+  amount: bigint;
+  /** 32-byte SHA-256 execution condition */
+  executionCondition: Buffer;
+  /** Packet expiration timestamp */
+  expiresAt: Date;
+  /** Optional application data payload */
+  data?: Buffer;
+}
+
+/** Re-export AdminSettlementConfig for use in PeerRegistrationRequest */
+import type { AdminSettlementConfig } from '../settlement/types';
+
+/** Request for registering a peer via ConnectorNode.registerPeer() */
+export interface PeerRegistrationRequest {
+  /** Unique peer identifier */
+  id: string;
+  /** WebSocket URL for BTP connection (e.g., ws://peer:3000) */
+  url: string;
+  /** Authentication token for BTP handshake */
+  authToken: string;
+  /** Optional routes to add for this peer */
+  routes?: Array<{
+    /** ILP address prefix */
+    prefix: string;
+    /** Route priority (higher wins, default: 0) */
+    priority?: number;
+  }>;
+  /** Optional settlement configuration */
+  settlement?: AdminSettlementConfig;
+}
+
+/** Response from ConnectorNode.registerPeer() and listPeers() */
+export interface PeerInfo {
+  /** Peer identifier */
+  id: string;
+  /** Whether BTP connection is active */
+  connected: boolean;
+  /** ILP addresses routed through this peer */
+  ilpAddresses: string[];
+  /** Number of routes for this peer */
+  routeCount: number;
+  /** Settlement config if configured */
+  settlement?: Record<string, unknown>;
+}
+
+/** Response from ConnectorNode.getBalance() */
+export interface PeerAccountBalance {
+  peerId: string;
+  balances: Array<{
+    tokenId: string;
+    debitBalance: string;
+    creditBalance: string;
+    netBalance: string;
+  }>;
+}
+
+/** Route configuration for ConnectorNode.addRoute() / removeRoute() / listRoutes() */
+export interface RouteInfo {
+  /** ILP address prefix */
+  prefix: string;
+  /** Peer ID to forward packets to */
+  nextHop: string;
+  /** Route priority (higher wins, default: 0) */
+  priority: number;
+}
+
+/** Result from ConnectorNode.removePeer() */
+export interface RemovePeerResult {
+  /** Peer ID that was removed */
+  peerId: string;
+  /** ILP address prefixes of routes that were removed (empty if removeRoutes=false) */
+  removedRoutes: string[];
+}
+
 export interface AdminApiConfig {
   /**
    * Enable/disable admin API

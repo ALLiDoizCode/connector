@@ -19,6 +19,11 @@ import {
   XRPLBlockchainConfig,
   Environment,
   ExplorerConfig,
+  SettlementConfig,
+  SecurityConfig,
+  PerformanceConfig,
+  AdminApiConfig,
+  LocalDeliveryConfig,
 } from './types';
 import { validateEnvironment } from './environment-validator';
 
@@ -42,6 +47,16 @@ export class ConfigurationError extends Error {
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ConfigurationError);
     }
+  }
+}
+
+/**
+ * Error thrown when sendPacket() is called before the connector has been started.
+ */
+export class ConnectorNotStartedError extends Error {
+  constructor(message: string = 'Connector is not started. Call start() before sendPacket().') {
+    super(message);
+    this.name = 'ConnectorNotStartedError';
   }
 }
 
@@ -110,10 +125,47 @@ export class ConfigLoader {
       throw new ConfigurationError('Configuration must be a YAML object');
     }
 
-    // Type assertion after validation
-    const rawConfig = config as Record<string, unknown>;
+    // Step 3: Validate and assemble configuration
+    return this.validateConfig(config);
+  }
 
-    // Step 3: Validate configuration
+  /**
+   * Validate and Normalize Configuration Object
+   *
+   * Validates an untrusted configuration object and returns a normalized
+   * `ConnectorConfig`. This method performs all field validation, applies
+   * defaults, and loads environment-derived fields (environment, blockchain,
+   * explorer) from process environment variables.
+   *
+   * **Environment field handling:** The `environment`, `blockchain`, and
+   * `explorer` fields are always derived from process environment variables
+   * (`ENVIRONMENT`, `BASE_ENABLED`/`XRPL_ENABLED`, `EXPLORER_*`), regardless
+   * of whether the input object includes them. Any values provided for these
+   * fields in the input are silently overridden.
+   *
+   * @param raw - Untrusted configuration input to validate
+   * @returns Validated and normalized ConnectorConfig object
+   * @throws ConfigurationError if validation fails
+   *
+   * @example
+   * ```typescript
+   * const config = ConfigLoader.validateConfig({
+   *   nodeId: 'my-connector',
+   *   btpServerPort: 3000,
+   *   peers: [{ id: 'peer1', url: 'ws://peer1:3001', authToken: 'secret' }],
+   *   routes: [{ prefix: 'g.peer1', nextHop: 'peer1' }],
+   * });
+   * ```
+   */
+  static validateConfig(raw: unknown): ConnectorConfig {
+    // Ensure we have an object
+    if (!raw || typeof raw !== 'object') {
+      throw new ConfigurationError('Configuration must be a YAML object');
+    }
+
+    const rawConfig = raw as Record<string, unknown>;
+
+    // Validate required fields and structure
     this.validateRequiredFields(rawConfig);
     this.validatePeers(rawConfig.peers as PeerConfig[]);
     this.validateRoutes(rawConfig.routes as RouteConfig[], rawConfig.peers as PeerConfig[]);
@@ -132,7 +184,7 @@ export class ConfigLoader {
     // Load explorer configuration from environment variables
     const explorer = this.loadExplorerConfig(btpServerPort, healthCheckPort);
 
-    // Apply default values for optional fields
+    // Apply default values for optional fields and pass through all optional config
     const connectorConfig: ConnectorConfig = {
       nodeId: rawConfig.nodeId as string,
       btpServerPort,
@@ -144,6 +196,15 @@ export class ConfigLoader {
       environment,
       blockchain,
       explorer,
+      // Pass through optional fields from input object
+      settlement: rawConfig.settlement as SettlementConfig | undefined,
+      security: rawConfig.security as SecurityConfig | undefined,
+      performance: rawConfig.performance as PerformanceConfig | undefined,
+      adminApi: rawConfig.adminApi as AdminApiConfig | undefined,
+      localDelivery: rawConfig.localDelivery as LocalDeliveryConfig | undefined,
+      mode: rawConfig.mode as 'connector' | 'gateway' | undefined,
+      firstHopUrl: rawConfig.firstHopUrl as string | undefined,
+      btpAuthToken: rawConfig.btpAuthToken as string | undefined,
     };
 
     // Validate environment configuration

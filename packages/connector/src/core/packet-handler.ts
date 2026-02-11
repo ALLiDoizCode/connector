@@ -19,7 +19,13 @@ import { BTPServer } from '../btp/btp-server';
 import { BTPConnectionError, BTPAuthenticationError } from '../btp/btp-client';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { AccountManager } from '../settlement/account-manager';
-import { SettlementConfig, LocalDeliveryConfig } from '../config/types';
+import {
+  SettlementConfig,
+  LocalDeliveryConfig,
+  LocalDeliveryHandler,
+  LocalDeliveryRequest,
+  LocalDeliveryResponse,
+} from '../config/types';
 import { AccountLedgerCodes } from '../settlement/types';
 import { EventStore } from '../explorer/event-store';
 import { EventBroadcaster } from '../explorer/event-broadcaster';
@@ -119,12 +125,20 @@ export class PacketHandler {
   private settlementConfig: SettlementConfig | null;
 
   /**
-   * Local delivery client for forwarding to agent runtime (optional)
+   * Local delivery client for forwarding to agent runtime via HTTP (optional)
    * @remarks
    * When enabled, packets destined for local addresses are forwarded
    * via HTTP to an external agent runtime instead of auto-fulfilling.
    */
   private localDeliveryClient: LocalDeliveryClient | null = null;
+
+  /**
+   * Function handler for in-process local delivery (optional)
+   * @remarks
+   * When set, takes priority over HTTP LocalDeliveryClient. Allows
+   * direct in-process packet delivery without HTTP round-trip.
+   */
+  private localDeliveryHandler: LocalDeliveryHandler | null = null;
 
   /**
    * Creates a new PacketHandler instance
@@ -255,6 +269,19 @@ export class PacketHandler {
       this.localDeliveryClient = null;
       this.logger.info('Local delivery forwarding disabled (using auto-fulfill stub)');
     }
+  }
+
+  /**
+   * Set or clear the in-process local delivery function handler.
+   * When set, takes priority over HTTP LocalDeliveryClient.
+   * @param handler - Function handler or null to clear
+   */
+  setLocalDeliveryHandler(handler: LocalDeliveryHandler | null): void {
+    this.localDeliveryHandler = handler;
+    this.logger.info(
+      { event: 'local_delivery_handler_set', hasHandler: handler !== null },
+      'Local delivery function handler updated'
+    );
   }
 
   /**
@@ -620,6 +647,36 @@ export class PacketHandler {
   }
 
   /**
+   * Convert LocalDeliveryResponse to ILP packet.
+   * Handles fulfill, reject, and invalid (neither) cases.
+   */
+  private convertLocalDeliveryResponse(
+    result: LocalDeliveryResponse
+  ): ILPFulfillPacket | ILPRejectPacket {
+    if (result.fulfill) {
+      return {
+        type: PacketType.FULFILL,
+        fulfillment: Buffer.from(result.fulfill.fulfillment, 'base64'),
+        data: result.fulfill.data ? Buffer.from(result.fulfill.data, 'base64') : Buffer.alloc(0),
+      };
+    } else if (result.reject) {
+      return {
+        type: PacketType.REJECT,
+        code: (result.reject.code as ILPErrorCode) || ILPErrorCode.F99_APPLICATION_ERROR,
+        triggeredBy: this.nodeId,
+        message: result.reject.message || 'Rejected by agent',
+        data: result.reject.data ? Buffer.from(result.reject.data, 'base64') : Buffer.alloc(0),
+      };
+    } else {
+      return this.generateReject(
+        ILPErrorCode.T00_INTERNAL_ERROR,
+        'Invalid response from local delivery handler',
+        this.nodeId
+      );
+    }
+  }
+
+  /**
    * Forward packet to next-hop peer via BTP
    * @param packet - ILP Prepare packet to forward
    * @param nextHop - Peer identifier to forward to
@@ -899,7 +956,29 @@ export class PacketHandler {
         'Delivering packet locally'
       );
 
-      // If local delivery client is enabled, forward to agent runtime
+      // Check for function handler first (in-process delivery, no HTTP)
+      if (this.localDeliveryHandler) {
+        const request: LocalDeliveryRequest = {
+          destination: packet.destination,
+          amount: packet.amount.toString(),
+          executionCondition: packet.executionCondition.toString('base64'),
+          expiresAt: packet.expiresAt.toISOString(),
+          data: packet.data.toString('base64'),
+          sourcePeer: sourcePeerId,
+        };
+        try {
+          const result = await this.localDeliveryHandler(request, sourcePeerId);
+          return this.convertLocalDeliveryResponse(result);
+        } catch (error) {
+          return this.generateReject(
+            ILPErrorCode.T00_INTERNAL_ERROR,
+            `Local delivery handler error: ${error instanceof Error ? error.message : String(error)}`,
+            this.nodeId
+          );
+        }
+      }
+
+      // If local delivery client is enabled, forward to agent runtime via HTTP
       if (this.isLocalDeliveryEnabled() && this.localDeliveryClient) {
         this.logger.debug(
           { correlationId, destination: packet.destination },
