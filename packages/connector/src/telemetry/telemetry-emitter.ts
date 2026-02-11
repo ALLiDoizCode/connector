@@ -233,7 +233,10 @@ export class TelemetryEmitter {
       if (this._ws.readyState === WebSocket.OPEN) {
         this._ws.close();
       } else if (this._ws.readyState === WebSocket.CONNECTING) {
-        // Terminate forcibly if still connecting to avoid "closed before established" error
+        // Suppress the expected "WebSocket was closed before the connection
+        // was established" error that fires when terminating a connecting socket
+        this._ws.removeAllListeners('error');
+        this._ws.on('error', () => {});
         this._ws.terminate();
       }
       // If CLOSING or CLOSED, no action needed
