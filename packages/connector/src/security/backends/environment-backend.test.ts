@@ -36,18 +36,24 @@ describe('EnvironmentVariableBackend', () => {
       expect(backend).toBeDefined();
     });
 
-    it('should throw error for invalid EVM_PRIVATE_KEY', () => {
+    it('should throw error for invalid EVM_PRIVATE_KEY on first use', async () => {
       process.env.EVM_PRIVATE_KEY = 'invalid-private-key';
 
-      expect(() => new EnvironmentVariableBackend(logger)).toThrow(
+      const backend = new EnvironmentVariableBackend(logger);
+
+      // Validation is deferred until first wallet use
+      await expect(backend.getPublicKey('evm-key')).rejects.toThrow(
         'Invalid EVM_PRIVATE_KEY in environment'
       );
     });
 
-    it('should throw error for invalid XRP_SEED', () => {
+    it('should throw error for invalid XRP_SEED on first use', async () => {
       process.env.XRP_SEED = 'invalid-seed';
 
-      expect(() => new EnvironmentVariableBackend(logger)).toThrow(
+      const backend = new EnvironmentVariableBackend(logger);
+
+      // Validation is deferred until first wallet use
+      await expect(backend.getPublicKey('xrp-key')).rejects.toThrow(
         'Invalid XRP_SEED in environment'
       );
     });

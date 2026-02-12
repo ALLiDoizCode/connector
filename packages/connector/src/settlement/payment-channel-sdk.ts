@@ -7,7 +7,7 @@
  * querying on-chain state, and listening to on-chain events.
  */
 
-import { ethers } from 'ethers';
+import type { Provider, Signer, Contract, Listener, Log, LogDescription, EventLog } from 'ethers';
 import type {
   ChannelState,
   BalanceProof,
@@ -19,8 +19,9 @@ import type {
 import { getDomainSeparator, getBalanceProofTypes } from './eip712-helper';
 import type { Logger } from '../utils/logger';
 import type { KeyManager } from '../security/key-manager';
-import { KeyManagerSigner } from '../security/key-manager-signer';
+import { createKeyManagerSigner } from '../security/key-manager-signer';
 import type { EVMRPCConnectionPool } from '../utils/evm-rpc-connection-pool';
+import { requireOptional } from '../utils/optional-require';
 
 // TokenNetworkRegistry ABI - only methods we need
 const REGISTRY_ABI = [
@@ -70,15 +71,17 @@ export class ChallengeNotExpiredError extends Error {
  * Manages off-chain payment channel operations with on-chain TokenNetwork contracts
  */
 export class PaymentChannelSDK {
-  private provider: ethers.Provider;
-  private signer: ethers.Signer;
+  private provider: Provider;
+  private signer: Signer | null = null;
   private keyManager: KeyManager;
   private evmKeyId: string;
-  private registryContract: ethers.Contract;
-  private tokenNetworkCache: Map<string, ethers.Contract>; // token address → TokenNetwork contract
+  private registryAddress: string;
+  private registryContract: Contract | null = null;
+  private tokenNetworkCache: Map<string, Contract>; // token address → TokenNetwork contract
   private channelStateCache: Map<string, ChannelState>; // channelId → channel state
   private logger: Logger;
-  private eventListeners: Map<string, Array<ethers.Listener>>; // Track event listeners for cleanup
+  private eventListeners: Map<string, Array<Listener>>; // Track event listeners for cleanup
+  private _initPromise: Promise<void> | null = null;
 
   /**
    * Create a new PaymentChannelSDK instance
@@ -90,7 +93,7 @@ export class PaymentChannelSDK {
    * @param logger - Pino logger instance
    */
   constructor(
-    provider: ethers.Provider,
+    provider: Provider,
     keyManager: KeyManager,
     evmKeyId: string,
     registryAddress: string,
@@ -99,15 +102,55 @@ export class PaymentChannelSDK {
     this.provider = provider;
     this.keyManager = keyManager;
     this.evmKeyId = evmKeyId;
-
-    // Create KeyManager-backed signer for transaction signing
-    this.signer = new KeyManagerSigner(keyManager, evmKeyId, provider);
-
-    this.registryContract = new ethers.Contract(registryAddress, REGISTRY_ABI, this.signer);
+    this.registryAddress = registryAddress;
     this.tokenNetworkCache = new Map();
     this.channelStateCache = new Map();
     this.logger = logger;
     this.eventListeners = new Map();
+  }
+
+  /**
+   * Lazily initialize signer and registry contract (requires async ethers import)
+   */
+  private async _ensureInitialized(): Promise<{
+    signer: Signer;
+    registryContract: Contract;
+    ethers: (typeof import('ethers'))['ethers'];
+  }> {
+    if (this.signer && this.registryContract) {
+      const ethersModule = await requireOptional<typeof import('ethers')>(
+        'ethers',
+        'EVM settlement'
+      );
+      return {
+        signer: this.signer,
+        registryContract: this.registryContract,
+        ethers: ethersModule.ethers,
+      };
+    }
+
+    if (!this._initPromise) {
+      this._initPromise = (async () => {
+        const { ethers: ethersNs } = await requireOptional<typeof import('ethers')>(
+          'ethers',
+          'EVM settlement'
+        );
+        this.signer = await createKeyManagerSigner(this.keyManager, this.evmKeyId, this.provider);
+        this.registryContract = new ethersNs.Contract(
+          this.registryAddress,
+          REGISTRY_ABI,
+          this.signer
+        );
+      })();
+    }
+
+    await this._initPromise;
+    const ethersModule = await requireOptional<typeof import('ethers')>('ethers', 'EVM settlement');
+    return {
+      signer: this.signer!,
+      registryContract: this.registryContract!,
+      ethers: ethersModule.ethers,
+    };
   }
 
   /**
@@ -139,7 +182,13 @@ export class PaymentChannelSDK {
     }
 
     logger.info('Creating PaymentChannelSDK from connection pool');
-    return new PaymentChannelSDK(provider, keyManager, evmKeyId, registryAddress, logger);
+    return new PaymentChannelSDK(
+      provider as Provider,
+      keyManager,
+      evmKeyId,
+      registryAddress,
+      logger
+    );
   }
 
   /**
@@ -149,20 +198,22 @@ export class PaymentChannelSDK {
    * @param tokenAddress - ERC20 token address
    * @returns TokenNetwork contract instance
    */
-  private async getTokenNetworkContract(tokenAddress: string): Promise<ethers.Contract> {
+  private async getTokenNetworkContract(tokenAddress: string): Promise<Contract> {
     // Check cache first
     if (this.tokenNetworkCache.has(tokenAddress)) {
       return this.tokenNetworkCache.get(tokenAddress)!;
     }
 
+    const { signer, registryContract, ethers } = await this._ensureInitialized();
+
     // Query registry for TokenNetwork address
-    const networkAddress = await this.registryContract.getTokenNetwork!(tokenAddress);
+    const networkAddress = await registryContract.getTokenNetwork!(tokenAddress);
     if (networkAddress === ethers.ZeroAddress) {
       throw new Error(`No TokenNetwork found for token ${tokenAddress}`);
     }
 
     // Create contract instance and cache it
-    const tokenNetwork = new ethers.Contract(networkAddress, TOKEN_NETWORK_ABI, this.signer);
+    const tokenNetwork = new ethers.Contract(networkAddress, TOKEN_NETWORK_ABI, signer);
     this.tokenNetworkCache.set(tokenAddress, tokenNetwork);
 
     this.logger.debug('TokenNetwork contract cached', { tokenAddress, networkAddress });
@@ -188,7 +239,8 @@ export class PaymentChannelSDK {
    * @returns Ethereum address of the signer
    */
   async getSignerAddress(): Promise<string> {
-    return await this.signer.getAddress();
+    const { signer } = await this._ensureInitialized();
+    return await signer.getAddress();
   }
 
   /**
@@ -221,7 +273,7 @@ export class PaymentChannelSDK {
 
     // Parse ChannelOpened event to extract channelId
     const channelOpenedEvent = receipt.logs
-      .map((log: ethers.Log) => {
+      .map((log: Log) => {
         try {
           return tokenNetwork.interface.parseLog({
             topics: log.topics as string[],
@@ -231,7 +283,7 @@ export class PaymentChannelSDK {
           return null;
         }
       })
-      .find((parsed: ethers.LogDescription | null) => parsed?.name === 'ChannelOpened');
+      .find((parsed: LogDescription | null) => parsed?.name === 'ChannelOpened');
 
     if (!channelOpenedEvent) {
       throw new Error('ChannelOpened event not found in transaction receipt');
@@ -284,8 +336,9 @@ export class PaymentChannelSDK {
    * @param amount - Amount to deposit
    */
   async deposit(channelId: string, tokenAddress: string, amount: bigint): Promise<void> {
+    const { signer, ethers } = await this._ensureInitialized();
     const tokenNetwork = await this.getTokenNetworkContract(tokenAddress);
-    const myAddress = await this.signer.getAddress();
+    const myAddress = await signer.getAddress();
 
     // Get current channel state
     const state = await this.getChannelState(channelId, tokenAddress);
@@ -299,7 +352,7 @@ export class PaymentChannelSDK {
 
     // Check current allowance and approve if needed
     // Use max uint256 approval to avoid repeated approvals for each deposit
-    const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer);
+    const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
     const tokenNetworkAddress = await tokenNetwork.getAddress();
     const currentAllowance = (await token.allowance!(myAddress, tokenNetworkAddress)) as bigint;
 
@@ -363,8 +416,11 @@ export class PaymentChannelSDK {
     nonce: number,
     transferredAmount: bigint,
     lockedAmount: bigint = 0n,
-    locksRoot: string = ethers.ZeroHash
+    locksRoot?: string
   ): Promise<string> {
+    const { ethers } = await this._ensureInitialized();
+    const resolvedLocksRoot = locksRoot ?? ethers.ZeroHash;
+
     // Determine which TokenNetwork this channel belongs to by querying all cached networks
     let tokenNetworkAddress: string | undefined;
     for (const [, contract] of this.tokenNetworkCache) {
@@ -399,7 +455,7 @@ export class PaymentChannelSDK {
       nonce,
       transferredAmount,
       lockedAmount,
-      locksRoot,
+      locksRoot: resolvedLocksRoot,
     };
 
     // Create EIP-712 hash
@@ -437,6 +493,8 @@ export class PaymentChannelSDK {
     expectedSigner: string
   ): Promise<boolean> {
     try {
+      const { ethers } = await this._ensureInitialized();
+
       // Determine TokenNetwork address for this channel
       let tokenNetworkAddress: string | undefined;
       for (const [, contract] of this.tokenNetworkCache) {
@@ -636,8 +694,9 @@ export class PaymentChannelSDK {
     }
 
     // Query on-chain state
+    const { signer } = await this._ensureInitialized();
     const tokenNetwork = await this.getTokenNetworkContract(tokenAddress);
-    const myAddress = await this.signer.getAddress();
+    const myAddress = await signer.getAddress();
 
     // Query channel info
     const channelData = await tokenNetwork.channels!(channelId);
@@ -694,8 +753,9 @@ export class PaymentChannelSDK {
    * @returns Array of channel IDs
    */
   async getMyChannels(tokenAddress: string): Promise<string[]> {
+    const { signer } = await this._ensureInitialized();
     const tokenNetwork = await this.getTokenNetworkContract(tokenAddress);
-    const myAddress = await this.signer.getAddress();
+    const myAddress = await signer.getAddress();
 
     // Query all ChannelOpened events
     const filter = tokenNetwork.filters.ChannelOpened!();
@@ -704,7 +764,7 @@ export class PaymentChannelSDK {
     // Filter events where I am a participant
     const myChannels = events
       .filter((event) => {
-        const eventLog = event as ethers.EventLog;
+        const eventLog = event as EventLog;
         const participant1 = eventLog.args[1] as string;
         const participant2 = eventLog.args[2] as string;
         return (
@@ -713,7 +773,7 @@ export class PaymentChannelSDK {
         );
       })
       .map((event) => {
-        const eventLog = event as ethers.EventLog;
+        const eventLog = event as EventLog;
         return eventLog.args[0] as string;
       });
 

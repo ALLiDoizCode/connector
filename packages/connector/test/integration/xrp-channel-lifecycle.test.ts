@@ -78,7 +78,7 @@ describeIfLocal('XRP Channel Lifecycle Integration', () => {
     }
 
     logger = pino({ level: 'info' });
-  });
+  }, 15_000);
 
   beforeEach(async () => {
     if (!rippledAvailable) {

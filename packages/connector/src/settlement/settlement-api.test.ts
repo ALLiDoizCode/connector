@@ -56,14 +56,14 @@ describe('Settlement API', () => {
   });
 
   describe('POST /settlement/execute - Request Validation', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: SettlementAPIConfig = {
         accountManager: mockAccountManager,
         settlementMonitor: mockSettlementMonitor,
         logger,
         authToken: undefined, // No auth for validation tests
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
     });
 
     test('should return 400 if peerId missing', async () => {
@@ -169,14 +169,14 @@ describe('Settlement API', () => {
   });
 
   describe('GET /settlement/status/:peerId - Status Endpoint', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: SettlementAPIConfig = {
         accountManager: mockAccountManager,
         settlementMonitor: mockSettlementMonitor,
         logger,
         authToken: undefined,
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
     });
 
     test('should return current balance and state', async () => {
@@ -246,7 +246,7 @@ describe('Settlement API', () => {
         logger,
         authToken: 'test-secret',
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
 
       // Mock successful settlement
       mockAccountManager.getAccountBalance.mockResolvedValueOnce({
@@ -277,7 +277,7 @@ describe('Settlement API', () => {
         logger,
         authToken: 'test-secret',
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
 
       const response = await request(app)
         .post('/settlement/execute')
@@ -294,7 +294,7 @@ describe('Settlement API', () => {
         logger,
         authToken: 'test-secret',
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
 
       const response = await request(app)
         .post('/settlement/execute')
@@ -312,7 +312,7 @@ describe('Settlement API', () => {
         logger,
         authToken: 'test-secret',
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
 
       const response = await request(app)
         .post('/settlement/execute')
@@ -330,7 +330,7 @@ describe('Settlement API', () => {
         logger,
         authToken: undefined, // No auth token
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
 
       // Mock successful settlement
       mockAccountManager.getAccountBalance.mockResolvedValueOnce({
@@ -360,7 +360,7 @@ describe('Settlement API', () => {
         logger,
         authToken: '', // Empty string
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
 
       // Mock successful settlement
       mockAccountManager.getAccountBalance.mockResolvedValueOnce({
@@ -385,14 +385,14 @@ describe('Settlement API', () => {
   });
 
   describe('Mock Settlement Execution', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: SettlementAPIConfig = {
         accountManager: mockAccountManager,
         settlementMonitor: mockSettlementMonitor,
         logger,
         authToken: undefined,
       };
-      app.use(createSettlementRouter(config));
+      app.use(await createSettlementRouter(config));
     });
 
     test('should reduce balance to zero after settlement', async () => {
@@ -493,7 +493,7 @@ describe('Settlement API', () => {
   });
 
   describe('Automatic Settlement Integration', () => {
-    test('should listen for SETTLEMENT_REQUIRED events', () => {
+    test('should listen for SETTLEMENT_REQUIRED events', async () => {
       const config: SettlementAPIConfig = {
         accountManager: mockAccountManager,
         settlementMonitor: mockSettlementMonitor,
@@ -501,7 +501,7 @@ describe('Settlement API', () => {
         authToken: undefined,
       };
 
-      createSettlementRouter(config);
+      await createSettlementRouter(config);
 
       // Verify event listener attached
       expect(mockSettlementMonitor.on).toHaveBeenCalledWith(

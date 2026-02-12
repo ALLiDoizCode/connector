@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-export const version = '0.1.0';
+export const version = '1.0.0';
 
 // ILP Type Definitions (RFC-0027, RFC-0015)
 export {

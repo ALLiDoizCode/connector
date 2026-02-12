@@ -162,7 +162,7 @@ export interface IAptosChannelSDK {
    * @param amount - Cumulative amount to claim in octas
    * @returns AptosClaim with signature
    */
-  signClaim(channelOwner: string, amount: bigint): AptosClaim;
+  signClaim(channelOwner: string, amount: bigint): Promise<AptosClaim>;
 
   /**
    * Verify a received claim
@@ -172,7 +172,7 @@ export interface IAptosChannelSDK {
    * @param claim - AptosClaim to verify
    * @returns true if claim is valid
    */
-  verifyClaim(claim: AptosClaim): boolean;
+  verifyClaim(claim: AptosClaim): Promise<boolean>;
 
   /**
    * Submit claim to chain for redemption
@@ -495,7 +495,7 @@ export class AptosChannelSDK implements IAptosChannelSDK {
   // Claim Operations
   // --------------------------------------------------------------------------
 
-  signClaim(channelOwner: string, amount: bigint): AptosClaim {
+  async signClaim(channelOwner: string, amount: bigint): Promise<AptosClaim> {
     const normalizedOwner = this.normalizeAddress(channelOwner);
 
     // Get highest nonce from claim signer and auto-increment
@@ -511,7 +511,7 @@ export class AptosChannelSDK implements IAptosChannelSDK {
     return this._claimSigner.signClaim(normalizedOwner, amount, newNonce);
   }
 
-  verifyClaim(claim: AptosClaim): boolean {
+  async verifyClaim(claim: AptosClaim): Promise<boolean> {
     this._logger.debug(
       {
         channelOwner: claim.channelOwner,
@@ -522,7 +522,7 @@ export class AptosChannelSDK implements IAptosChannelSDK {
     );
 
     // Delegate to claim signer with extracted parameters
-    const result = this._claimSigner.verifyClaim(
+    const result = await this._claimSigner.verifyClaim(
       claim.channelOwner,
       claim.amount,
       claim.nonce,
@@ -802,7 +802,7 @@ export class AptosChannelSDK implements IAptosChannelSDK {
  * @returns Configured AptosChannelSDK
  * @throws Error if required environment variables are not set
  */
-export function createAptosChannelSDKFromEnv(logger: Logger): AptosChannelSDK {
+export async function createAptosChannelSDKFromEnv(logger: Logger): Promise<AptosChannelSDK> {
   const moduleAddress = process.env.APTOS_MODULE_ADDRESS;
 
   if (!moduleAddress) {
@@ -810,8 +810,8 @@ export function createAptosChannelSDKFromEnv(logger: Logger): AptosChannelSDK {
   }
 
   // Create dependencies
-  const aptosClient = createAptosClientFromEnv(logger);
-  const claimSigner = createAptosClaimSignerFromEnv(logger);
+  const aptosClient = await createAptosClientFromEnv(logger);
+  const claimSigner = await createAptosClaimSignerFromEnv(logger);
 
   // Build SDK config
   const config: AptosChannelSDKConfig = {

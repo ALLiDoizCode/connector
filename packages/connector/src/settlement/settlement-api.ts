@@ -27,9 +27,9 @@
  * @packageDocumentation
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
-import express from 'express';
+import type { Router, Request, Response, NextFunction } from 'express';
 import type { Logger } from 'pino';
+import { requireOptional } from '../utils/optional-require';
 import type { AccountManager } from './account-manager';
 import type { SettlementMonitor } from './settlement-monitor';
 import { SettlementState, SettlementTriggerEvent } from '../config/types';
@@ -505,8 +505,12 @@ function createAuthMiddleware(
  * // GET http://localhost:8080/settlement/status/peer-a
  * ```
  */
-export function createSettlementRouter(config: SettlementAPIConfig): Router {
-  const router = Router();
+export async function createSettlementRouter(config: SettlementAPIConfig): Promise<Router> {
+  const { default: express } = await requireOptional<{ default: typeof import('express') }>(
+    'express',
+    'HTTP admin/health APIs'
+  );
+  const router = express.Router();
   const logger = config.logger.child({ component: 'settlement-api' });
 
   // Add JSON body parser middleware

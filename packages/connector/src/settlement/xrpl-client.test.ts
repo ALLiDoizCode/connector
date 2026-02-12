@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-var-requires */
 
 import { XRPLClient, XRPLClientConfig, XRPLError, XRPLErrorCode } from './xrpl-client';
 import { Client, Wallet } from 'xrpl';
@@ -13,11 +13,35 @@ jest.mock('xrpl', () => ({
   verifyPaymentChannelClaim: jest.fn(),
 }));
 
+// Mock requireOptional to return the mocked xrpl module
+jest.mock('../utils/optional-require', () => ({
+  requireOptional: jest.fn().mockImplementation(() => {
+    const xrpl = require('xrpl');
+    return Promise.resolve(xrpl);
+  }),
+}));
+
 describe('XRPLClient', () => {
   let client: XRPLClient;
   let mockLogger: jest.Mocked<Logger>;
   let mockXrplClient: jest.Mocked<Client>;
   let mockWallet: jest.Mocked<Wallet>;
+
+  /** Helper: call connect() to trigger lazy initialization of Client + Wallet */
+  async function initializeClient(): Promise<void> {
+    mockXrplClient.request.mockResolvedValueOnce({
+      id: 1,
+      type: 'response',
+      result: {
+        account_data: {
+          Balance: '10000000000',
+          Sequence: 1,
+          OwnerCount: 0,
+        },
+      },
+    });
+    await client.connect();
+  }
 
   beforeEach(() => {
     // Clear all mocks first
@@ -65,18 +89,22 @@ describe('XRPLClient', () => {
     jest.useRealTimers();
   });
 
-  describe('constructor', () => {
-    it('should throw error if account address does not match wallet', () => {
+  describe('constructor and initialization', () => {
+    it('should throw error if account address does not match wallet during connect()', async () => {
       const config: XRPLClientConfig = {
         wssUrl: 'ws://localhost:6006',
         accountSecret: 'sEdVxxxxxxxxxxxxxxxxx',
         accountAddress: 'rDifferentAddress',
       };
 
-      expect(() => new XRPLClient(config, mockLogger)).toThrow('Account address mismatch');
+      const mismatchedClient = new XRPLClient(config, mockLogger);
+
+      await expect(mismatchedClient.connect()).rejects.toThrow('Account address mismatch');
     });
 
-    it('should register event listeners', () => {
+    it('should register event listeners during connect()', async () => {
+      await initializeClient();
+
       expect(mockXrplClient.on).toHaveBeenCalledWith('error', expect.any(Function));
       expect(mockXrplClient.on).toHaveBeenCalledWith('disconnected', expect.any(Function));
     });
@@ -125,6 +153,7 @@ describe('XRPLClient', () => {
 
   describe('disconnect()', () => {
     it('should close connection gracefully', async () => {
+      await initializeClient();
       await client.disconnect();
 
       expect(mockXrplClient.disconnect).toHaveBeenCalled();
@@ -133,6 +162,10 @@ describe('XRPLClient', () => {
   });
 
   describe('getAccountInfo()', () => {
+    beforeEach(async () => {
+      await initializeClient();
+    });
+
     it('should return account balance and metadata', async () => {
       mockXrplClient.request.mockResolvedValueOnce({
         id: 1,
@@ -206,6 +239,10 @@ describe('XRPLClient', () => {
   });
 
   describe('submitAndWait()', () => {
+    beforeEach(async () => {
+      await initializeClient();
+    });
+
     it('should submit transaction and return result', async () => {
       const mockTransaction = {
         TransactionType: 'PaymentChannelCreate',
@@ -280,6 +317,10 @@ describe('XRPLClient', () => {
   });
 
   describe('getLedgerEntry()', () => {
+    beforeEach(async () => {
+      await initializeClient();
+    });
+
     it('should return ledger entry for valid channel ID', async () => {
       const channelId = 'C7F634794B79DB40E87179A9D1BF05D05797AE7E92DF8E93FD6656E8C4BE3AE7';
       const mockChannelData = {
@@ -319,6 +360,10 @@ describe('XRPLClient', () => {
   });
 
   describe('isConnected()', () => {
+    beforeEach(async () => {
+      await initializeClient();
+    });
+
     it('should return true when connected', () => {
       mockXrplClient.isConnected.mockReturnValueOnce(true);
 
@@ -341,7 +386,21 @@ describe('XRPLClient', () => {
         autoReconnect: true,
       };
 
-      new XRPLClient(configWithAutoReconnect, mockLogger);
+      const autoReconnectClient = new XRPLClient(configWithAutoReconnect, mockLogger);
+
+      // Connect first to trigger ensureInitialized() which registers event handlers
+      mockXrplClient.request.mockResolvedValueOnce({
+        id: 1,
+        type: 'response',
+        result: {
+          account_data: {
+            Balance: '10000000000',
+            Sequence: 1,
+            OwnerCount: 0,
+          },
+        },
+      });
+      await autoReconnectClient.connect();
 
       jest.useFakeTimers();
 
@@ -395,7 +454,9 @@ describe('XRPLClient', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle WebSocket errors', () => {
+    it('should handle WebSocket errors', async () => {
+      await initializeClient();
+
       // Get the error event handler
       const errorHandler = (mockXrplClient.on as jest.Mock).mock.calls.find(
         (call) => call[0] === 'error'
@@ -418,6 +479,8 @@ describe('XRPLClient', () => {
     const validPublicKey = 'ED' + 'C'.repeat(64);
 
     beforeEach(async () => {
+      await initializeClient();
+
       const xrpl = await import('xrpl');
       (xrpl.verifyPaymentChannelClaim as jest.Mock).mockReturnValue(true);
 
@@ -548,7 +611,9 @@ describe('XRPLClient', () => {
   describe('closeChannel()', () => {
     const validChannelId = 'A'.repeat(64);
 
-    beforeEach(() => {
+    beforeEach(async () => {
+      await initializeClient();
+
       mockXrplClient.autofill.mockResolvedValue({
         TransactionType: 'PaymentChannelClaim',
         Channel: 'channelId',
@@ -610,7 +675,9 @@ describe('XRPLClient', () => {
   describe('cancelChannelClose()', () => {
     const validChannelId = 'A'.repeat(64);
 
-    beforeEach(() => {
+    beforeEach(async () => {
+      await initializeClient();
+
       mockXrplClient.autofill.mockResolvedValue({
         TransactionType: 'PaymentChannelClaim',
         Channel: 'channelId',

@@ -1,4 +1,4 @@
-import {
+import type {
   Client,
   Wallet,
   TxResponse,
@@ -6,10 +6,10 @@ import {
   AccountInfoResponse,
   LedgerEntryRequest,
   LedgerEntryResponse,
-  verifyPaymentChannelClaim,
+  Transaction,
 } from 'xrpl';
-import type { Transaction } from 'xrpl';
 import { Logger } from 'pino';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * XRPL Client Configuration
@@ -214,38 +214,55 @@ export interface IXRPLClient {
  * XRPLClient Implementation using xrpl.js
  */
 export class XRPLClient implements IXRPLClient {
-  private client: Client;
-  private wallet: Wallet;
+  private client!: Client;
+  private wallet!: Wallet;
   private readonly logger: Logger;
   private readonly config: XRPLClientConfig;
   private reconnectAttempts: number = 0;
+  private initialized: boolean = false;
 
   constructor(config: XRPLClientConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
+  }
+
+  /**
+   * Lazily initialize the xrpl.js Client and Wallet.
+   * Called automatically on first `connect()`.
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) return;
+
+    const { Client: XClient, Wallet: XWallet } = await requireOptional<typeof import('xrpl')>(
+      'xrpl',
+      'XRP settlement'
+    );
 
     // Initialize xrpl.js client
-    this.client = new Client(config.wssUrl, {
-      timeout: config.connectionTimeoutMs ?? 10000,
+    this.client = new XClient(this.config.wssUrl, {
+      timeout: this.config.connectionTimeoutMs ?? 10000,
     });
 
     // Initialize wallet from secret
-    this.wallet = Wallet.fromSeed(config.accountSecret);
+    this.wallet = XWallet.fromSeed(this.config.accountSecret);
 
     // Validate address matches derived wallet
-    if (this.wallet.address !== config.accountAddress) {
+    if (this.wallet.address !== this.config.accountAddress) {
       throw new Error(
-        `Account address mismatch: expected ${config.accountAddress}, got ${this.wallet.address}`
+        `Account address mismatch: expected ${this.config.accountAddress}, got ${this.wallet.address}`
       );
     }
 
     // Register event listeners
     this.client.on('error', this.handleError.bind(this));
     this.client.on('disconnected', this.handleDisconnect.bind(this));
+
+    this.initialized = true;
   }
 
   async connect(): Promise<void> {
     try {
+      await this.ensureInitialized();
       this.logger.info({ wssUrl: this.config.wssUrl }, 'Connecting to rippled...');
       await this.client.connect();
       this.logger.info({ address: this.wallet.address }, 'Connected to rippled');
@@ -458,6 +475,11 @@ export class XRPLClient implements IXRPLClient {
 
     // Verify claim signature before submission
     this.logger.info({ channelId, amount, signature }, 'Verifying claim signature...');
+
+    const { verifyPaymentChannelClaim } = await requireOptional<typeof import('xrpl')>(
+      'xrpl',
+      'XRP settlement'
+    );
 
     try {
       const isValid = verifyPaymentChannelClaim(channelId, amount, signature, publicKey);

@@ -7,11 +7,10 @@
  *
  * File: packages/connector/src/settlement/xrp-claim-signer.ts
  */
-import { Database } from 'better-sqlite3';
+import type { Database } from 'better-sqlite3';
 import pino from 'pino';
 import { KeyManager } from '../security/key-manager';
-import { encodeForSigningClaim } from 'ripple-binary-codec';
-import { verify as verifySignature } from 'ripple-keypairs';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Create XRP payment channel claim message for signing
@@ -23,9 +22,13 @@ import { verify as verifySignature } from 'ripple-keypairs';
  * @param amount - XRP drops as string (for bigint precision)
  * @returns Buffer containing encoded claim message ready for signing
  */
-function createClaimMessage(channelId: string, amount: string): Buffer {
+async function createClaimMessage(channelId: string, amount: string): Promise<Buffer> {
   // Use ripple-binary-codec to encode claim data
   // This matches the encoding used by xrpl.signPaymentChannelClaim()
+  const { encodeForSigningClaim } = await requireOptional<typeof import('ripple-binary-codec')>(
+    'ripple-binary-codec',
+    'XRP settlement'
+  );
   const signingData = encodeForSigningClaim({
     channel: channelId,
     amount: amount,
@@ -155,7 +158,7 @@ export class ClaimSigner {
     }
 
     // Create claim message: 'CLM\0' + channelId + amount (uint64 big-endian)
-    const message = createClaimMessage(channelId, amount);
+    const message = await createClaimMessage(channelId, amount);
 
     // Sign with KeyManager
     const signatureBuffer = await this.keyManager.sign(message, this.xrpKeyId);
@@ -242,6 +245,14 @@ export class ClaimSigner {
       // Verify payment channel claim using ripple-keypairs
       // Note: Using ripple-keypairs.verify directly because verifyPaymentChannelClaim
       // expects XRP amounts and converts to drops, but we already use drop amounts
+      const { encodeForSigningClaim } = await requireOptional<typeof import('ripple-binary-codec')>(
+        'ripple-binary-codec',
+        'XRP settlement'
+      );
+      const { verify: verifySignature } = await requireOptional<typeof import('ripple-keypairs')>(
+        'ripple-keypairs',
+        'XRP settlement'
+      );
       const signingData = encodeForSigningClaim({
         channel: channelId,
         amount: amount, // Amount already in drops

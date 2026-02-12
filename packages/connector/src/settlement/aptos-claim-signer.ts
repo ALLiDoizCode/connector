@@ -8,13 +8,21 @@
  *
  * File: packages/connector/src/settlement/aptos-claim-signer.ts
  */
-import {
-  Ed25519PrivateKey,
-  Ed25519PublicKey,
-  Ed25519Signature,
-  Serializer,
-} from '@aptos-labs/ts-sdk';
+import type { Ed25519PrivateKey, Ed25519PublicKey } from '@aptos-labs/ts-sdk';
 import { Logger } from 'pino';
+import { requireOptional } from '../utils/optional-require';
+
+// Module-level SDK cache for @aptos-labs/ts-sdk
+let _aptosSdk: typeof import('@aptos-labs/ts-sdk') | null = null;
+async function loadAptosSdk(): Promise<typeof import('@aptos-labs/ts-sdk')> {
+  if (!_aptosSdk) {
+    _aptosSdk = await requireOptional<typeof import('@aptos-labs/ts-sdk')>(
+      '@aptos-labs/ts-sdk',
+      'Aptos settlement'
+    );
+  }
+  return _aptosSdk;
+}
 
 // ============================================================================
 // Error Types
@@ -188,7 +196,7 @@ export interface IAptosClaimSigner {
    * @returns AptosClaim with signature
    * @throws AptosClaimError if nonce <= previously signed nonce for this channel
    */
-  signClaim(channelOwner: string, amount: bigint, nonce: number): AptosClaim;
+  signClaim(channelOwner: string, amount: bigint, nonce: number): Promise<AptosClaim>;
 
   /**
    * Verify a claim signature from a peer
@@ -214,7 +222,7 @@ export interface IAptosClaimSigner {
     nonce: number,
     signature: string,
     publicKey: string
-  ): boolean;
+  ): Promise<boolean>;
 
   /**
    * Get the highest nonce received from a peer for a channel
@@ -287,7 +295,13 @@ export interface IAptosClaimSigner {
  * @param nonce - Claim nonce
  * @returns Uint8Array containing the message bytes for signing
  */
-function constructClaimMessage(channelOwner: string, amount: bigint, nonce: number): Uint8Array {
+async function constructClaimMessage(
+  channelOwner: string,
+  amount: bigint,
+  nonce: number
+): Promise<Uint8Array> {
+  const sdk = await loadAptosSdk();
+
   // "CLAIM_APTOS" as bytes (raw UTF-8, no length prefix)
   const prefix = new TextEncoder().encode('CLAIM_APTOS');
 
@@ -300,12 +314,12 @@ function constructClaimMessage(channelOwner: string, amount: bigint, nonce: numb
   }
 
   // BCS encode amount (u64 - 8 bytes little-endian)
-  const amountSerializer = new Serializer();
+  const amountSerializer = new sdk.Serializer();
   amountSerializer.serializeU64(amount);
   const amountBytes = amountSerializer.toUint8Array();
 
   // BCS encode nonce (u64 - 8 bytes little-endian)
-  const nonceSerializer = new Serializer();
+  const nonceSerializer = new sdk.Serializer();
   nonceSerializer.serializeU64(BigInt(nonce));
   const nonceBytes = nonceSerializer.toUint8Array();
 
@@ -342,23 +356,33 @@ export class AptosClaimSigner implements IAptosClaimSigner {
   private readonly _receivedClaimStates: Map<string, ReceivedClaimState>;
   private readonly _logger: Logger;
 
-  constructor(config: AptosClaimSignerConfig, logger: Logger) {
-    this._privateKey = new Ed25519PrivateKey(config.privateKey);
-    this._publicKey = this._privateKey.publicKey();
+  private constructor(privateKey: Ed25519PrivateKey, publicKey: Ed25519PublicKey, logger: Logger) {
+    this._privateKey = privateKey;
+    this._publicKey = publicKey;
     this._channelStates = new Map();
     this._receivedClaimStates = new Map();
     this._logger = logger.child({ component: 'AptosClaimSigner' });
+  }
+
+  static async create(config: AptosClaimSignerConfig, logger: Logger): Promise<AptosClaimSigner> {
+    const sdk = await loadAptosSdk();
+
+    const privateKey = new sdk.Ed25519PrivateKey(config.privateKey);
+    const publicKey = privateKey.publicKey();
+    const signer = new AptosClaimSigner(privateKey, publicKey, logger);
 
     // Initialize nonce state if provided (for recovery)
     if (config.initialNonceState) {
       config.initialNonceState.forEach((nonce, channelOwner) => {
-        this._channelStates.set(this.normalizeAddress(channelOwner), {
+        signer._channelStates.set(signer.normalizeAddress(channelOwner), {
           highestNonce: nonce,
           highestAmount: BigInt(0),
           latestClaim: null as unknown as AptosClaim, // Will be set on first claim
         });
       });
     }
+
+    return signer;
   }
 
   /**
@@ -401,7 +425,7 @@ export class AptosClaimSigner implements IAptosClaimSigner {
     return Array.from(this._channelStates.keys());
   }
 
-  signClaim(channelOwner: string, amount: bigint, nonce: number): AptosClaim {
+  async signClaim(channelOwner: string, amount: bigint, nonce: number): Promise<AptosClaim> {
     const normalizedAddress = this.normalizeAddress(channelOwner);
 
     // Get or create channel state
@@ -417,7 +441,7 @@ export class AptosClaimSigner implements IAptosClaimSigner {
     }
 
     // Construct message
-    const message = constructClaimMessage(normalizedAddress, amount, nonce);
+    const message = await constructClaimMessage(normalizedAddress, amount, nonce);
 
     // Sign with ed25519
     const signature = this._privateKey.sign(message);
@@ -447,13 +471,13 @@ export class AptosClaimSigner implements IAptosClaimSigner {
     return claim;
   }
 
-  verifyClaim(
+  async verifyClaim(
     channelOwner: string,
     amount: bigint,
     nonce: number,
     signature: string,
     publicKey: string
-  ): boolean {
+  ): Promise<boolean> {
     try {
       const normalizedAddress = this.normalizeAddress(channelOwner);
 
@@ -474,16 +498,18 @@ export class AptosClaimSigner implements IAptosClaimSigner {
         return false;
       }
 
+      const sdk = await loadAptosSdk();
+
       // Construct message
-      const message = constructClaimMessage(normalizedAddress, amount, nonce);
+      const message = await constructClaimMessage(normalizedAddress, amount, nonce);
 
       // Parse signature and public key
       // Ensure hex strings have 0x prefix for SDK
       const sigHex = signature.startsWith('0x') ? signature : `0x${signature}`;
       const pkHex = publicKey.startsWith('0x') ? publicKey : `0x${publicKey}`;
 
-      const sig = new Ed25519Signature(sigHex);
-      const pk = new Ed25519PublicKey(pkHex);
+      const sig = new sdk.Ed25519Signature(sigHex);
+      const pk = new sdk.Ed25519PublicKey(pkHex);
 
       // Verify signature
       const isValid = pk.verifySignature({ message, signature: sig });
@@ -540,7 +566,7 @@ export class AptosClaimSigner implements IAptosClaimSigner {
  * @returns Configured AptosClaimSigner
  * @throws Error if required environment variables are not set
  */
-export function createAptosClaimSignerFromEnv(logger: Logger): AptosClaimSigner {
+export async function createAptosClaimSignerFromEnv(logger: Logger): Promise<AptosClaimSigner> {
   const privateKey = process.env.APTOS_CLAIM_PRIVATE_KEY;
 
   if (!privateKey) {
@@ -551,7 +577,7 @@ export function createAptosClaimSignerFromEnv(logger: Logger): AptosClaimSigner 
     privateKey,
   };
 
-  return new AptosClaimSigner(config, logger);
+  return AptosClaimSigner.create(config, logger);
 }
 
 // Export constructClaimMessage for testing purposes

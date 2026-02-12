@@ -314,8 +314,8 @@ export class ClaimReceiver {
     peerId: string
   ): Promise<ClaimVerificationResult> {
     try {
-      // Verify signature (synchronous method)
-      const isValid = this.aptosClaimSigner.verifyClaim(
+      // Verify signature
+      const isValid = await this.aptosClaimSigner.verifyClaim(
         claim.channelOwner,
         BigInt(claim.amount),
         claim.nonce,

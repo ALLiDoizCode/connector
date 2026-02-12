@@ -46,8 +46,8 @@ function createMockAptosChannelSDK(): IAptosChannelSDK {
   return {
     openChannel: jest.fn().mockResolvedValue(mockChannelState.channelOwner),
     deposit: jest.fn().mockResolvedValue(undefined),
-    signClaim: jest.fn().mockReturnValue(mockClaim),
-    verifyClaim: jest.fn().mockReturnValue(true),
+    signClaim: jest.fn().mockResolvedValue(mockClaim),
+    verifyClaim: jest.fn().mockResolvedValue(true),
     submitClaim: jest.fn().mockResolvedValue(undefined),
     requestClose: jest.fn().mockResolvedValue(undefined),
     finalizeClose: jest.fn().mockResolvedValue(undefined),
@@ -109,11 +109,11 @@ describe('Agent Server Aptos Endpoints', () => {
       expect(channels).toContain(mockChannelState.channelOwner);
     });
 
-    it('should sign and verify claims', () => {
-      const claim = mockAptosSDK.signClaim(mockChannelState.channelOwner, BigInt(50_000_000));
+    it('should sign and verify claims', async () => {
+      const claim = await mockAptosSDK.signClaim(mockChannelState.channelOwner, BigInt(50_000_000));
       expect(claim.amount).toBe(BigInt(50_000_000));
 
-      const valid = mockAptosSDK.verifyClaim(claim);
+      const valid = await mockAptosSDK.verifyClaim(claim);
       expect(valid).toBe(true);
     });
   });

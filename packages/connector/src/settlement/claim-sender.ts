@@ -20,7 +20,7 @@
  * @module claim-sender
  */
 
-import { Database } from 'better-sqlite3';
+import type { Database } from 'better-sqlite3';
 import { Logger } from 'pino';
 import { BTPClient } from '../btp/btp-client';
 import {

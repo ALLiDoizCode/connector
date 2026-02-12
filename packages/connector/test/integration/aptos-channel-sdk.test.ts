@@ -97,8 +97,8 @@ describe('AptosChannelSDK Integration Tests', () => {
     }
 
     // Create dependencies
-    aptosClient = createAptosClientFromEnv(logger);
-    claimSigner = createAptosClaimSignerFromEnv(logger);
+    aptosClient = await createAptosClientFromEnv(logger);
+    claimSigner = await createAptosClaimSignerFromEnv(logger);
 
     // Connect to Aptos
     await aptosClient.connect();
@@ -152,8 +152,8 @@ describe('AptosChannelSDK Integration Tests', () => {
   // --------------------------------------------------------------------------
 
   describe('Factory function', () => {
-    itOrSkip('should create SDK from environment variables', () => {
-      const envSdk = createAptosChannelSDKFromEnv(logger);
+    itOrSkip('should create SDK from environment variables', async () => {
+      const envSdk = await createAptosChannelSDKFromEnv(logger);
       expect(envSdk).toBeInstanceOf(AptosChannelSDK);
       envSdk.stopAutoRefresh(); // Cleanup
     });
@@ -182,8 +182,8 @@ describe('AptosChannelSDK Integration Tests', () => {
   // --------------------------------------------------------------------------
 
   describe('Off-chain claim operations', () => {
-    itOrSkip('should sign a claim', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100000000));
+    itOrSkip('should sign a claim', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100000000));
 
       expect(claim).toBeDefined();
       expect(claim.channelOwner).toContain('0x');
@@ -193,15 +193,15 @@ describe('AptosChannelSDK Integration Tests', () => {
       expect(claim.publicKey).toBeDefined();
     });
 
-    itOrSkip('should verify a valid claim', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200000000));
-      const isValid = sdk.verifyClaim(claim);
+    itOrSkip('should verify a valid claim', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200000000));
+      const isValid = await sdk.verifyClaim(claim);
 
       expect(isValid).toBe(true);
     });
 
-    itOrSkip('should reject claim with invalid signature', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(300000000));
+    itOrSkip('should reject claim with invalid signature', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(300000000));
 
       // Tamper with signature
       const tamperedClaim = {
@@ -209,13 +209,13 @@ describe('AptosChannelSDK Integration Tests', () => {
         signature: 'invalid' + claim.signature.slice(7),
       };
 
-      const isValid = sdk.verifyClaim(tamperedClaim);
+      const isValid = await sdk.verifyClaim(tamperedClaim);
       expect(isValid).toBe(false);
     });
 
-    itOrSkip('should auto-increment nonce for subsequent claims', () => {
-      const claim1 = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100000000));
-      const claim2 = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200000000));
+    itOrSkip('should auto-increment nonce for subsequent claims', async () => {
+      const claim1 = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100000000));
+      const claim2 = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200000000));
 
       expect(claim2.nonce).toBe(claim1.nonce + 1);
     });

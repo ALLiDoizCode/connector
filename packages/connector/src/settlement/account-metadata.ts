@@ -23,7 +23,7 @@
  */
 
 import { createHash } from 'crypto';
-import { Account } from 'tigerbeetle-node';
+import type { Account } from 'tigerbeetle-node';
 import { AccountType, PeerAccountMetadata } from './types';
 
 /**

@@ -12,9 +12,10 @@
  * - Extended health status with dependencies and SLA metrics
  */
 
-import express, { Express, Request, Response, Router, RequestHandler } from 'express';
+import type { Express, Request, Response, Router, RequestHandler } from 'express';
 import { Server } from 'http';
 import { Logger } from '../utils/logger';
+import { requireOptional } from '../utils/optional-require';
 import {
   HealthStatus,
   HealthStatusProvider,
@@ -89,11 +90,12 @@ export interface HealthServerConfig {
  * - Separate from BTP server for isolation and simplicity
  */
 export class HealthServer {
-  private _app: Express;
+  private _app!: Express;
   private _server: Server | null = null;
   private readonly _logger: Logger;
   private readonly _healthStatusProvider: HealthStatusProvider;
   private readonly _extendedProvider?: HealthStatusExtendedProvider;
+  private readonly _config?: HealthServerConfig;
 
   /**
    * Create health check server instance
@@ -109,20 +111,32 @@ export class HealthServer {
     this._logger = logger.child({ component: 'HealthServer' });
     this._healthStatusProvider = healthStatusProvider;
     this._extendedProvider = config?.extendedProvider;
+    this._config = config;
+  }
+
+  /**
+   * Initialize Express app (called from start())
+   */
+  private async _initApp(): Promise<void> {
+    const { default: express } = await requireOptional<{ default: typeof import('express') }>(
+      'express',
+      'HTTP admin/health APIs'
+    );
+
     this._app = express();
 
     // Configure health check endpoints
     this._setupRoutes();
 
     // Mount Prometheus metrics endpoint if provided
-    if (config?.metricsMiddleware) {
-      this._app.get('/metrics', config.metricsMiddleware);
+    if (this._config?.metricsMiddleware) {
+      this._app.get('/metrics', this._config.metricsMiddleware);
       this._logger.info('Prometheus metrics endpoint mounted at /metrics');
     }
 
     // Mount settlement router if provided
-    if (config?.settlementRouter) {
-      this._app.use(config.settlementRouter);
+    if (this._config?.settlementRouter) {
+      this._app.use(this._config.settlementRouter);
       this._logger.info('Settlement API mounted on health server');
     }
   }
@@ -266,6 +280,7 @@ export class HealthServer {
    * ```
    */
   async start(port: number = 8080): Promise<void> {
+    await this._initApp();
     return new Promise((resolve, reject) => {
       try {
         this._server = this._app.listen(port, () => {

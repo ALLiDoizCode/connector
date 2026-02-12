@@ -34,7 +34,7 @@ describe('Admin API Peer Endpoints (Story 20.4)', () => {
     chainId: 8453,
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     settlementPeers = new Map();
 
     mockRoutingTable = {
@@ -77,7 +77,7 @@ describe('Admin API Peer Endpoints (Story 20.4)', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {

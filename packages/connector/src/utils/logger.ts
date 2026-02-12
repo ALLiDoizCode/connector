@@ -117,16 +117,19 @@ export function sanitizeWalletForLogs(wallet: Record<string, unknown>): Record<s
  * - Telemetry emission is non-blocking and will not impact logging performance
  * - Wallet data serializers automatically redact sensitive cryptographic material
  */
+export function createLogger(nodeId: string, logLevel?: string): Logger;
+export function createLogger(
+  nodeId: string,
+  logLevel: string | undefined,
+  telemetryEmitter: TelemetryEmitter
+): Promise<Logger>;
 export function createLogger(
   nodeId: string,
   logLevel?: string,
   telemetryEmitter?: TelemetryEmitter
-): Logger {
+): Logger | Promise<Logger> {
   // Get log level from parameter, environment variable, or default
   const level = logLevel ? getValidLogLevel(logLevel) : getValidLogLevel(process.env.LOG_LEVEL);
-
-  // Create base Pino logger with JSON output to stdout
-  let baseLogger: pino.Logger;
 
   // Configure serializers to redact sensitive wallet data
   const serializers = {
@@ -140,33 +143,37 @@ export function createLogger(
   };
 
   if (telemetryEmitter) {
-    // Create telemetry transport for LOG emission
-    const transport = createTelemetryTransport((logEntry) => {
-      telemetryEmitter.emitLog(logEntry);
-    });
+    // Async path: create telemetry transport for LOG emission
+    return (async () => {
+      const transport = await createTelemetryTransport((logEntry) => {
+        telemetryEmitter.emitLog(logEntry);
+      });
 
-    // Create logger with multistream: stdout + telemetry
-    baseLogger = pino(
-      {
-        level,
-        serializers,
-      },
-      pino.multistream([
-        { stream: process.stdout }, // Primary output to stdout
-        { stream: transport }, // Secondary output to telemetry
-      ])
-    );
+      // Create logger with multistream: stdout + telemetry
+      const baseLogger = pino(
+        {
+          level,
+          serializers,
+        },
+        pino.multistream([
+          { stream: process.stdout }, // Primary output to stdout
+          { stream: transport }, // Secondary output to telemetry
+        ])
+      );
+
+      return baseLogger.child({ nodeId });
+    })();
   } else {
-    // Create standard logger without telemetry
-    baseLogger = pino({
+    // Sync path: Create standard logger without telemetry
+    const baseLogger = pino({
       level,
       serializers,
     });
-  }
 
-  // Return child logger with nodeId context
-  // All logs from this logger will include nodeId field
-  return baseLogger.child({ nodeId });
+    // Return child logger with nodeId context
+    // All logs from this logger will include nodeId field
+    return baseLogger.child({ nodeId });
+  }
 }
 
 /**

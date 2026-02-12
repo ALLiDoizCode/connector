@@ -35,7 +35,7 @@ describe('Admin API Settlement Extension', () => {
     routes: [{ prefix: 'g.peer-a', priority: 0 }],
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     settlementPeers = new Map();
 
     mockRoutingTable = {
@@ -77,7 +77,7 @@ describe('Admin API Settlement Extension', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {
@@ -707,7 +707,7 @@ describe('Admin API Settlement Extension', () => {
   describe('Settlement without settlementPeers Map (settlement disabled)', () => {
     let appNoSettlement: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: AdminAPIConfig = {
         routingTable: mockRoutingTable,
         btpClientManager: mockBTPClientManager,
@@ -717,7 +717,7 @@ describe('Admin API Settlement Extension', () => {
       };
 
       appNoSettlement = express();
-      appNoSettlement.use('/admin', createAdminRouter(config));
+      appNoSettlement.use('/admin', await createAdminRouter(config));
     });
 
     it('should accept POST with settlement but not store PeerConfig', async () => {

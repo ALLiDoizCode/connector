@@ -103,8 +103,8 @@ function createMockAptosClient(): jest.Mocked<IAptosClient> {
 // Create mock claim signer
 function createMockClaimSigner(): jest.Mocked<IAptosClaimSigner> {
   return {
-    signClaim: jest.fn().mockReturnValue(mockClaim),
-    verifyClaim: jest.fn().mockReturnValue(true),
+    signClaim: jest.fn().mockResolvedValue(mockClaim),
+    verifyClaim: jest.fn().mockResolvedValue(true),
     getPublicKey: jest.fn().mockReturnValue('aabbccdd'.repeat(8)),
     getHighestNonce: jest.fn().mockReturnValue(0),
     getHighestReceivedNonce: jest.fn().mockReturnValue(0),
@@ -275,10 +275,10 @@ describe('AptosChannelSDK', () => {
   // --------------------------------------------------------------------------
 
   describe('signClaim()', () => {
-    it('should delegate to claim signer with auto-incremented nonce', () => {
+    it('should delegate to claim signer with auto-incremented nonce', async () => {
       mockClaimSigner.getHighestNonce.mockReturnValue(5);
 
-      sdk.signClaim('0xowner', BigInt(100));
+      await sdk.signClaim('0xowner', BigInt(100));
 
       expect(mockClaimSigner.signClaim).toHaveBeenCalledWith(
         expect.any(String), // normalized address
@@ -287,16 +287,16 @@ describe('AptosChannelSDK', () => {
       );
     });
 
-    it('should return AptosClaim from signer', () => {
-      const claim = sdk.signClaim('0xowner', BigInt(100));
+    it('should return AptosClaim from signer', async () => {
+      const claim = await sdk.signClaim('0xowner', BigInt(100));
 
       expect(claim).toBe(mockClaim);
     });
 
-    it('should use nonce 1 for first claim', () => {
+    it('should use nonce 1 for first claim', async () => {
       mockClaimSigner.getHighestNonce.mockReturnValue(0);
 
-      sdk.signClaim('0xowner', BigInt(100));
+      await sdk.signClaim('0xowner', BigInt(100));
 
       expect(mockClaimSigner.signClaim).toHaveBeenCalledWith(expect.any(String), BigInt(100), 1);
     });
@@ -307,7 +307,7 @@ describe('AptosChannelSDK', () => {
   // --------------------------------------------------------------------------
 
   describe('verifyClaim()', () => {
-    it('should delegate to claim signer', () => {
+    it('should delegate to claim signer', async () => {
       const claim: AptosClaim = {
         channelOwner: '0x1',
         amount: BigInt(100),
@@ -317,7 +317,7 @@ describe('AptosChannelSDK', () => {
         createdAt: Date.now(),
       };
 
-      sdk.verifyClaim(claim);
+      await sdk.verifyClaim(claim);
 
       expect(mockClaimSigner.verifyClaim).toHaveBeenCalledWith(
         claim.channelOwner,
@@ -328,18 +328,18 @@ describe('AptosChannelSDK', () => {
       );
     });
 
-    it('should return true for valid claim', () => {
-      mockClaimSigner.verifyClaim.mockReturnValue(true);
+    it('should return true for valid claim', async () => {
+      mockClaimSigner.verifyClaim.mockResolvedValue(true);
 
-      const result = sdk.verifyClaim(mockClaim);
+      const result = await sdk.verifyClaim(mockClaim);
 
       expect(result).toBe(true);
     });
 
-    it('should return false for invalid claim', () => {
-      mockClaimSigner.verifyClaim.mockReturnValue(false);
+    it('should return false for invalid claim', async () => {
+      mockClaimSigner.verifyClaim.mockResolvedValue(false);
 
-      const result = sdk.verifyClaim(mockClaim);
+      const result = await sdk.verifyClaim(mockClaim);
 
       expect(result).toBe(false);
     });
@@ -834,7 +834,7 @@ describe('createAptosChannelSDKFromEnv', () => {
     process.env = originalEnv;
   });
 
-  it('should throw if APTOS_MODULE_ADDRESS is not set', () => {
+  it('should throw if APTOS_MODULE_ADDRESS is not set', async () => {
     // Ensure env var is not set
     delete process.env.APTOS_MODULE_ADDRESS;
     // Also ensure other required vars are not set to avoid other errors first
@@ -845,12 +845,12 @@ describe('createAptosChannelSDKFromEnv', () => {
 
     const mockLogger = createMockLogger();
 
-    expect(() => createAptosChannelSDKFromEnv(mockLogger)).toThrow(
+    await expect(createAptosChannelSDKFromEnv(mockLogger)).rejects.toThrow(
       'APTOS_MODULE_ADDRESS environment variable is required'
     );
   });
 
-  it('should create SDK with all required env vars set', () => {
+  it('should create SDK with all required env vars set', async () => {
     // Set all required env vars
     process.env.APTOS_MODULE_ADDRESS = '0xmodule1234567890abcdef::payment_channel';
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
@@ -863,16 +863,16 @@ describe('createAptosChannelSDKFromEnv', () => {
     const mockSigner = createMockClaimSigner();
     const mockLogger = createMockLogger();
 
-    // Configure mocks to return our mock instances
-    mockAptosClientFromEnv.mockReturnValue(
-      mockClient as unknown as ReturnType<typeof createAptosClientFromEnv>
+    // Configure mocks to return our mock instances (now async)
+    mockAptosClientFromEnv.mockResolvedValue(
+      mockClient as unknown as Awaited<ReturnType<typeof createAptosClientFromEnv>>
     );
-    mockClaimSignerFromEnv.mockReturnValue(
-      mockSigner as unknown as ReturnType<typeof createAptosClaimSignerFromEnv>
+    mockClaimSignerFromEnv.mockResolvedValue(
+      mockSigner as unknown as Awaited<ReturnType<typeof createAptosClaimSignerFromEnv>>
     );
 
-    // Call factory function
-    const sdk = createAptosChannelSDKFromEnv(mockLogger);
+    // Call factory function (now async)
+    const sdk = await createAptosChannelSDKFromEnv(mockLogger);
 
     // Verify SDK was created
     expect(sdk).toBeInstanceOf(AptosChannelSDK);
@@ -885,7 +885,7 @@ describe('createAptosChannelSDKFromEnv', () => {
     sdk.stopAutoRefresh();
   });
 
-  it('should use optional env vars for config when set', () => {
+  it('should use optional env vars for config when set', async () => {
     // Set all required env vars
     process.env.APTOS_MODULE_ADDRESS = '0xmodule1234567890abcdef::payment_channel';
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
@@ -901,15 +901,15 @@ describe('createAptosChannelSDKFromEnv', () => {
     const mockSigner = createMockClaimSigner();
     const mockLogger = createMockLogger();
 
-    mockAptosClientFromEnv.mockReturnValue(
-      mockClient as unknown as ReturnType<typeof createAptosClientFromEnv>
+    mockAptosClientFromEnv.mockResolvedValue(
+      mockClient as unknown as Awaited<ReturnType<typeof createAptosClientFromEnv>>
     );
-    mockClaimSignerFromEnv.mockReturnValue(
-      mockSigner as unknown as ReturnType<typeof createAptosClaimSignerFromEnv>
+    mockClaimSignerFromEnv.mockResolvedValue(
+      mockSigner as unknown as Awaited<ReturnType<typeof createAptosClaimSignerFromEnv>>
     );
 
-    // Call factory function
-    const sdk = createAptosChannelSDKFromEnv(mockLogger);
+    // Call factory function (now async)
+    const sdk = await createAptosChannelSDKFromEnv(mockLogger);
 
     // Verify SDK was created
     expect(sdk).toBeInstanceOf(AptosChannelSDK);

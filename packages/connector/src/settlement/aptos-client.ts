@@ -1,16 +1,14 @@
-import {
+import type {
   Aptos,
-  AptosConfig,
   Network,
   Account,
-  Ed25519PrivateKey,
-  AccountAddress,
   InputViewFunctionData,
   MoveValue,
   EntryFunctionArgumentTypes,
   SimpleEntryFunctionArgumentTypes,
 } from '@aptos-labs/ts-sdk';
 import { Logger } from 'pino';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Aptos Client Configuration
@@ -271,45 +269,80 @@ export class AptosClient implements IAptosClient {
   private readonly config: AptosClientConfig;
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private _connectionHealthy: boolean = false;
+  private static _sdk: typeof import('@aptos-labs/ts-sdk') | null = null;
 
-  constructor(config: AptosClientConfig, logger: Logger) {
+  private static async loadSdk(): Promise<typeof import('@aptos-labs/ts-sdk')> {
+    if (!AptosClient._sdk) {
+      AptosClient._sdk = await requireOptional<typeof import('@aptos-labs/ts-sdk')>(
+        '@aptos-labs/ts-sdk',
+        'Aptos settlement'
+      );
+    }
+    return AptosClient._sdk;
+  }
+
+  private constructor(
+    config: AptosClientConfig,
+    logger: Logger,
+    aptos: Aptos,
+    fallbackAptos: Aptos | null,
+    account: Account
+  ) {
     this.config = config;
     this.logger = logger;
+    this.aptos = aptos;
+    this.fallbackAptos = fallbackAptos;
+    this.account = account;
+  }
+
+  static async create(config: AptosClientConfig, logger: Logger): Promise<AptosClient> {
+    const sdk = await AptosClient.loadSdk();
 
     // Determine network from URL
-    const network = this.getNetworkFromUrl(config.nodeUrl);
+    const getNetworkFromUrl = (url: string): Network => {
+      if (url.includes('testnet')) return sdk.Network.TESTNET;
+      if (url.includes('devnet')) return sdk.Network.DEVNET;
+      if (url.includes('mainnet')) return sdk.Network.MAINNET;
+      if (url.includes('localhost') || url.includes('127.0.0.1')) return sdk.Network.LOCAL;
+      return sdk.Network.CUSTOM;
+    };
+
+    const network = getNetworkFromUrl(config.nodeUrl);
 
     // Initialize Aptos SDK client
-    const aptosConfig = new AptosConfig({
+    const aptosConfig = new sdk.AptosConfig({
       network,
       fullnode: config.nodeUrl,
     });
-    this.aptos = new Aptos(aptosConfig);
+    const aptos = new sdk.Aptos(aptosConfig);
 
     // Initialize fallback client if configured
+    let fallbackAptos: Aptos | null = null;
     if (config.fallbackNodeUrl) {
-      const fallbackNetwork = this.getNetworkFromUrl(config.fallbackNodeUrl);
-      const fallbackConfig = new AptosConfig({
+      const fallbackNetwork = getNetworkFromUrl(config.fallbackNodeUrl);
+      const fallbackConfig = new sdk.AptosConfig({
         network: fallbackNetwork,
         fullnode: config.fallbackNodeUrl,
       });
-      this.fallbackAptos = new Aptos(fallbackConfig);
+      fallbackAptos = new sdk.Aptos(fallbackConfig);
     }
 
     // Initialize account from private key
-    const privateKey = new Ed25519PrivateKey(config.privateKey);
-    this.account = Account.fromPrivateKey({ privateKey });
+    const privateKey = new sdk.Ed25519PrivateKey(config.privateKey);
+    const account = sdk.Account.fromPrivateKey({ privateKey });
 
     // Normalize addresses for comparison (both to lowercase, ensure 0x prefix)
-    const derivedAddress = this.account.accountAddress.toString().toLowerCase();
+    const derivedAddress = account.accountAddress.toString().toLowerCase();
     const configAddress = config.accountAddress.toLowerCase();
 
     // Validate address matches derived account
     if (derivedAddress !== configAddress) {
       throw new Error(
-        `Account address mismatch: expected ${config.accountAddress}, got ${this.account.accountAddress.toString()}`
+        `Account address mismatch: expected ${config.accountAddress}, got ${account.accountAddress.toString()}`
       );
     }
+
+    return new AptosClient(config, logger, aptos, fallbackAptos, account);
   }
 
   async connect(): Promise<void> {
@@ -581,9 +614,11 @@ export class AptosClient implements IAptosClient {
     try {
       this.logger.info({ address, amount }, 'Funding account via Aptos testnet faucet...');
 
+      const sdk = await AptosClient.loadSdk();
+
       // Check if this is testnet/devnet
       const network = this.getNetworkFromUrl(this.config.nodeUrl);
-      if (network !== Network.TESTNET && network !== Network.DEVNET) {
+      if (network !== sdk.Network.TESTNET && network !== sdk.Network.DEVNET) {
         throw new AptosError(
           AptosErrorCode.INVALID_TRANSACTION,
           'Faucet is only available on testnet and devnet'
@@ -591,7 +626,7 @@ export class AptosClient implements IAptosClient {
       }
 
       await this.aptos.fundAccount({
-        accountAddress: AccountAddress.from(address),
+        accountAddress: sdk.AccountAddress.from(address),
         amount,
       });
 
@@ -618,18 +653,21 @@ export class AptosClient implements IAptosClient {
 
   /**
    * Determine network type from URL
+   *
+   * Note: SDK must be loaded before calling this method (always true after create()).
    */
   private getNetworkFromUrl(url: string): Network {
+    const sdk = AptosClient._sdk!;
     if (url.includes('testnet')) {
-      return Network.TESTNET;
+      return sdk.Network.TESTNET;
     } else if (url.includes('devnet')) {
-      return Network.DEVNET;
+      return sdk.Network.DEVNET;
     } else if (url.includes('mainnet')) {
-      return Network.MAINNET;
+      return sdk.Network.MAINNET;
     } else if (url.includes('localhost') || url.includes('127.0.0.1')) {
-      return Network.LOCAL;
+      return sdk.Network.LOCAL;
     }
-    return Network.CUSTOM;
+    return sdk.Network.CUSTOM;
   }
 
   /**
@@ -835,7 +873,7 @@ export class AptosClient implements IAptosClient {
  * @returns Configured AptosClient
  * @throws Error if required environment variables are not set
  */
-export function createAptosClientFromEnv(logger: Logger): AptosClient {
+export async function createAptosClientFromEnv(logger: Logger): Promise<AptosClient> {
   const nodeUrl = process.env.APTOS_NODE_URL;
   const privateKey = process.env.APTOS_PRIVATE_KEY;
   const accountAddress = process.env.APTOS_ACCOUNT_ADDRESS;
@@ -866,5 +904,5 @@ export function createAptosClientFromEnv(logger: Logger): AptosClient {
       : undefined,
   };
 
-  return new AptosClient(config, logger);
+  return AptosClient.create(config, logger);
 }

@@ -33,7 +33,7 @@ describe('Monitoring and Alerting Integration', () => {
     } as unknown as Logger;
 
     // Initialize PrometheusExporter
-    prometheusExporter = new PrometheusExporter(mockLogger, {
+    prometheusExporter = await PrometheusExporter.create(mockLogger, {
       enabled: true,
       includeDefaultMetrics: false, // Disable default metrics in tests
       labels: { environment: 'test', nodeId: 'test-connector' },
@@ -364,9 +364,9 @@ describe('Monitoring and Alerting Integration', () => {
   describe('SLA Metrics Calculation', () => {
     let slaExporter: PrometheusExporter;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       // Create fresh exporter for SLA tests
-      slaExporter = new PrometheusExporter(mockLogger, {
+      slaExporter = await PrometheusExporter.create(mockLogger, {
         enabled: true,
         includeDefaultMetrics: false,
         labels: { environment: 'sla-test' },
@@ -442,8 +442,8 @@ describe('Monitoring and Alerting Integration', () => {
       expect(slaMetrics.p99LatencyMs).toBeGreaterThan(50);
     });
 
-    it('should return safe defaults when no data', () => {
-      const emptyExporter = new PrometheusExporter(mockLogger, {
+    it('should return safe defaults when no data', async () => {
+      const emptyExporter = await PrometheusExporter.create(mockLogger, {
         enabled: true,
         includeDefaultMetrics: false,
       });

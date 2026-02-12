@@ -7,21 +7,10 @@
  */
 
 import { Logger } from 'pino';
-import {
-  trace,
-  context,
-  SpanStatusCode,
-  Span,
-  SpanKind,
-  Tracer,
-  propagation,
-  Context,
-} from '@opentelemetry/api';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
-import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+import type { Span, Tracer, Context } from '@opentelemetry/api';
+import type { NodeSDK as NodeSDKType } from '@opentelemetry/sdk-node';
 import { OpenTelemetryConfig } from './types';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Default OpenTelemetry configuration
@@ -80,9 +69,10 @@ export type SpanStatus = 'ok' | 'error';
 export class OpenTelemetryTracer {
   private readonly _logger: Logger;
   private readonly _config: OpenTelemetryConfig;
-  private _sdk: NodeSDK | null = null;
+  private _sdk: NodeSDKType | null = null;
   private _tracer: Tracer | null = null;
   private _initialized: boolean = false;
+  private _otelApi: typeof import('@opentelemetry/api') | null = null;
 
   /**
    * Create a new OpenTelemetryTracer instance
@@ -93,6 +83,19 @@ export class OpenTelemetryTracer {
   constructor(logger: Logger, config?: Partial<OpenTelemetryConfig>) {
     this._logger = logger.child({ component: 'otel-tracer' });
     this._config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Lazily loads the OpenTelemetry API module
+   */
+  private async _getOtelApi(): Promise<typeof import('@opentelemetry/api')> {
+    if (!this._otelApi) {
+      this._otelApi = await requireOptional<typeof import('@opentelemetry/api')>(
+        '@opentelemetry/api',
+        'OpenTelemetry distributed tracing'
+      );
+    }
+    return this._otelApi;
   }
 
   /**
@@ -111,6 +114,22 @@ export class OpenTelemetryTracer {
     }
 
     try {
+      const otelApi = await this._getOtelApi();
+      const { NodeSDK } = await requireOptional<typeof import('@opentelemetry/sdk-node')>(
+        '@opentelemetry/sdk-node',
+        'OpenTelemetry SDK for Node.js'
+      );
+      const { OTLPTraceExporter } = await requireOptional<
+        typeof import('@opentelemetry/exporter-trace-otlp-http')
+      >('@opentelemetry/exporter-trace-otlp-http', 'OpenTelemetry OTLP trace exporter');
+      const { Resource } = await requireOptional<typeof import('@opentelemetry/resources')>(
+        '@opentelemetry/resources',
+        'OpenTelemetry resources'
+      );
+      const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = await requireOptional<
+        typeof import('@opentelemetry/semantic-conventions')
+      >('@opentelemetry/semantic-conventions', 'OpenTelemetry semantic conventions');
+
       // Create OTLP HTTP exporter
       const exporter = new OTLPTraceExporter({
         url: this._config.exporterEndpoint,
@@ -132,7 +151,7 @@ export class OpenTelemetryTracer {
       await this._sdk.start();
 
       // Get tracer from the global tracer provider
-      this._tracer = trace.getTracer(this._config.serviceName, '1.0.0');
+      this._tracer = otelApi.trace.getTracer(this._config.serviceName, '1.0.0');
       this._initialized = true;
 
       this._logger.info(
@@ -159,6 +178,28 @@ export class OpenTelemetryTracer {
   }
 
   /**
+   * Create a minimal no-op span when OTel API is not loaded
+   */
+  private _createNoopSpan(name: string): Span {
+    if (this._otelApi) {
+      return this._otelApi.trace.getTracer('noop').startSpan(name);
+    }
+    // Minimal no-op span implementation when API is not loaded
+    return {
+      spanContext: () => ({ traceId: '', spanId: '', traceFlags: 0 }),
+      setAttribute: () => ({}),
+      setAttributes: () => ({}),
+      addEvent: () => ({}),
+      addLink: () => ({}),
+      setStatus: () => ({}),
+      updateName: () => ({}),
+      end: () => {},
+      isRecording: () => false,
+      recordException: () => {},
+    } as unknown as Span;
+  }
+
+  /**
    * Start a new span for tracing an operation
    *
    * @param name - Span name (e.g., 'packet.process', 'settlement.execute')
@@ -171,17 +212,16 @@ export class OpenTelemetryTracer {
     attributes?: PacketSpanAttributes | SettlementSpanAttributes,
     parentContext?: Context
   ): Span {
-    if (!this.isEnabled() || !this._tracer) {
-      // Return a no-op span from the global tracer
-      return trace.getTracer('noop').startSpan(name);
+    if (!this.isEnabled() || !this._tracer || !this._otelApi) {
+      return this._createNoopSpan(name);
     }
 
-    const ctx = parentContext || context.active();
+    const ctx = parentContext || this._otelApi.context.active();
 
     const span = this._tracer.startSpan(
       name,
       {
-        kind: SpanKind.INTERNAL,
+        kind: this._otelApi.SpanKind.INTERNAL,
         attributes: attributes as Record<string, string | undefined>,
       },
       ctx
@@ -205,16 +245,16 @@ export class OpenTelemetryTracer {
     attributes?: PacketSpanAttributes | SettlementSpanAttributes,
     parentContext?: Context
   ): Span {
-    if (!this.isEnabled() || !this._tracer) {
-      return trace.getTracer('noop').startSpan(name);
+    if (!this.isEnabled() || !this._tracer || !this._otelApi) {
+      return this._createNoopSpan(name);
     }
 
-    const ctx = parentContext || context.active();
+    const ctx = parentContext || this._otelApi.context.active();
 
     return this._tracer.startSpan(
       name,
       {
-        kind: SpanKind.SERVER,
+        kind: this._otelApi.SpanKind.SERVER,
         attributes: attributes as Record<string, string | undefined>,
       },
       ctx
@@ -234,16 +274,16 @@ export class OpenTelemetryTracer {
     attributes?: PacketSpanAttributes | SettlementSpanAttributes,
     parentContext?: Context
   ): Span {
-    if (!this.isEnabled() || !this._tracer) {
-      return trace.getTracer('noop').startSpan(name);
+    if (!this.isEnabled() || !this._tracer || !this._otelApi) {
+      return this._createNoopSpan(name);
     }
 
-    const ctx = parentContext || context.active();
+    const ctx = parentContext || this._otelApi.context.active();
 
     return this._tracer.startSpan(
       name,
       {
-        kind: SpanKind.CLIENT,
+        kind: this._otelApi.SpanKind.CLIENT,
         attributes: attributes as Record<string, string | undefined>,
       },
       ctx
@@ -260,14 +300,14 @@ export class OpenTelemetryTracer {
   endSpan(span: Span, status: SpanStatus = 'ok', errorMessage?: string): void {
     if (status === 'error') {
       span.setStatus({
-        code: SpanStatusCode.ERROR,
+        code: this._otelApi?.SpanStatusCode.ERROR ?? 2,
         message: errorMessage,
       });
       if (errorMessage) {
         span.recordException(new Error(errorMessage));
       }
     } else {
-      span.setStatus({ code: SpanStatusCode.OK });
+      span.setStatus({ code: this._otelApi?.SpanStatusCode.OK ?? 1 });
     }
 
     span.end();
@@ -311,11 +351,11 @@ export class OpenTelemetryTracer {
    * @returns Headers with trace context
    */
   injectContext(headers: Record<string, string>): Record<string, string> {
-    if (!this.isEnabled()) {
+    if (!this.isEnabled() || !this._otelApi) {
       return headers;
     }
 
-    propagation.inject(context.active(), headers);
+    this._otelApi.propagation.inject(this._otelApi.context.active(), headers);
 
     this._logger.trace({ headers }, 'Trace context injected');
 
@@ -329,11 +369,14 @@ export class OpenTelemetryTracer {
    * @returns Extracted context
    */
   extractContext(headers: Record<string, string>): Context {
-    if (!this.isEnabled()) {
-      return context.active();
+    if (!this.isEnabled() || !this._otelApi) {
+      return this._otelApi?.context.active() ?? ({} as Context);
     }
 
-    const extractedContext = propagation.extract(context.active(), headers);
+    const extractedContext = this._otelApi.propagation.extract(
+      this._otelApi.context.active(),
+      headers
+    );
 
     this._logger.trace('Trace context extracted');
 
@@ -348,7 +391,13 @@ export class OpenTelemetryTracer {
    * @returns Result of the function
    */
   withSpan<T>(span: Span, fn: () => T): T {
-    return context.with(trace.setSpan(context.active(), span), fn);
+    if (!this._otelApi) {
+      return fn();
+    }
+    return this._otelApi.context.with(
+      this._otelApi.trace.setSpan(this._otelApi.context.active(), span),
+      fn
+    );
   }
 
   /**
@@ -357,7 +406,7 @@ export class OpenTelemetryTracer {
    * @returns Current trace ID or undefined if no active span
    */
   getCurrentTraceId(): string | undefined {
-    const activeSpan = trace.getActiveSpan();
+    const activeSpan = this._otelApi?.trace.getActiveSpan();
     return activeSpan?.spanContext().traceId;
   }
 
@@ -367,7 +416,7 @@ export class OpenTelemetryTracer {
    * @returns Current span ID or undefined if no active span
    */
   getCurrentSpanId(): string | undefined {
-    const activeSpan = trace.getActiveSpan();
+    const activeSpan = this._otelApi?.trace.getActiveSpan();
     return activeSpan?.spanContext().spanId;
   }
 

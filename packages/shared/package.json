@@ -1,15 +1,53 @@
 {
   "name": "@agent-runtime/shared",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Shared TypeScript types and utilities for Agent Runtime",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/.tsbuildinfo",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ALLiDoizCode/agent-runtime.git",
+    "directory": "packages/shared"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "keywords": [
+    "interledger",
+    "ilp",
+    "payment",
+    "oer",
+    "codec",
+    "types"
+  ],
+  "homepage": "https://github.com/ALLiDoizCode/agent-runtime/tree/main/packages/shared#readme",
+  "bugs": {
+    "url": "https://github.com/ALLiDoizCode/agent-runtime/issues"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {},
   "devDependencies": {

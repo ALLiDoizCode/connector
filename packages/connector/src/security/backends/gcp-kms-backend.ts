@@ -1,22 +1,20 @@
 import { Logger } from 'pino';
-import { KeyManagementServiceClient } from '@google-cloud/kms';
+import type { KeyManagementServiceClient as KMSClientType } from '@google-cloud/kms';
 import { KeyManagerBackend, GCPConfig } from '../key-manager';
+import { requireOptional } from '../../utils/optional-require';
 
 /**
  * GCPKMSBackend implements KeyManagerBackend using Google Cloud Key Management Service
  * Supports EVM (secp256k1) and XRP (ed25519) key types
  */
 export class GCPKMSBackend implements KeyManagerBackend {
-  private client: KeyManagementServiceClient;
+  private client: KMSClientType | null = null;
   private config: GCPConfig;
   private logger: Logger;
 
   constructor(config: GCPConfig, logger: Logger) {
     this.config = config;
     this.logger = logger.child({ component: 'GCPKMSBackend' });
-
-    // Initialize GCP KMS client
-    this.client = new KeyManagementServiceClient();
 
     this.logger.info(
       {
@@ -26,6 +24,20 @@ export class GCPKMSBackend implements KeyManagerBackend {
       },
       'GCPKMSBackend initialized'
     );
+  }
+
+  /**
+   * Lazily loads the GCP KMS SDK and initializes the client
+   */
+  private async _getClient(): Promise<KMSClientType> {
+    if (!this.client) {
+      const gcpKms = await requireOptional<typeof import('@google-cloud/kms')>(
+        '@google-cloud/kms',
+        'GCP KMS key management'
+      );
+      this.client = new gcpKms.KeyManagementServiceClient();
+    }
+    return this.client;
   }
 
   /**
@@ -81,7 +93,8 @@ export class GCPKMSBackend implements KeyManagerBackend {
       const crypto = require('crypto');
       const digest = crypto.createHash('sha256').update(message).digest();
 
-      const [response] = await this.client.asymmetricSign({
+      const client = await this._getClient();
+      const [response] = await client.asymmetricSign({
         name: cryptoKeyVersionName,
         digest: {
           sha256: digest,
@@ -113,7 +126,8 @@ export class GCPKMSBackend implements KeyManagerBackend {
     this.logger.debug({ keyId, cryptoKeyVersionName }, 'Retrieving public key from GCP KMS');
 
     try {
-      const [response] = await this.client.getPublicKey({
+      const client = await this._getClient();
+      const [response] = await client.getPublicKey({
         name: cryptoKeyVersionName,
       });
 
@@ -165,7 +179,8 @@ export class GCPKMSBackend implements KeyManagerBackend {
     );
 
     try {
-      const [response] = await this.client.createCryptoKeyVersion({
+      const client = await this._getClient();
+      const [response] = await client.createCryptoKeyVersion({
         parent: cryptoKeyName,
       });
 

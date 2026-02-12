@@ -1,14 +1,15 @@
 import { Logger } from 'pino';
-import { KeyClient, CryptographyClient } from '@azure/keyvault-keys';
-import { ClientSecretCredential } from '@azure/identity';
+import type { KeyClient as KeyClientType } from '@azure/keyvault-keys';
 import { KeyManagerBackend, AzureConfig } from '../key-manager';
+import { requireOptional } from '../../utils/optional-require';
 
 /**
  * AzureKeyVaultBackend implements KeyManagerBackend using Azure Key Vault
  * Supports EVM (secp256k1) and XRP (ed25519) key types
  */
 export class AzureKeyVaultBackend implements KeyManagerBackend {
-  private keyClient: KeyClient;
+  private keyClient: KeyClientType | null = null;
+  private kvSdk: typeof import('@azure/keyvault-keys') | null = null;
   private config: AzureConfig;
   private logger: Logger;
 
@@ -16,27 +17,53 @@ export class AzureKeyVaultBackend implements KeyManagerBackend {
     this.config = config;
     this.logger = logger.child({ component: 'AzureKeyVaultBackend' });
 
-    // Initialize Azure Key Vault client
-    let credential;
-    if (config.credentials) {
-      credential = new ClientSecretCredential(
-        config.credentials.tenantId,
-        config.credentials.clientId,
-        config.credentials.clientSecret
-      );
-    } else {
-      // Use DefaultAzureCredential if no explicit credentials provided
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { DefaultAzureCredential } = require('@azure/identity');
-      credential = new DefaultAzureCredential();
-    }
-
-    this.keyClient = new KeyClient(config.vaultUrl, credential);
-
     this.logger.info(
       { vaultUrl: config.vaultUrl, evmKeyName: config.evmKeyName, xrpKeyName: config.xrpKeyName },
       'AzureKeyVaultBackend initialized'
     );
+  }
+
+  /**
+   * Lazily loads the Azure SDKs and initializes the Key Vault client
+   */
+  private async _getKeyClient(): Promise<KeyClientType> {
+    if (!this.keyClient) {
+      const identitySdk = await requireOptional<typeof import('@azure/identity')>(
+        '@azure/identity',
+        'Azure Key Vault authentication'
+      );
+      this.kvSdk = await requireOptional<typeof import('@azure/keyvault-keys')>(
+        '@azure/keyvault-keys',
+        'Azure Key Vault key management'
+      );
+
+      let credential;
+      if (this.config.credentials) {
+        credential = new identitySdk.ClientSecretCredential(
+          this.config.credentials.tenantId,
+          this.config.credentials.clientId,
+          this.config.credentials.clientSecret
+        );
+      } else {
+        credential = new identitySdk.DefaultAzureCredential();
+      }
+
+      this.keyClient = new this.kvSdk.KeyClient(this.config.vaultUrl, credential);
+    }
+    return this.keyClient;
+  }
+
+  /**
+   * Lazily loads the Azure Key Vault SDK module
+   */
+  private async _getKvSdk(): Promise<typeof import('@azure/keyvault-keys')> {
+    if (!this.kvSdk) {
+      this.kvSdk = await requireOptional<typeof import('@azure/keyvault-keys')>(
+        '@azure/keyvault-keys',
+        'Azure Key Vault key management'
+      );
+    }
+    return this.kvSdk;
   }
 
   /**
@@ -82,15 +109,19 @@ export class AzureKeyVaultBackend implements KeyManagerBackend {
     this.logger.debug({ keyName, keyType, algorithm }, 'Signing with Azure Key Vault');
 
     try {
+      const keyClient = await this._getKeyClient();
+      const kvSdk = await this._getKvSdk();
+
       // Get the key to create a CryptographyClient
-      const key = await this.keyClient.getKey(keyName);
+      const key = await keyClient.getKey(keyName);
 
       if (!key.id) {
         throw new Error('Azure Key Vault returned no key ID');
       }
 
       // Create cryptography client for signing
-      const cryptoClient = new CryptographyClient(key, this.keyClient['credential']);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cryptoClient = new kvSdk.CryptographyClient(key, (keyClient as any)['credential']);
 
       // Azure Key Vault requires message digest (SHA256 for ES256K)
       // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -127,7 +158,8 @@ export class AzureKeyVaultBackend implements KeyManagerBackend {
     this.logger.debug({ keyName }, 'Retrieving public key from Azure Key Vault');
 
     try {
-      const key = await this.keyClient.getKey(keyName);
+      const keyClient = await this._getKeyClient();
+      const key = await keyClient.getKey(keyName);
 
       if (!key.key) {
         throw new Error('Azure Key Vault returned no public key');
@@ -171,6 +203,8 @@ export class AzureKeyVaultBackend implements KeyManagerBackend {
     );
 
     try {
+      const keyClient = await this._getKeyClient();
+
       // Azure Key Vault supports key rotation via creating a new key version
       // For manual rotation, we create a new key with a suffix
       const newKeyName = `${keyName}-rotated-${Date.now()}`;
@@ -179,7 +213,7 @@ export class AzureKeyVaultBackend implements KeyManagerBackend {
       const curve = keyType === 'evm' ? 'SECP256K1' : 'Ed25519';
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newKey = await this.keyClient.createKey(newKeyName, curve as any, {
+      const newKey = await keyClient.createKey(newKeyName, curve as any, {
         keyOps: ['sign', 'verify'],
         tags: {
           purpose: 'ILP-Connector-Settlement',

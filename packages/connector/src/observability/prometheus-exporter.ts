@@ -7,8 +7,8 @@
  */
 
 import { Logger } from 'pino';
-import { RequestHandler, Request, Response } from 'express';
-import * as client from 'prom-client';
+import type { RequestHandler, Request, Response } from 'express';
+import type * as PromClient from 'prom-client';
 import {
   PrometheusMetricsConfig,
   SettlementMethod,
@@ -20,6 +20,7 @@ import {
   SLAMetrics,
   ClaimMetricsOptions,
 } from './types';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Default Prometheus metrics configuration
@@ -54,7 +55,7 @@ const CLAIM_REDEMPTION_LATENCY_BUCKETS = [1, 5, 10, 30, 60, 300, 600, 1800];
  *
  * @example
  * ```typescript
- * const exporter = new PrometheusExporter(logger, { enabled: true });
+ * const exporter = await PrometheusExporter.create(logger, { enabled: true });
  * exporter.recordPacket({ type: 'prepare', status: 'success', latencyMs: 5 });
  * const metrics = await exporter.getMetrics();
  * ```
@@ -62,40 +63,40 @@ const CLAIM_REDEMPTION_LATENCY_BUCKETS = [1, 5, 10, 30, 60, 300, 600, 1800];
 export class PrometheusExporter {
   private readonly _logger: Logger;
   private readonly _config: PrometheusMetricsConfig;
-  private readonly _registry: client.Registry;
+  private readonly _registry: PromClient.Registry;
 
   // Packet metrics
-  private readonly _packetsProcessedTotal: client.Counter;
-  private readonly _packetLatencySeconds: client.Histogram;
-  private readonly _packetsInFlight: client.Gauge;
+  private readonly _packetsProcessedTotal: PromClient.Counter;
+  private readonly _packetLatencySeconds: PromClient.Histogram;
+  private readonly _packetsInFlight: PromClient.Gauge;
 
   // Settlement metrics
-  private readonly _settlementsExecutedTotal: client.Counter;
-  private readonly _settlementLatencySeconds: client.Histogram;
-  private readonly _settlementAmountTotal: client.Counter;
+  private readonly _settlementsExecutedTotal: PromClient.Counter;
+  private readonly _settlementLatencySeconds: PromClient.Histogram;
+  private readonly _settlementAmountTotal: PromClient.Counter;
 
   // Account metrics
-  private readonly _accountBalanceUnits: client.Gauge;
-  private readonly _accountCreditsTotal: client.Counter;
-  private readonly _accountDebitsTotal: client.Counter;
+  private readonly _accountBalanceUnits: PromClient.Gauge;
+  private readonly _accountCreditsTotal: PromClient.Counter;
+  private readonly _accountDebitsTotal: PromClient.Counter;
 
   // Channel metrics
-  private readonly _activeChannels: client.Gauge;
-  private readonly _channelFundedTotal: client.Counter;
-  private readonly _channelClosedTotal: client.Counter;
-  private readonly _channelDisputesTotal: client.Counter;
+  private readonly _activeChannels: PromClient.Gauge;
+  private readonly _channelFundedTotal: PromClient.Counter;
+  private readonly _channelClosedTotal: PromClient.Counter;
+  private readonly _channelDisputesTotal: PromClient.Counter;
 
   // Error metrics
-  private readonly _errorsTotal: client.Counter;
-  private readonly _lastErrorTimestamp: client.Gauge;
+  private readonly _errorsTotal: PromClient.Counter;
+  private readonly _lastErrorTimestamp: PromClient.Gauge;
 
   // Claim metrics
-  private readonly _claimsSentTotal: client.Counter;
-  private readonly _claimsReceivedTotal: client.Counter;
-  private readonly _claimsRedeemedTotal: client.Counter;
-  private readonly _claimRedemptionLatencySeconds: client.Histogram;
-  private readonly _claimVerificationFailuresTotal: client.Counter;
-  private readonly _claimLastRedemptionTimestampSeconds: client.Gauge;
+  private readonly _claimsSentTotal: PromClient.Counter;
+  private readonly _claimsReceivedTotal: PromClient.Counter;
+  private readonly _claimsRedeemedTotal: PromClient.Counter;
+  private readonly _claimRedemptionLatencySeconds: PromClient.Histogram;
+  private readonly _claimVerificationFailuresTotal: PromClient.Counter;
+  private readonly _claimLastRedemptionTimestampSeconds: PromClient.Gauge;
 
   // SLA tracking (internal counters for rate calculation)
   private _packetSuccessCount: number = 0;
@@ -105,12 +106,35 @@ export class PrometheusExporter {
   private _latencySamples: number[] = [];
 
   /**
-   * Create a new PrometheusExporter instance
+   * Create a new PrometheusExporter instance asynchronously
    *
    * @param logger - Pino logger instance
    * @param config - Prometheus metrics configuration
+   * @returns Promise resolving to PrometheusExporter instance
    */
-  constructor(logger: Logger, config?: Partial<PrometheusMetricsConfig>) {
+  static async create(
+    logger: Logger,
+    config?: Partial<PrometheusMetricsConfig>
+  ): Promise<PrometheusExporter> {
+    const client = await requireOptional<typeof import('prom-client')>(
+      'prom-client',
+      'Prometheus metrics'
+    );
+    return new PrometheusExporter(logger, client, config);
+  }
+
+  /**
+   * Create a new PrometheusExporter instance
+   *
+   * @param logger - Pino logger instance
+   * @param client - Loaded prom-client module
+   * @param config - Prometheus metrics configuration
+   */
+  constructor(
+    logger: Logger,
+    client: typeof PromClient,
+    config?: Partial<PrometheusMetricsConfig>
+  ) {
     this._logger = logger.child({ component: 'prometheus-exporter' });
     this._config = { ...DEFAULT_CONFIG, ...config };
 
@@ -700,7 +724,7 @@ export class PrometheusExporter {
    *
    * @returns Prometheus Registry instance
    */
-  getRegistry(): client.Registry {
+  getRegistry(): PromClient.Registry {
     return this._registry;
   }
 }

@@ -119,8 +119,8 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
     await telemetryEmitter.connect();
     await waitFor(() => telemetryEmitter.isConnected(), 2000);
 
-    // Create logger with telemetry transport
-    testLogger = createLogger('test-connector', 'debug', telemetryEmitter);
+    // Create logger with telemetry transport (async when telemetryEmitter is provided)
+    testLogger = await createLogger('test-connector', 'debug', telemetryEmitter);
 
     // Clear any connection messages
     mockTelemetryServer.clearMessages();

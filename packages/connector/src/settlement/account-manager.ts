@@ -19,7 +19,21 @@
  */
 
 import { Logger } from 'pino';
-import { AccountFlags, Transfer, TransferFlags } from 'tigerbeetle-node';
+import type { Transfer } from 'tigerbeetle-node';
+import { requireOptional } from '../utils/optional-require';
+
+// Module-level SDK cache for tigerbeetle-node
+let _tbSdk: typeof import('tigerbeetle-node') | null = null;
+async function loadTigerBeetleSdk(): Promise<typeof import('tigerbeetle-node')> {
+  if (!_tbSdk) {
+    _tbSdk = await requireOptional<typeof import('tigerbeetle-node')>(
+      'tigerbeetle-node',
+      'TigerBeetle accounting'
+    );
+  }
+  return _tbSdk;
+}
+
 import { SettlementState } from '@agent-runtime/shared';
 import { TigerBeetleClient } from './tigerbeetle-client';
 import { TigerBeetleAccountError } from './tigerbeetle-errors';
@@ -284,14 +298,14 @@ export class AccountManager {
 
     try {
       // Build account objects with metadata encoding
-      const debitAccount = this._buildAccountObject(debitAccountId, AccountType.DEBIT, {
+      const debitAccount = await this._buildAccountObject(debitAccountId, AccountType.DEBIT, {
         nodeId: this._config.nodeId,
         peerId,
         tokenId,
         accountType: AccountType.DEBIT,
       });
 
-      const creditAccount = this._buildAccountObject(creditAccountId, AccountType.CREDIT, {
+      const creditAccount = await this._buildAccountObject(creditAccountId, AccountType.CREDIT, {
         nodeId: this._config.nodeId,
         peerId,
         tokenId,
@@ -593,6 +607,8 @@ export class AccountManager {
     ledger: number,
     code: number
   ): Promise<void> {
+    const tbSdk = await loadTigerBeetleSdk();
+
     // Ensure accounts exist before recording transfers
     // createPeerAccounts is idempotent - safe to call multiple times
     const fromPeerAccounts = await this.ensurePeerAccounts(fromPeerId, tokenId);
@@ -633,7 +649,7 @@ export class AccountManager {
         timeout: 0,
         ledger,
         code,
-        flags: TransferFlags.none,
+        flags: tbSdk.TransferFlags.none,
         timestamp: 0n,
       },
       // Transfer 2 (Outgoing): We forward value to next peer
@@ -651,7 +667,7 @@ export class AccountManager {
         timeout: 0,
         ledger,
         code,
-        flags: TransferFlags.none,
+        flags: tbSdk.TransferFlags.none,
         timestamp: 0n,
       },
     ];
@@ -900,6 +916,8 @@ export class AccountManager {
    * console.log(newBalance.creditBalance); // 0n
    */
   async recordSettlement(peerId: string, tokenId: string, amount: bigint): Promise<void> {
+    const tbSdk = await loadTigerBeetleSdk();
+
     // Get peer account IDs
     const accountPair = this.getPeerAccountPair(peerId, tokenId);
 
@@ -934,7 +952,7 @@ export class AccountManager {
       amount,
       ledger: this._config.defaultLedger,
       code: 1, // Settlement transfer code (distinguishes from packet transfers)
-      flags: TransferFlags.none,
+      flags: tbSdk.TransferFlags.none,
       userData128: 0n, // Future: Settlement metadata (settlement ID, blockchain tx hash)
       userData64: 0n, // Future: Settlement reason code
       userData32: 0,
@@ -1007,11 +1025,11 @@ export class AccountManager {
    * @returns TigerBeetle account object ready for creation
    * @private
    */
-  private _buildAccountObject(
+  private async _buildAccountObject(
     accountId: bigint,
     accountType: AccountType,
     metadata: PeerAccountMetadata
-  ): {
+  ): Promise<{
     id: bigint;
     ledger: number;
     code: number;
@@ -1019,7 +1037,9 @@ export class AccountManager {
     user_data_128: bigint;
     user_data_64: bigint;
     user_data_32: number;
-  } {
+  }> {
+    const sdk = await loadTigerBeetleSdk();
+
     // Encode metadata into user_data fields
     const encodedMetadata = encodeAccountMetadata(metadata);
 
@@ -1033,7 +1053,7 @@ export class AccountManager {
       id: accountId,
       ledger: this._config.defaultLedger,
       code,
-      flags: AccountFlags.none,
+      flags: sdk.AccountFlags.none,
       user_data_128: encodedMetadata.user_data_128,
       user_data_64: encodedMetadata.user_data_64,
       user_data_32: encodedMetadata.user_data_32,
