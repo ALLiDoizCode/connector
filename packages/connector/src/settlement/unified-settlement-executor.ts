@@ -499,7 +499,7 @@ export class UnifiedSettlementExecutor {
       );
 
       // Sign claim for amount
-      const claim = this._aptosChannelSDK!.signClaim(channelOwner, BigInt(amount));
+      const claim = await this._aptosChannelSDK!.signClaim(channelOwner, BigInt(amount));
 
       // Send claim to peer via BTP (Epic 17)
       const btpClient = this.getBTPClientForPeer(peerId);

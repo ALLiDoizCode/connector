@@ -65,10 +65,10 @@ describe('PaymentChannelSDK', () => {
         ),
     } as unknown as jest.Mocked<ethers.Signer>;
 
-    // Mock KeyManagerSigner to return mockSigner
+    // Mock createKeyManagerSigner factory to return mockSigner
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { KeyManagerSigner } = require('../security/key-manager-signer');
-    KeyManagerSigner.mockImplementation(() => mockSigner);
+    const { createKeyManagerSigner } = require('../security/key-manager-signer');
+    createKeyManagerSigner.mockResolvedValue(mockSigner);
 
     // Mock registry contract
     mockRegistryContract = {

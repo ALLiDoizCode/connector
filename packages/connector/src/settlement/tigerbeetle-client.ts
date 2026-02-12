@@ -10,17 +10,15 @@
  * @see https://docs.tigerbeetle.com/
  */
 
-import {
-  createClient,
+import type {
   Client,
   Account,
   Transfer,
-  AccountFlags,
-  TransferFlags,
   CreateAccountError,
   CreateTransferError,
 } from 'tigerbeetle-node';
 import { Logger } from 'pino';
+import { requireOptional } from '../utils/optional-require';
 import {
   TigerBeetleError,
   TigerBeetleConnectionError,
@@ -83,6 +81,7 @@ export class TigerBeetleClient {
   private _client?: Client;
   private _config: Required<TigerBeetleConfig>;
   private _initialized = false;
+  private _sdk: typeof import('tigerbeetle-node') | null = null;
 
   constructor(
     config: TigerBeetleConfig,
@@ -116,8 +115,14 @@ export class TigerBeetleClient {
         'Initializing TigerBeetle client'
       );
 
+      // Dynamically load tigerbeetle-node
+      this._sdk = await requireOptional<typeof import('tigerbeetle-node')>(
+        'tigerbeetle-node',
+        'TigerBeetle accounting'
+      );
+
       // createClient is synchronous but we wrap in Promise for consistency
-      this._client = createClient({
+      this._client = this._sdk.createClient({
         cluster_id: BigInt(this._config.clusterId),
         replica_addresses: this._config.replicaAddresses,
       });
@@ -173,7 +178,7 @@ export class TigerBeetleClient {
     accountId: bigint,
     ledger: number,
     code: number,
-    flags: number = AccountFlags.none
+    flags?: number
   ): Promise<void> {
     this.ensureConnected();
 
@@ -181,6 +186,8 @@ export class TigerBeetleClient {
     if (accountId === 0n) {
       throw new TigerBeetleAccountError('Account ID must be non-zero', accountId);
     }
+
+    const effectiveFlags = flags ?? this._sdk!.AccountFlags.none;
 
     const account: Account = {
       id: accountId,
@@ -194,7 +201,7 @@ export class TigerBeetleClient {
       reserved: 0,
       ledger,
       code,
-      flags,
+      flags: effectiveFlags,
       timestamp: 0n, // TigerBeetle auto-assigns timestamp
     };
 
@@ -246,7 +253,7 @@ export class TigerBeetleClient {
       reserved: 0,
       ledger: spec.ledger,
       code: spec.code,
-      flags: spec.flags ?? AccountFlags.none,
+      flags: spec.flags ?? this._sdk!.AccountFlags.none,
       timestamp: 0n,
     }));
 
@@ -264,7 +271,7 @@ export class TigerBeetleClient {
 
       if (errors.length > 0) {
         const errorMessages = errors.map(
-          (err) => `Account ${err.index}: ${CreateAccountError[err.result]}`
+          (err) => `Account ${err.index}: ${this._sdk!.CreateAccountError[err.result]}`
         );
         this._logger.error(
           { errors: errorMessages, accountCount: accounts.length },
@@ -335,7 +342,7 @@ export class TigerBeetleClient {
       timeout: 0,
       ledger,
       code,
-      flags: TransferFlags.none,
+      flags: this._sdk!.TransferFlags.none,
       timestamp: 0n,
     };
 
@@ -638,7 +645,7 @@ export class TigerBeetleClient {
     error: { index: number; result: CreateAccountError },
     accountId: bigint
   ): TigerBeetleAccountError {
-    const errorCode = CreateAccountError[error.result];
+    const errorCode = this._sdk!.CreateAccountError[error.result];
     const message = `Account creation failed: ${errorCode}`;
 
     this._logger.error({ accountId, errorCode, errorIndex: error.index }, message);
@@ -655,7 +662,7 @@ export class TigerBeetleClient {
     debitAccountId: bigint,
     creditAccountId: bigint
   ): TigerBeetleTransferError {
-    const errorCode = CreateTransferError[error.result];
+    const errorCode = this._sdk!.CreateTransferError[error.result];
     const message = `Transfer creation failed: ${errorCode}`;
 
     this._logger.error(

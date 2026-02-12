@@ -145,8 +145,8 @@ describe('Aptos Settlement Integration Tests', () => {
     }
 
     // Create dependencies
-    aptosClient = createAptosClientFromEnv(logger);
-    claimSigner = createAptosClaimSignerFromEnv(logger);
+    aptosClient = await createAptosClientFromEnv(logger);
+    claimSigner = await createAptosClaimSignerFromEnv(logger);
 
     // Connect to Aptos
     await aptosClient.connect();
@@ -277,8 +277,8 @@ describe('Aptos Settlement Integration Tests', () => {
   // --------------------------------------------------------------------------
 
   describe('Off-Chain Claim Operations (AC: 3)', () => {
-    itOrSkip('should sign claim with valid parameters', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100_000_000)); // 1 APT
+    itOrSkip('should sign claim with valid parameters', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100_000_000)); // 1 APT
 
       expect(claim).toBeDefined();
       expect(claim.channelOwner).toContain('0x');
@@ -289,15 +289,15 @@ describe('Aptos Settlement Integration Tests', () => {
       expect(claim.publicKey).toBeDefined();
     });
 
-    itOrSkip('should verify valid claim signature', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200_000_000));
-      const isValid = sdk.verifyClaim(claim);
+    itOrSkip('should verify valid claim signature', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200_000_000));
+      const isValid = await sdk.verifyClaim(claim);
 
       expect(isValid).toBe(true);
     });
 
-    itOrSkip('should reject claim with invalid signature', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(300_000_000));
+    itOrSkip('should reject claim with invalid signature', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(300_000_000));
 
       // Tamper with signature
       const tamperedClaim = {
@@ -305,12 +305,12 @@ describe('Aptos Settlement Integration Tests', () => {
         signature: 'invalid' + claim.signature.slice(7),
       };
 
-      const isValid = sdk.verifyClaim(tamperedClaim);
+      const isValid = await sdk.verifyClaim(tamperedClaim);
       expect(isValid).toBe(false);
     });
 
-    itOrSkip('should reject claim with tampered amount', () => {
-      const claim = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(400_000_000));
+    itOrSkip('should reject claim with tampered amount', async () => {
+      const claim = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(400_000_000));
 
       // Tamper with amount
       const tamperedClaim = {
@@ -318,14 +318,14 @@ describe('Aptos Settlement Integration Tests', () => {
         amount: BigInt(500_000_000), // Different amount than signed
       };
 
-      const isValid = sdk.verifyClaim(tamperedClaim);
+      const isValid = await sdk.verifyClaim(tamperedClaim);
       expect(isValid).toBe(false);
     });
 
-    itOrSkip('should auto-increment nonce for subsequent claims', () => {
-      const claim1 = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100_000_000));
-      const claim2 = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200_000_000));
-      const claim3 = sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(300_000_000));
+    itOrSkip('should auto-increment nonce for subsequent claims', async () => {
+      const claim1 = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(100_000_000));
+      const claim2 = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(200_000_000));
+      const claim3 = await sdk.signClaim(APTOS_ACCOUNT_ADDRESS!, BigInt(300_000_000));
 
       expect(claim2.nonce).toBe(claim1.nonce + 1);
       expect(claim3.nonce).toBe(claim2.nonce + 1);
@@ -351,7 +351,7 @@ describe('Aptos Settlement Integration Tests', () => {
         }
 
         // Sign a claim for half the deposited amount
-        const claim = sdk.signClaim(testChannelOwner, BigInt(5_000_000)); // 0.05 APT
+        const claim = await sdk.signClaim(testChannelOwner, BigInt(5_000_000)); // 0.05 APT
 
         // Submit claim (this would be done by the destination in production)
         const txHash = await sdk.submitClaim(claim);
@@ -491,13 +491,13 @@ describe('Aptos Settlement Integration Tests', () => {
       expect(state).toBeNull();
     });
 
-    itOrSkip('should create SDK from environment variables', () => {
+    itOrSkip('should create SDK from environment variables', async () => {
       if (SKIP_ON_CHAIN) {
         // Can't test factory without MODULE_ADDRESS
         return;
       }
 
-      const envSdk = createAptosChannelSDKFromEnv(logger);
+      const envSdk = await createAptosChannelSDKFromEnv(logger);
       expect(envSdk).toBeInstanceOf(AptosChannelSDK);
       envSdk.stopAutoRefresh();
     });

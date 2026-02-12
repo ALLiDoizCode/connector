@@ -96,6 +96,7 @@ describeIfE2E('Settlement API Execution Integration Test', () => {
     dockerAvailable = await isDockerAvailable();
 
     if (!dockerAvailable) {
+      // eslint-disable-next-line no-console
       console.log('Docker not available, skipping integration test');
       return;
     }
@@ -103,6 +104,7 @@ describeIfE2E('Settlement API Execution Integration Test', () => {
     tigerBeetleAvailable = await isTigerBeetleAccessible();
 
     if (!tigerBeetleAvailable) {
+      /* eslint-disable no-console */
       console.log('TigerBeetle not accessible on port 3000');
       console.log('To run this test:');
       console.log('1. Expose TigerBeetle port in docker-compose.yml:');
@@ -110,6 +112,7 @@ describeIfE2E('Settlement API Execution Integration Test', () => {
       console.log('     ports:');
       console.log('       - "3000:3000"');
       console.log('2. Run: docker-compose up -d tigerbeetle');
+      /* eslint-enable no-console */
       return;
     }
 
@@ -165,7 +168,7 @@ describeIfE2E('Settlement API Execution Integration Test', () => {
     };
 
     app = express();
-    app.use(createSettlementRouter(config));
+    app.use(await createSettlementRouter(config));
 
     // Start settlement monitor
     await settlementMonitor.start();

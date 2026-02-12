@@ -53,7 +53,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     initialDeposit: '5000000',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     settlementPeers = new Map();
 
     mockRoutingTable = {
@@ -156,7 +156,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {
@@ -701,7 +701,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
   describe('Settlement Disabled (AC: 10)', () => {
     let appNoSettlement: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: AdminAPIConfig = {
         routingTable: mockRoutingTable,
         btpClientManager: mockBTPClientManager,
@@ -711,7 +711,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
       };
 
       appNoSettlement = express();
-      appNoSettlement.use('/admin', createAdminRouter(config));
+      appNoSettlement.use('/admin', await createAdminRouter(config));
     });
 
     it('POST /admin/channels should return 503 when channelManager is undefined', async () => {
@@ -757,7 +757,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
   describe('Auth Tests (Story 21.1 AC: 11)', () => {
     let appWithAuth: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: AdminAPIConfig = {
         routingTable: mockRoutingTable,
         btpClientManager: mockBTPClientManager,
@@ -769,7 +769,7 @@ describe('Admin API Channel Endpoints (Story 21.1)', () => {
       };
 
       appWithAuth = express();
-      appWithAuth.use('/admin', createAdminRouter(config));
+      appWithAuth.use('/admin', await createAdminRouter(config));
     });
 
     it('should return 401 for POST /admin/channels without API key', async () => {
@@ -871,7 +871,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
     openedAt: 1000000,
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     settlementPeers = new Map();
 
     mockRoutingTable = {
@@ -948,7 +948,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {
@@ -1092,7 +1092,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
       const appNoSettlement = express();
       appNoSettlement.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1190,7 +1190,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
       const appNoXrp = express();
       appNoXrp.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1375,7 +1375,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
       const appNoSettlement = express();
       appNoSettlement.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1430,7 +1430,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
   describe('Auth Tests (Story 21.2)', () => {
     let appWithAuth: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       const config: AdminAPIConfig = {
         routingTable: mockRoutingTable,
         btpClientManager: mockBTPClientManager,
@@ -1443,7 +1443,7 @@ describe('Admin API Channel Lifecycle Endpoints (Story 21.2)', () => {
       };
 
       appWithAuth = express();
-      appWithAuth.use('/admin', createAdminRouter(config));
+      appWithAuth.use('/admin', await createAdminRouter(config));
     });
 
     it('should return 401 for deposit endpoint without API key', async () => {
@@ -1502,7 +1502,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
   let mockSettlementMonitor: jest.Mocked<SettlementMonitor>;
   let mockClaimReceiver: jest.Mocked<ClaimReceiver>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockRoutingTable = {
       addRoute: jest.fn(),
       removeRoute: jest.fn(),
@@ -1587,7 +1587,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {
@@ -1659,7 +1659,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
       const appNoAccounts = express();
       appNoAccounts.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1689,11 +1689,11 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
   describe('GET /admin/balances/:peerId — Auth', () => {
     let appWithAuth: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       appWithAuth = express();
       appWithAuth.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1781,7 +1781,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
       const appNoMonitor = express();
       appNoMonitor.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1799,11 +1799,11 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
   describe('GET /admin/settlement/states — Auth', () => {
     let appWithAuth: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       appWithAuth = express();
       appWithAuth.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1946,7 +1946,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
       const appNoChannel = express();
       appNoChannel.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1965,7 +1965,7 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
       const appNoClaims = express();
       appNoClaims.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -1998,11 +1998,11 @@ describe('Admin API Balance and Settlement State Endpoints (Story 21.3)', () => 
   describe('GET /admin/channels/:channelId/claims — Auth', () => {
     let appWithAuth: Express;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       appWithAuth = express();
       appWithAuth.use(
         '/admin',
-        createAdminRouter({
+        await createAdminRouter({
           routingTable: mockRoutingTable,
           btpClientManager: mockBTPClientManager,
           logger: mockLogger,
@@ -2049,7 +2049,7 @@ describe('Admin API Channel Opening Integration Fixes (Story 21.4)', () => {
   const validEvmAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28';
   const validXrpAddress = 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW';
 
-  beforeEach(() => {
+  beforeEach(async () => {
     settlementPeers = new Map();
 
     mockRoutingTable = {
@@ -2152,7 +2152,7 @@ describe('Admin API Channel Opening Integration Fixes (Story 21.4)', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {
@@ -2464,7 +2464,7 @@ describe('Admin API Channel Status Normalization (Story 21.5)', () => {
   let mockPaymentChannelSDK: jest.Mocked<PaymentChannelSDK>;
   let settlementPeers: Map<string, SettlementPeerConfig>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     settlementPeers = new Map();
 
     mockRoutingTable = {
@@ -2533,7 +2533,7 @@ describe('Admin API Channel Status Normalization (Story 21.5)', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterEach(() => {

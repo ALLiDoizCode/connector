@@ -67,7 +67,7 @@ describeIfConfigured('AptosClient Integration (Testnet)', () => {
       maxRetryAttempts: 3,
     };
 
-    client = new AptosClient(config, logger);
+    client = await AptosClient.create(config, logger);
   });
 
   afterAll(() => {

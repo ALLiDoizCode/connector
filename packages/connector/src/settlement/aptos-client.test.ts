@@ -63,7 +63,7 @@ describe('AptosClient', () => {
   let mockAptos: jest.Mocked<Aptos>;
   let config: AptosClientConfig;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
 
     // Create fresh mock logger
@@ -84,17 +84,17 @@ describe('AptosClient', () => {
       maxRetryAttempts: 3,
     };
 
-    // Get the mocked Aptos instance
-    client = new AptosClient(config, mockLogger);
+    // Get the mocked Aptos instance via async factory
+    client = await AptosClient.create(config, mockLogger);
     const mockResults = (Aptos as jest.MockedClass<typeof Aptos>).mock.results;
-    mockAptos = mockResults[0]?.value as jest.Mocked<Aptos>;
+    mockAptos = mockResults[mockResults.length - 1]?.value as jest.Mocked<Aptos>;
   });
 
   afterEach(() => {
     client?.disconnect();
   });
 
-  describe('constructor', () => {
+  describe('create()', () => {
     it('should initialize with valid config', () => {
       expect(client).toBeDefined();
       expect(client.getAddress()).toBe(
@@ -102,41 +102,43 @@ describe('AptosClient', () => {
       );
     });
 
-    it('should throw error on address mismatch', () => {
+    it('should throw error on address mismatch', async () => {
       const badConfig = {
         ...config,
         accountAddress: '0xdifferentaddress0000000000000000000000000000000000000000000000000',
       };
 
-      expect(() => new AptosClient(badConfig, mockLogger)).toThrow('Account address mismatch');
+      await expect(AptosClient.create(badConfig, mockLogger)).rejects.toThrow(
+        'Account address mismatch'
+      );
     });
 
-    it('should detect testnet network from URL', () => {
+    it('should detect testnet network from URL', async () => {
       const testnetConfig = {
         ...config,
         nodeUrl: 'https://fullnode.testnet.aptoslabs.com/v1',
       };
-      const testnetClient = new AptosClient(testnetConfig, mockLogger);
+      const testnetClient = await AptosClient.create(testnetConfig, mockLogger);
       expect(testnetClient).toBeDefined();
       testnetClient.disconnect();
     });
 
-    it('should detect mainnet network from URL', () => {
+    it('should detect mainnet network from URL', async () => {
       const mainnetConfig = {
         ...config,
         nodeUrl: 'https://fullnode.mainnet.aptoslabs.com/v1',
       };
-      const mainnetClient = new AptosClient(mainnetConfig, mockLogger);
+      const mainnetClient = await AptosClient.create(mainnetConfig, mockLogger);
       expect(mainnetClient).toBeDefined();
       mainnetClient.disconnect();
     });
 
-    it('should initialize fallback client when fallbackNodeUrl provided', () => {
+    it('should initialize fallback client when fallbackNodeUrl provided', async () => {
       const configWithFallback = {
         ...config,
         fallbackNodeUrl: 'https://aptos-testnet.nodereal.io/v1',
       };
-      const clientWithFallback = new AptosClient(configWithFallback, mockLogger);
+      const clientWithFallback = await AptosClient.create(configWithFallback, mockLogger);
       expect(clientWithFallback).toBeDefined();
       clientWithFallback.disconnect();
     });
@@ -188,7 +190,7 @@ describe('AptosClient', () => {
         ...config,
         healthCheckIntervalMs: 5000,
       };
-      const healthCheckClient = new AptosClient(configWithHealthCheck, mockLogger);
+      const healthCheckClient = await AptosClient.create(configWithHealthCheck, mockLogger);
       const healthMockResults = (Aptos as jest.MockedClass<typeof Aptos>).mock.results;
       const healthMockAptos = healthMockResults[healthMockResults.length - 1]
         ?.value as jest.Mocked<Aptos>;
@@ -228,14 +230,14 @@ describe('AptosClient', () => {
       expect(mockLogger.info).toHaveBeenCalledWith('Disconnected from Aptos');
     });
 
-    it('should clear health check interval on disconnect', () => {
+    it('should clear health check interval on disconnect', async () => {
       jest.useFakeTimers();
 
       const configWithHealthCheck = {
         ...config,
         healthCheckIntervalMs: 5000,
       };
-      const healthCheckClient = new AptosClient(configWithHealthCheck, mockLogger);
+      const healthCheckClient = await AptosClient.create(configWithHealthCheck, mockLogger);
       const healthMockResults = (Aptos as jest.MockedClass<typeof Aptos>).mock.results;
       const healthMockAptos = healthMockResults[healthMockResults.length - 1]
         ?.value as jest.Mocked<Aptos>;
@@ -528,7 +530,7 @@ describe('AptosClient', () => {
         ...config,
         healthCheckIntervalMs: 1000,
       };
-      const healthCheckClient = new AptosClient(configWithHealthCheck, mockLogger);
+      const healthCheckClient = await AptosClient.create(configWithHealthCheck, mockLogger);
       const healthMockResults = (Aptos as jest.MockedClass<typeof Aptos>).mock.results;
       const healthMockAptos = healthMockResults[healthMockResults.length - 1]
         ?.value as jest.Mocked<Aptos>;
@@ -557,7 +559,7 @@ describe('AptosClient', () => {
         ...config,
         healthCheckIntervalMs: 1000,
       };
-      const healthCheckClient = new AptosClient(configWithHealthCheck, mockLogger);
+      const healthCheckClient = await AptosClient.create(configWithHealthCheck, mockLogger);
       const healthMockResults = (Aptos as jest.MockedClass<typeof Aptos>).mock.results;
       const healthMockAptos = healthMockResults[healthMockResults.length - 1]
         ?.value as jest.Mocked<Aptos>;
@@ -659,7 +661,7 @@ describe('createAptosClientFromEnv', () => {
     process.env = originalEnv;
   });
 
-  it('should create client from environment variables', () => {
+  it('should create client from environment variables', async () => {
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
     process.env.APTOS_PRIVATE_KEY =
       '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
@@ -672,48 +674,48 @@ describe('createAptosClientFromEnv', () => {
       warn: jest.fn(),
     } as unknown as Logger;
 
-    const client = createAptosClientFromEnv(mockLogger);
+    const client = await createAptosClientFromEnv(mockLogger);
     expect(client).toBeDefined();
     client.disconnect();
   });
 
-  it('should throw if APTOS_NODE_URL not set', () => {
+  it('should throw if APTOS_NODE_URL not set', async () => {
     delete process.env.APTOS_NODE_URL;
     process.env.APTOS_PRIVATE_KEY = '0x1234';
     process.env.APTOS_ACCOUNT_ADDRESS = '0x1234';
 
     const mockLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() } as unknown as Logger;
 
-    expect(() => createAptosClientFromEnv(mockLogger)).toThrow(
+    await expect(createAptosClientFromEnv(mockLogger)).rejects.toThrow(
       'APTOS_NODE_URL environment variable is required'
     );
   });
 
-  it('should throw if APTOS_PRIVATE_KEY not set', () => {
+  it('should throw if APTOS_PRIVATE_KEY not set', async () => {
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
     delete process.env.APTOS_PRIVATE_KEY;
     process.env.APTOS_ACCOUNT_ADDRESS = '0x1234';
 
     const mockLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() } as unknown as Logger;
 
-    expect(() => createAptosClientFromEnv(mockLogger)).toThrow(
+    await expect(createAptosClientFromEnv(mockLogger)).rejects.toThrow(
       'APTOS_PRIVATE_KEY environment variable is required'
     );
   });
 
-  it('should throw if APTOS_ACCOUNT_ADDRESS not set', () => {
+  it('should throw if APTOS_ACCOUNT_ADDRESS not set', async () => {
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
     process.env.APTOS_PRIVATE_KEY = '0x1234';
     delete process.env.APTOS_ACCOUNT_ADDRESS;
 
     const mockLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() } as unknown as Logger;
 
-    expect(() => createAptosClientFromEnv(mockLogger)).toThrow(
+    await expect(createAptosClientFromEnv(mockLogger)).rejects.toThrow(
       'APTOS_ACCOUNT_ADDRESS environment variable is required'
     );
   });
 
-  it('should include optional config when environment variables set', () => {
+  it('should include optional config when environment variables set', async () => {
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
     process.env.APTOS_PRIVATE_KEY =
       '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
@@ -730,7 +732,7 @@ describe('createAptosClientFromEnv', () => {
       warn: jest.fn(),
     } as unknown as Logger;
 
-    const client = createAptosClientFromEnv(mockLogger);
+    const client = await createAptosClientFromEnv(mockLogger);
     expect(client).toBeDefined();
     client.disconnect();
   });

@@ -41,8 +41,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('constructor', () => {
-    it('should initialize with default configuration', () => {
-      exporter = new PrometheusExporter(mockLogger);
+    it('should initialize with default configuration', async () => {
+      exporter = await PrometheusExporter.create(mockLogger);
 
       expect(mockLogger.child).toHaveBeenCalledWith({ component: 'prometheus-exporter' });
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -51,7 +51,7 @@ describe('PrometheusExporter', () => {
       );
     });
 
-    it('should accept custom configuration', () => {
+    it('should accept custom configuration', async () => {
       const config: Partial<PrometheusMetricsConfig> = {
         enabled: true,
         metricsPath: '/custom-metrics',
@@ -59,7 +59,7 @@ describe('PrometheusExporter', () => {
         labels: { environment: 'test', nodeId: 'node-1' },
       };
 
-      exporter = new PrometheusExporter(mockLogger, config);
+      exporter = await PrometheusExporter.create(mockLogger, config);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -72,8 +72,8 @@ describe('PrometheusExporter', () => {
       );
     });
 
-    it('should create a custom registry', () => {
-      exporter = new PrometheusExporter(mockLogger);
+    it('should create a custom registry', async () => {
+      exporter = await PrometheusExporter.create(mockLogger);
       const registry = exporter.getRegistry();
 
       expect(registry).toBeDefined();
@@ -82,8 +82,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('recordPacket', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should record successful packet', async () => {
@@ -153,8 +153,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('packets in flight', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should increment packets in flight', async () => {
@@ -176,8 +176,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('recordSettlement', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should record successful settlement', async () => {
@@ -235,8 +235,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('account metrics', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should update account balance', async () => {
@@ -264,8 +264,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('channel metrics', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should update active channels count', async () => {
@@ -317,8 +317,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('error metrics', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should record error', async () => {
@@ -356,8 +356,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('SLA metrics', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should return perfect SLA metrics when no data', () => {
@@ -386,8 +386,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('getMetrics', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should return Prometheus-formatted metrics', async () => {
@@ -408,8 +408,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('getMetricsMiddleware', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should return Express middleware function', () => {
@@ -439,8 +439,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('reset', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     it('should reset all metrics', async () => {
@@ -460,8 +460,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('shutdown', () => {
-    it('should clear registry on shutdown', () => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    it('should clear registry on shutdown', async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
 
       exporter.shutdown();
 
@@ -470,8 +470,8 @@ describe('PrometheusExporter', () => {
   });
 
   describe('claim metrics', () => {
-    beforeEach(() => {
-      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    beforeEach(async () => {
+      exporter = await PrometheusExporter.create(mockLogger, { includeDefaultMetrics: false });
     });
 
     describe('recordClaimSent', () => {

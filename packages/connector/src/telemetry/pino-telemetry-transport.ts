@@ -7,7 +7,7 @@
  */
 
 import { Transform } from 'stream';
-import build from 'pino-abstract-transport';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Log level type matching Pino levels
@@ -148,8 +148,14 @@ function transformLogObject(pinoLog: PinoLogObject): LogEntry | null {
  * logger.info({ correlationId: 'pkt_123' }, 'Packet received');
  * ```
  */
-export function createTelemetryTransport(emitLog: EmitLogFunction): Transform {
-  return build((source) => {
+export async function createTelemetryTransport(emitLog: EmitLogFunction): Promise<Transform> {
+  // pino-abstract-transport uses `export = build` (CJS), so dynamic import yields { default: build }
+  const mod = await requireOptional<{ default: (fn: (source: Transform) => void) => Transform }>(
+    'pino-abstract-transport',
+    'Pino telemetry transport'
+  );
+  const build = mod.default;
+  return build((source: Transform) => {
     source.on('data', (obj) => {
       try {
         // Transform Pino log object to LogEntry

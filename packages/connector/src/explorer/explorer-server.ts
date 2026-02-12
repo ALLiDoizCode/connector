@@ -10,7 +10,7 @@
  * @packageDocumentation
  */
 
-import express, { Express, Request, Response, Router } from 'express';
+import type { Express, Request, Response } from 'express';
 import { createServer, Server as HTTPServer } from 'http';
 import { WebSocketServer } from 'ws';
 import path from 'path';
@@ -18,6 +18,7 @@ import { EventStore, EventQueryFilter } from './event-store';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { Logger } from '../utils/logger';
 import { EventBroadcaster } from './event-broadcaster';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Configuration for ExplorerServer.
@@ -91,13 +92,15 @@ export class ExplorerServer {
   };
   private readonly _eventStore: EventStore;
   private readonly _logger: Logger;
-  private readonly _app: Express;
-  private readonly _server: HTTPServer;
-  private readonly _wss: WebSocketServer;
-  private readonly _broadcaster: EventBroadcaster;
+  private _app!: Express;
+  private _express!: typeof import('express');
+  private _server!: HTTPServer;
+  private _wss!: WebSocketServer;
+  private _broadcaster!: EventBroadcaster;
   private readonly _balancesFetcher?: () => Promise<unknown>;
   private readonly _peersFetcher?: () => Promise<PeerInfo[]>;
   private readonly _routesFetcher?: () => Promise<RouteInfo[]>;
+  private readonly _telemetryEmitter: TelemetryEmitter | null;
   private _unsubscribe: (() => void) | null = null;
   private _port: number = 0;
   private _started: boolean = false;
@@ -129,9 +132,21 @@ export class ExplorerServer {
     this._balancesFetcher = config.balancesFetcher;
     this._peersFetcher = config.peersFetcher;
     this._routesFetcher = config.routesFetcher;
+    this._telemetryEmitter = telemetryEmitter;
     this._logger = logger.child({ component: 'ExplorerServer' });
+  }
+
+  /**
+   * Initialize Express app and HTTP/WebSocket servers (called from start())
+   */
+  private async _initApp(): Promise<void> {
+    const { default: express } = await requireOptional<{ default: typeof import('express') }>(
+      'express',
+      'HTTP admin/health APIs'
+    );
 
     // Initialize Express app
+    this._express = express;
     this._app = express();
     this._setupCors();
     this._app.use(express.json());
@@ -149,8 +164,8 @@ export class ExplorerServer {
     this._broadcaster = new EventBroadcaster(this._wss, this._logger);
 
     // Subscribe to TelemetryEmitter for live event broadcasting (only if available)
-    if (telemetryEmitter) {
-      this._unsubscribe = telemetryEmitter.onEvent((event) => {
+    if (this._telemetryEmitter) {
+      this._unsubscribe = this._telemetryEmitter.onEvent((event) => {
         this._broadcaster.broadcast(event);
       });
     }
@@ -210,7 +225,7 @@ export class ExplorerServer {
    * @private
    */
   private _setupApiRoutes(): void {
-    const router = Router();
+    const router = this._express.Router();
 
     // GET /api/events - Historical event queries
     router.get('/api/events', async (req: Request, res: Response) => {
@@ -388,7 +403,7 @@ export class ExplorerServer {
     const staticPath = path.resolve(this._config.staticPath);
 
     // Serve static files
-    this._app.use(express.static(staticPath));
+    this._app.use(this._express.static(staticPath));
 
     // SPA fallback - serve index.html for non-API routes without file extensions
     this._app.get('*', (req: Request, res: Response) => {
@@ -424,6 +439,7 @@ export class ExplorerServer {
    * @throws Error if port is already in use
    */
   async start(): Promise<void> {
+    await this._initApp();
     return new Promise((resolve, reject) => {
       this._server.on('error', (error: NodeJS.ErrnoException) => {
         if (error.code === 'EADDRINUSE') {

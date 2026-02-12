@@ -1,21 +1,19 @@
 import { Logger } from 'pino';
-import {
-  KMSClient,
-  SignCommand,
-  GetPublicKeyCommand,
-  CreateKeyCommand,
-  KeyUsageType,
-  KeySpec,
-  SigningAlgorithmSpec,
+import type {
+  KMSClient as KMSClientType,
+  SigningAlgorithmSpec as SigningAlgorithmSpecType,
+  KeySpec as KeySpecType,
 } from '@aws-sdk/client-kms';
 import { KeyManagerBackend, AWSConfig } from '../key-manager';
+import { requireOptional } from '../../utils/optional-require';
 
 /**
  * AWSKMSBackend implements KeyManagerBackend using AWS Key Management Service
  * Supports EVM (secp256k1) and XRP (ed25519) key types
  */
 export class AWSKMSBackend implements KeyManagerBackend {
-  private client: KMSClient;
+  private client: KMSClientType | null = null;
+  private awsSdk: typeof import('@aws-sdk/client-kms') | null = null;
   private config: AWSConfig;
   private logger: Logger;
 
@@ -23,16 +21,40 @@ export class AWSKMSBackend implements KeyManagerBackend {
     this.config = config;
     this.logger = logger.child({ component: 'AWSKMSBackend' });
 
-    // Initialize AWS KMS client
-    this.client = new KMSClient({
-      region: config.region,
-      credentials: config.credentials,
-    });
-
     this.logger.info(
       { region: config.region, evmKeyId: config.evmKeyId, xrpKeyId: config.xrpKeyId },
       'AWSKMSBackend initialized'
     );
+  }
+
+  /**
+   * Lazily loads the AWS SDK and initializes the KMS client
+   */
+  private async _getClient(): Promise<KMSClientType> {
+    if (!this.client) {
+      this.awsSdk = await requireOptional<typeof import('@aws-sdk/client-kms')>(
+        '@aws-sdk/client-kms',
+        'AWS KMS key management'
+      );
+      this.client = new this.awsSdk.KMSClient({
+        region: this.config.region,
+        credentials: this.config.credentials,
+      });
+    }
+    return this.client;
+  }
+
+  /**
+   * Lazily loads the AWS SDK module
+   */
+  private async _getSdk(): Promise<typeof import('@aws-sdk/client-kms')> {
+    if (!this.awsSdk) {
+      this.awsSdk = await requireOptional<typeof import('@aws-sdk/client-kms')>(
+        '@aws-sdk/client-kms',
+        'AWS KMS key management'
+      );
+    }
+    return this.awsSdk;
   }
 
   /**
@@ -57,12 +79,13 @@ export class AWSKMSBackend implements KeyManagerBackend {
    * @param keyType - Key type ('evm' or 'xrp')
    * @returns AWS KMS signing algorithm
    */
-  private _getSigningAlgorithm(keyType: 'evm' | 'xrp'): SigningAlgorithmSpec {
+  private async _getSigningAlgorithm(keyType: 'evm' | 'xrp'): Promise<SigningAlgorithmSpecType> {
+    const sdk = await this._getSdk();
     if (keyType === 'evm') {
-      return SigningAlgorithmSpec.ECDSA_SHA_256;
+      return sdk.SigningAlgorithmSpec.ECDSA_SHA_256;
     } else {
       // XRP uses ed25519 - ED25519_SHA_512 for RAW message signing
-      return SigningAlgorithmSpec.ED25519_SHA_512;
+      return sdk.SigningAlgorithmSpec.ED25519_SHA_512;
     }
   }
 
@@ -71,11 +94,12 @@ export class AWSKMSBackend implements KeyManagerBackend {
    * @param keyType - Key type ('evm' | 'xrp')
    * @returns AWS KMS key spec
    */
-  private _getKeySpec(keyType: 'evm' | 'xrp'): KeySpec {
+  private async _getKeySpec(keyType: 'evm' | 'xrp'): Promise<KeySpecType> {
+    const sdk = await this._getSdk();
     if (keyType === 'evm') {
-      return KeySpec.ECC_SECG_P256K1; // secp256k1 for EVM
+      return sdk.KeySpec.ECC_SECG_P256K1; // secp256k1 for EVM
     } else {
-      return KeySpec.ECC_NIST_EDWARDS25519; // ed25519 for XRP
+      return sdk.KeySpec.ECC_NIST_EDWARDS25519; // ed25519 for XRP
     }
   }
 
@@ -87,19 +111,21 @@ export class AWSKMSBackend implements KeyManagerBackend {
    */
   async sign(message: Buffer, keyId: string): Promise<Buffer> {
     const keyType = this._detectKeyType(keyId);
-    const signingAlgorithm = this._getSigningAlgorithm(keyType);
+    const signingAlgorithm = await this._getSigningAlgorithm(keyType);
+    const sdk = await this._getSdk();
+    const client = await this._getClient();
 
     this.logger.debug({ keyId, keyType, signingAlgorithm }, 'Signing with AWS KMS');
 
     try {
-      const command = new SignCommand({
+      const command = new sdk.SignCommand({
         KeyId: keyId,
         Message: message,
         SigningAlgorithm: signingAlgorithm,
         MessageType: 'RAW', // Sign raw message (not digest)
       });
 
-      const response = await this.client.send(command);
+      const response = await client.send(command);
 
       if (!response.Signature) {
         throw new Error('AWS KMS returned no signature');
@@ -122,13 +148,15 @@ export class AWSKMSBackend implements KeyManagerBackend {
    */
   async getPublicKey(keyId: string): Promise<Buffer> {
     this.logger.debug({ keyId }, 'Retrieving public key from AWS KMS');
+    const sdk = await this._getSdk();
+    const client = await this._getClient();
 
     try {
-      const command = new GetPublicKeyCommand({
+      const command = new sdk.GetPublicKeyCommand({
         KeyId: keyId,
       });
 
-      const response = await this.client.send(command);
+      const response = await client.send(command);
 
       if (!response.PublicKey) {
         throw new Error('AWS KMS returned no public key');
@@ -154,7 +182,9 @@ export class AWSKMSBackend implements KeyManagerBackend {
    */
   async rotateKey(keyId: string): Promise<string> {
     const keyType = this._detectKeyType(keyId);
-    const keySpec = this._getKeySpec(keyType);
+    const keySpec = await this._getKeySpec(keyType);
+    const sdk = await this._getSdk();
+    const client = await this._getClient();
 
     this.logger.info(
       { oldKeyId: keyId, keyType, keySpec },
@@ -162,8 +192,8 @@ export class AWSKMSBackend implements KeyManagerBackend {
     );
 
     try {
-      const command = new CreateKeyCommand({
-        KeyUsage: KeyUsageType.SIGN_VERIFY,
+      const command = new sdk.CreateKeyCommand({
+        KeyUsage: sdk.KeyUsageType.SIGN_VERIFY,
         KeySpec: keySpec,
         Description: `Rotated ${keyType.toUpperCase()} key from ${keyId}`,
         Tags: [
@@ -182,7 +212,7 @@ export class AWSKMSBackend implements KeyManagerBackend {
         ],
       });
 
-      const response = await this.client.send(command);
+      const response = await client.send(command);
 
       if (!response.KeyMetadata?.Arn) {
         throw new Error('AWS KMS returned no key ARN');

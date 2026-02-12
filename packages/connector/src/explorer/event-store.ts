@@ -10,9 +10,10 @@
  * @packageDocumentation
  */
 
-import { createClient, Client } from '@libsql/client';
+import type { Client } from '@libsql/client';
 import { TelemetryEvent } from '@agent-runtime/shared';
 import { Logger } from '../utils/logger';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Configuration for EventStore.
@@ -331,6 +332,10 @@ export class EventStore {
   async initialize(): Promise<void> {
     const url = this._config.path === ':memory:' ? ':memory:' : `file:${this._config.path}`;
 
+    const { createClient } = await requireOptional<typeof import('@libsql/client')>(
+      '@libsql/client',
+      'libSQL event storage for Explorer UI'
+    );
     this._client = createClient({ url });
 
     // Create events table

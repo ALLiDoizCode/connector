@@ -137,7 +137,7 @@ describeIfInfra('Admin Channels Integration (Anvil)', () => {
     };
 
     app = express();
-    app.use('/admin', createAdminRouter(config));
+    app.use('/admin', await createAdminRouter(config));
   });
 
   afterAll(async () => {
@@ -278,7 +278,7 @@ describeIfInfra('Admin Channels Integration (Anvil)', () => {
     let mockAccountManager: jest.Mocked<AccountManager>;
     let mockSettlementMonitor: jest.Mocked<SettlementMonitor>;
 
-    beforeAll(() => {
+    beforeAll(async () => {
       mockAccountManager = {
         getAccountBalance: jest.fn().mockResolvedValue({
           debitBalance: 5000n,
@@ -330,7 +330,7 @@ describeIfInfra('Admin Channels Integration (Anvil)', () => {
       };
 
       balanceApp = express();
-      balanceApp.use('/admin', createAdminRouter(config));
+      balanceApp.use('/admin', await createAdminRouter(config));
     });
 
     it('should query balance via GET /admin/balances/:peerId', async () => {

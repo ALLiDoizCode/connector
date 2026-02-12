@@ -55,10 +55,10 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
     }
 
     logger = pino({ level: 'info' });
-    client = createAptosClientFromEnv(logger);
+    client = await createAptosClientFromEnv(logger);
     await client.connect();
 
-    claimSigner = createAptosClaimSignerFromEnv(logger);
+    claimSigner = await createAptosClaimSignerFromEnv(logger);
   }, INTEGRATION_TEST_TIMEOUT);
 
   afterAll(() => {
@@ -78,7 +78,7 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       const nonce = 1;
 
       // Sign the claim
-      const claim = claimSigner.signClaim(channelOwner, amount, nonce);
+      const claim = await claimSigner.signClaim(channelOwner, amount, nonce);
 
       // Verify claim format
       expect(claim.channelOwner).toContain('0x');
@@ -89,7 +89,7 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       expect(claim.createdAt).toBeGreaterThan(0);
 
       // Verify claim signature locally
-      const isValid = claimSigner.verifyClaim(
+      const isValid = await claimSigner.verifyClaim(
         claim.channelOwner,
         claim.amount,
         claim.nonce,
@@ -110,11 +110,11 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       const amount = BigInt(100000000);
 
       // Sign with fresh signer (same key)
-      const signer1 = createAptosClaimSignerFromEnv(logger);
-      const signer2 = createAptosClaimSignerFromEnv(logger);
+      const signer1 = await createAptosClaimSignerFromEnv(logger);
+      const signer2 = await createAptosClaimSignerFromEnv(logger);
 
-      const claim1 = signer1.signClaim(channelOwner, amount, 1);
-      const claim2 = signer2.signClaim(channelOwner, amount, 1);
+      const claim1 = await signer1.signClaim(channelOwner, amount, 1);
+      const claim2 = await signer2.signClaim(channelOwner, amount, 1);
 
       // ed25519 signatures are deterministic
       expect(claim1.signature).toBe(claim2.signature);
@@ -129,16 +129,16 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       }
 
       const channelOwner = client.getAddress();
-      const signer = createAptosClaimSignerFromEnv(logger);
+      const signer = await createAptosClaimSignerFromEnv(logger);
 
       // Sign multiple claims with increasing nonces
-      const claim1 = signer.signClaim(channelOwner, BigInt(100), 10);
-      const claim2 = signer.signClaim(channelOwner, BigInt(200), 20);
-      const claim3 = signer.signClaim(channelOwner, BigInt(300), 30);
+      const claim1 = await signer.signClaim(channelOwner, BigInt(100), 10);
+      const claim2 = await signer.signClaim(channelOwner, BigInt(200), 20);
+      const claim3 = await signer.signClaim(channelOwner, BigInt(300), 30);
 
       // Verify all claims are valid
       expect(
-        signer.verifyClaim(
+        await signer.verifyClaim(
           claim1.channelOwner,
           claim1.amount,
           claim1.nonce,
@@ -149,9 +149,9 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
 
       // Can only verify claim2 once (nonce tracking)
       // After verifying claim3, claim2 would be stale
-      const signerForVerification = createAptosClaimSignerFromEnv(logger);
+      const signerForVerification = await createAptosClaimSignerFromEnv(logger);
       expect(
-        signerForVerification.verifyClaim(
+        await signerForVerification.verifyClaim(
           claim2.channelOwner,
           claim2.amount,
           claim2.nonce,
@@ -162,7 +162,7 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
 
       // claim1 now rejected (stale nonce)
       expect(
-        signerForVerification.verifyClaim(
+        await signerForVerification.verifyClaim(
           claim1.channelOwner,
           claim1.amount,
           claim1.nonce,
@@ -173,7 +173,7 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
 
       // claim3 still works
       expect(
-        signerForVerification.verifyClaim(
+        await signerForVerification.verifyClaim(
           claim3.channelOwner,
           claim3.amount,
           claim3.nonce,
@@ -197,7 +197,7 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       }
 
       const channelOwner = client.getAddress();
-      const claim = claimSigner.signClaim(channelOwner, BigInt(100), 100);
+      const claim = await claimSigner.signClaim(channelOwner, BigInt(100), 100);
 
       // Signature: 64 bytes = 128 hex chars (no prefix)
       expect(claim.signature).toMatch(/^[0-9a-f]{128}$/i);
@@ -219,7 +219,7 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       const amount = BigInt(100000000);
       const nonce = 1;
 
-      const message = constructClaimMessage(channelOwner, amount, nonce);
+      const message = await constructClaimMessage(channelOwner, amount, nonce);
 
       // Message structure: "CLAIM_APTOS" (11) + address (32) + amount u64 (8) + nonce u64 (8) = 59 bytes
       expect(message.length).toBe(59);
@@ -259,8 +259,8 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       const amount = BigInt(1000000); // 0.01 APT
       const nonce = 1;
 
-      const signer = createAptosClaimSignerFromEnv(logger);
-      const claim = signer.signClaim(channelOwner, amount, nonce);
+      const signer = await createAptosClaimSignerFromEnv(logger);
+      const claim = await signer.signClaim(channelOwner, amount, nonce);
 
       // Call Move module view function to verify signature on-chain
       // This validates that our BCS encoding matches Move's encoding
@@ -309,11 +309,11 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       }
 
       // Create two signers with different keys
-      const signer1 = new AptosClaimSigner(
+      const signer1 = await AptosClaimSigner.create(
         { privateKey: '0x0000000000000000000000000000000000000000000000000000000000000001' },
         logger
       );
-      const signer2 = new AptosClaimSigner(
+      const signer2 = await AptosClaimSigner.create(
         { privateKey: '0x0000000000000000000000000000000000000000000000000000000000000002' },
         logger
       );
@@ -321,10 +321,10 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
       const channelOwner = client.getAddress();
 
       // Signer1 signs a claim
-      const claim = signer1.signClaim(channelOwner, BigInt(100), 1);
+      const claim = await signer1.signClaim(channelOwner, BigInt(100), 1);
 
       // Signer2 can verify it
-      const isValid = signer2.verifyClaim(
+      const isValid = await signer2.verifyClaim(
         claim.channelOwner,
         claim.amount,
         claim.nonce,
@@ -343,9 +343,9 @@ describe('AptosClaimSigner Integration (Testnet)', () => {
 describe('AptosClaimSigner Standalone Integration', () => {
   const logger = pino({ level: 'silent' });
 
-  it('should work end-to-end without network', () => {
+  it('should work end-to-end without network', async () => {
     // Create signer with test key
-    const signer = new AptosClaimSigner(
+    const signer = await AptosClaimSigner.create(
       { privateKey: '0x0000000000000000000000000000000000000000000000000000000000000001' },
       logger
     );
@@ -353,10 +353,10 @@ describe('AptosClaimSigner Standalone Integration', () => {
     const channelOwner = '0x' + '1'.repeat(64);
 
     // Sign claim
-    const claim = signer.signClaim(channelOwner, BigInt(1000000), 1);
+    const claim = await signer.signClaim(channelOwner, BigInt(1000000), 1);
 
     // Verify claim
-    const isValid = signer.verifyClaim(
+    const isValid = await signer.verifyClaim(
       claim.channelOwner,
       claim.amount,
       claim.nonce,
@@ -367,8 +367,8 @@ describe('AptosClaimSigner Standalone Integration', () => {
     expect(isValid).toBe(true);
   });
 
-  it('should maintain state across multiple operations', () => {
-    const signer = new AptosClaimSigner(
+  it('should maintain state across multiple operations', async () => {
+    const signer = await AptosClaimSigner.create(
       { privateKey: '0x0000000000000000000000000000000000000000000000000000000000000001' },
       logger
     );
@@ -377,9 +377,9 @@ describe('AptosClaimSigner Standalone Integration', () => {
     const channel2 = '0x' + '2'.repeat(64);
 
     // Sign claims for multiple channels
-    signer.signClaim(channel1, BigInt(100), 1);
-    signer.signClaim(channel1, BigInt(200), 2);
-    signer.signClaim(channel2, BigInt(500), 5);
+    await signer.signClaim(channel1, BigInt(100), 1);
+    await signer.signClaim(channel1, BigInt(200), 2);
+    await signer.signClaim(channel2, BigInt(500), 5);
 
     // Verify state
     expect(signer.getHighestNonce(channel1)).toBe(2);
@@ -389,12 +389,12 @@ describe('AptosClaimSigner Standalone Integration', () => {
     expect(signer.getLatestClaim(channel2)?.amount).toBe(BigInt(500));
   });
 
-  it('should recover from initial nonce state', () => {
+  it('should recover from initial nonce state', async () => {
     const initialNonceState = new Map<string, number>();
     const channel = '0x' + '1'.repeat(64);
     initialNonceState.set(channel, 100);
 
-    const signer = new AptosClaimSigner(
+    const signer = await AptosClaimSigner.create(
       {
         privateKey: '0x0000000000000000000000000000000000000000000000000000000000000001',
         initialNonceState,
@@ -403,11 +403,11 @@ describe('AptosClaimSigner Standalone Integration', () => {
     );
 
     // Should reject nonce <= 100
-    expect(() => signer.signClaim(channel, BigInt(100), 50)).toThrow();
-    expect(() => signer.signClaim(channel, BigInt(100), 100)).toThrow();
+    await expect(signer.signClaim(channel, BigInt(100), 50)).rejects.toThrow();
+    await expect(signer.signClaim(channel, BigInt(100), 100)).rejects.toThrow();
 
     // Should accept nonce > 100
-    const claim = signer.signClaim(channel, BigInt(100), 101);
+    const claim = await signer.signClaim(channel, BigInt(100), 101);
     expect(claim.nonce).toBe(101);
   });
 });

@@ -11,7 +11,7 @@
  * - Should NOT be exposed to public internet
  */
 
-import express, { Express } from 'express';
+import type { Express } from 'express';
 import { Server } from 'http';
 import { Logger } from '../utils/logger';
 import { RoutingTable } from '../routing/routing-table';
@@ -25,6 +25,7 @@ import type { XRPChannelLifecycleManager } from '../settlement/xrp-channel-lifec
 import type { AccountManager } from '../settlement/account-manager';
 import type { SettlementMonitor } from '../settlement/settlement-monitor';
 import type { ClaimReceiver } from '../settlement/claim-receiver';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * Admin API HTTP Server
@@ -48,11 +49,25 @@ import type { ClaimReceiver } from '../settlement/claim-receiver';
  * ```
  */
 export class AdminServer {
-  private _app: Express;
+  private _app!: Express;
   private _server: Server | null = null;
   private readonly _logger: Logger;
   private readonly _config: AdminApiConfig;
   private readonly _nodeId: string;
+  private readonly _options: {
+    routingTable: RoutingTable;
+    btpClientManager: BTPClientManager;
+    nodeId: string;
+    config: AdminApiConfig;
+    logger: Logger;
+    settlementPeers?: Map<string, SettlementPeerConfig>;
+    channelManager?: ChannelManager;
+    paymentChannelSDK?: PaymentChannelSDK;
+    xrpChannelLifecycleManager?: XRPChannelLifecycleManager;
+    accountManager?: AccountManager;
+    settlementMonitor?: SettlementMonitor;
+    claimReceiver?: ClaimReceiver;
+  };
 
   /**
    * Create AdminServer instance
@@ -78,12 +93,26 @@ export class AdminServer {
     settlementMonitor?: SettlementMonitor;
     claimReceiver?: ClaimReceiver;
   }) {
+    this._options = options;
+    this._nodeId = options.nodeId;
+    this._config = options.config;
+    this._logger = options.logger.child({ component: 'AdminServer' });
+  }
+
+  /**
+   * Initialize Express app with admin routes (called from start())
+   */
+  private async _initApp(): Promise<void> {
+    const { default: express } = await requireOptional<{ default: typeof import('express') }>(
+      'express',
+      'HTTP admin/health APIs'
+    );
+
     const {
       routingTable,
       btpClientManager,
       nodeId,
       config,
-      logger,
       settlementPeers,
       channelManager,
       paymentChannelSDK,
@@ -91,15 +120,12 @@ export class AdminServer {
       accountManager,
       settlementMonitor,
       claimReceiver,
-    } = options;
+    } = this._options;
 
-    this._nodeId = nodeId;
-    this._config = config;
-    this._logger = logger.child({ component: 'AdminServer' });
     this._app = express();
 
     // Create and mount admin router
-    const adminRouter = createAdminRouter({
+    const adminRouter = await createAdminRouter({
       routingTable,
       btpClientManager,
       nodeId,
@@ -149,6 +175,7 @@ export class AdminServer {
    * ```
    */
   async start(): Promise<void> {
+    await this._initApp();
     const port = this._config.port ?? 8081;
     const host = this._config.host ?? '0.0.0.0';
 

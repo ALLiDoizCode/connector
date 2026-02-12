@@ -52,7 +52,7 @@ import { SettlementExecutor } from '../settlement/settlement-executor';
 import { AccountManager } from '../settlement/account-manager';
 import { SettlementMonitor } from '../settlement/settlement-monitor';
 import { KeyManager } from '../security/key-manager';
-import { ethers } from 'ethers';
+import { requireOptional } from '../utils/optional-require';
 import { TigerBeetleClient } from '../settlement/tigerbeetle-client';
 import { promises as dns } from 'dns';
 // Import package.json for version information
@@ -299,7 +299,7 @@ export class ConnectorNode implements HealthStatusProvider {
       const aptosValidation = validateAptosEnvironment(this._logger);
       if (aptosValidation.enabled && aptosValidation.valid) {
         try {
-          this._aptosChannelSDK = createAptosChannelSDKFromEnv(this._logger);
+          this._aptosChannelSDK = await createAptosChannelSDKFromEnv(this._logger);
           this._aptosChannelSDK.startAutoRefresh();
           this._logger.info(
             { event: 'aptos_sdk_initialized' },
@@ -359,6 +359,10 @@ export class ConnectorNode implements HealthStatusProvider {
           const evmKeyId = 'evm';
 
           // Initialize PaymentChannelSDK
+          const { ethers } = await requireOptional<typeof import('ethers')>(
+            'ethers',
+            'EVM settlement'
+          );
           const provider = new ethers.JsonRpcProvider(baseRpcUrl);
           this._paymentChannelSDK = new PaymentChannelSDK(
             provider,

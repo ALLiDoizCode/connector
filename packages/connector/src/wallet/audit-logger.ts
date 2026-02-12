@@ -6,7 +6,7 @@
  */
 
 import type { Logger } from 'pino';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 
 /**
  * Audit log entry

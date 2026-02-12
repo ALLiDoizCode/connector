@@ -23,8 +23,9 @@
  * ```
  */
 
-import express, { Router, Request, Response, NextFunction } from 'express';
+import type { Router, Request, Response, NextFunction } from 'express';
 import { Logger } from '../utils/logger';
+import { requireOptional } from '../utils/optional-require';
 import { RoutingTable } from '../routing/routing-table';
 import { BTPClientManager } from '../btp/btp-client-manager';
 import { Peer } from '../btp/btp-client';
@@ -182,8 +183,12 @@ export interface SettlementStateResponse {
  * - POST /admin/routes - Add a new route
  * - DELETE /admin/routes/:prefix - Remove a route
  */
-export function createAdminRouter(config: AdminAPIConfig): Router {
-  const router = Router();
+export async function createAdminRouter(config: AdminAPIConfig): Promise<Router> {
+  const { default: express } = await requireOptional<{ default: typeof import('express') }>(
+    'express',
+    'HTTP admin/health APIs'
+  );
+  const router = express.Router();
   const {
     routingTable,
     btpClientManager,

@@ -7,12 +7,11 @@
  * with checksum validation and optional HSM/KMS integration (Epic 12).
  */
 
-import * as bip39 from 'bip39';
 import { createCipheriv, createDecipheriv, createHash, pbkdf2Sync, randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import QRCode from 'qrcode';
 import pino from 'pino';
+import { requireOptional } from '../utils/optional-require';
 
 /**
  * KeyManager interface for HSM/KMS integration (Epic 12)
@@ -290,6 +289,11 @@ export class WalletSeedManager {
    */
   async generateMasterSeed(strength: 128 | 256 = 256): Promise<MasterSeed> {
     try {
+      const bip39 = await requireOptional<typeof import('bip39')>(
+        'bip39',
+        'BIP-39 mnemonic generation'
+      );
+
       // Generate mnemonic with specified entropy
       const mnemonic = bip39.generateMnemonic(strength);
 
@@ -331,6 +335,11 @@ export class WalletSeedManager {
    */
   async importMasterSeed(mnemonic: string): Promise<MasterSeed> {
     try {
+      const bip39 = await requireOptional<typeof import('bip39')>(
+        'bip39',
+        'BIP-39 mnemonic validation'
+      );
+
       // Validate mnemonic checksum
       if (!bip39.validateMnemonic(mnemonic)) {
         throw new InvalidMnemonicError('Invalid mnemonic: checksum validation failed');
@@ -610,6 +619,11 @@ export class WalletSeedManager {
    */
   async generatePaperWallet(masterSeed: MasterSeed): Promise<PaperWallet> {
     try {
+      const QRCode = await requireOptional<typeof import('qrcode')>(
+        'qrcode',
+        'QR code generation for paper wallets'
+      );
+
       // Generate QR code from mnemonic
       const qrCodeDataUrl = await QRCode.toDataURL(masterSeed.mnemonic);
 

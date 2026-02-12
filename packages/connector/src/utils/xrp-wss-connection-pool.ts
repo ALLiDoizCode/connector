@@ -1,13 +1,18 @@
 import { Logger } from 'pino';
-import { Client } from 'xrpl';
+import type { Client } from 'xrpl';
 import { ConnectionPool, ConnectionFactory } from './connection-pool';
+import { requireOptional } from './optional-require';
 
 /**
  * XRP WebSocket ConnectionFactory implementation for xrpl.js Client
  */
 class XRPWSSConnectionFactory implements ConnectionFactory<Client> {
   async create(endpoint: string): Promise<Client> {
-    const client = new Client(endpoint);
+    const { Client: XClient } = await requireOptional<typeof import('xrpl')>(
+      'xrpl',
+      'XRP settlement'
+    );
+    const client = new XClient(endpoint);
     await client.connect();
     return client;
   }

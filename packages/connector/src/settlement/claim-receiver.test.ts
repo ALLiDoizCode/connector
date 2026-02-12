@@ -471,7 +471,7 @@ describe('ClaimReceiver', () => {
     });
 
     it('should verify valid Aptos claim and store with verified=true', async () => {
-      mockAptosClaimSigner.verifyClaim.mockReturnValue(true);
+      mockAptosClaimSigner.verifyClaim.mockResolvedValue(true);
       mockStatement.get.mockReturnValue(undefined); // No previous claim
 
       claimReceiver.registerWithBTPServer(mockBTPServer);
@@ -515,7 +515,7 @@ describe('ClaimReceiver', () => {
     });
 
     it('should reject Aptos claim with invalid signature', async () => {
-      mockAptosClaimSigner.verifyClaim.mockReturnValue(false);
+      mockAptosClaimSigner.verifyClaim.mockResolvedValue(false);
 
       claimReceiver.registerWithBTPServer(mockBTPServer);
       await btpMessageHandler!('peer-bob', btpMessage);
@@ -544,7 +544,7 @@ describe('ClaimReceiver', () => {
     });
 
     it('should reject Aptos claim with non-increasing nonce (monotonicity check)', async () => {
-      mockAptosClaimSigner.verifyClaim.mockReturnValue(true);
+      mockAptosClaimSigner.verifyClaim.mockResolvedValue(true);
 
       // Mock previous claim with higher nonce
       const previousClaim: AptosClaimMessage = {

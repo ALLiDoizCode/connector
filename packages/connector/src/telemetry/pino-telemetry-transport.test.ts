@@ -21,8 +21,11 @@ interface LogEntry {
 /**
  * Helper to create test logger with transport and capture emitted logs
  */
-function createTestLogger(emitLog: EmitLogFunction, level: string = 'debug'): pino.Logger {
-  const transport = createTelemetryTransport(emitLog);
+async function createTestLogger(
+  emitLog: EmitLogFunction,
+  level: string = 'debug'
+): Promise<pino.Logger> {
+  const transport = await createTelemetryTransport(emitLog);
 
   const logger = pino({ level }, pino.multistream([{ stream: transport }]));
 
@@ -43,7 +46,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog, 'trace'); // Enable all levels
+      const logger = await createTestLogger(emitLog, 'trace'); // Enable all levels
 
       // Act
       logger.debug('Debug message');
@@ -59,7 +62,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('Info message');
@@ -75,7 +78,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.warn('Warning message');
@@ -91,7 +94,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.error('Error message');
@@ -107,7 +110,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const transport = createTelemetryTransport(emitLog);
+      const transport = await createTelemetryTransport(emitLog);
 
       const logger = pino(
         { level: 'trace' }, // Enable trace level
@@ -128,7 +131,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('Packet received');
@@ -143,7 +146,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info({ correlationId: 'pkt_abc123' }, 'Packet processed');
@@ -159,7 +162,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info(
@@ -188,7 +191,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('Test message');
@@ -203,7 +206,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('Test message');
@@ -221,7 +224,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info({ destination: 'g.dest' }, 'Routing lookup');
@@ -237,7 +240,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('Simple message');
@@ -257,7 +260,7 @@ describe('Pino Telemetry Transport', () => {
       const emitLog = jest.fn(() => {
         throw new Error('Telemetry emission failed');
       });
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act & Assert - Logger should not crash
       expect(() => {
@@ -280,7 +283,7 @@ describe('Pino Telemetry Transport', () => {
         }
         // Second call succeeds
       });
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('First message'); // Will fail
@@ -296,7 +299,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const transport = createTelemetryTransport(emitLog);
+      const transport = await createTelemetryTransport(emitLog);
 
       // Act - Manually write malformed object to transport
       const malformedLog = { level: 999, msg: null, time: 'invalid' };
@@ -314,10 +317,10 @@ describe('Pino Telemetry Transport', () => {
   });
 
   describe('Transport stream behavior', () => {
-    it('should be a Transform stream', () => {
+    it('should be a Transform stream', async () => {
       // Arrange & Act
       const emitLog = jest.fn();
-      const transport = createTelemetryTransport(emitLog);
+      const transport = await createTelemetryTransport(emitLog);
 
       // Assert
       expect(transport).toBeInstanceOf(Transform);
@@ -327,7 +330,7 @@ describe('Pino Telemetry Transport', () => {
       // Arrange
       const emittedLogs: LogEntry[] = [];
       const emitLog = jest.fn((entry: LogEntry) => emittedLogs.push(entry));
-      const logger = createTestLogger(emitLog);
+      const logger = await createTestLogger(emitLog);
 
       // Act
       logger.info('Message 1');

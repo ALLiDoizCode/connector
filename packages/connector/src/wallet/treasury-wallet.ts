@@ -1,6 +1,7 @@
-import { ethers } from 'ethers';
-import { Client as XRPLClient, Wallet as XRPLWallet, Payment } from 'xrpl';
+import type { Wallet, Provider } from 'ethers';
+import type { Client as XRPLClient, Wallet as XRPLWallet, Payment } from 'xrpl';
 import pino from 'pino';
+import { requireOptional } from '../utils/optional-require';
 
 const logger = pino({ name: 'treasury-wallet' });
 
@@ -33,13 +34,16 @@ export interface Transaction {
  * NEVER stores or logs private keys.
  */
 export class TreasuryWallet {
-  private evmWallet: ethers.Wallet;
-  private xrpWallet: XRPLWallet;
-  private evmProvider: ethers.Provider;
+  private evmWallet: Wallet | null = null;
+  private xrpWallet!: XRPLWallet;
+  private evmProvider: Provider;
   private xrplClient: XRPLClient;
-  public readonly evmAddress: string;
-  public readonly xrpAddress: string;
+  public evmAddress: string = '';
+  public xrpAddress!: string;
   private noncePromise: Promise<number> | null = null;
+  private evmPrivateKey: string;
+  private xrpPrivateKey: string;
+  private xrpInitialized: boolean = false;
 
   /**
    * Creates a new TreasuryWallet instance
@@ -52,7 +56,7 @@ export class TreasuryWallet {
   constructor(
     evmPrivateKey: string,
     xrpPrivateKey: string,
-    evmProvider: ethers.Provider,
+    evmProvider: Provider,
     xrplClient: XRPLClient
   ) {
     // Validate private keys are present
@@ -60,28 +64,54 @@ export class TreasuryWallet {
       throw new Error('Treasury private keys are required');
     }
 
+    // Store private keys for lazy wallet initialization
+    this.evmPrivateKey = evmPrivateKey;
+    this.xrpPrivateKey = xrpPrivateKey;
+    this.evmProvider = evmProvider;
+    this.xrplClient = xrplClient;
+
+    logger.info('Treasury wallet config stored (wallet initialization deferred)');
+  }
+
+  /**
+   * Lazily initialize the EVM wallet via dynamic import of ethers.
+   */
+  private async ensureEvmInitialized(): Promise<Wallet> {
+    if (this.evmWallet) return this.evmWallet;
+
     try {
-      // Initialize EVM wallet
-      this.evmProvider = evmProvider;
-      this.evmWallet = new ethers.Wallet(evmPrivateKey, evmProvider);
+      const { ethers } = await requireOptional<typeof import('ethers')>('ethers', 'EVM settlement');
+      this.evmWallet = new ethers.Wallet(this.evmPrivateKey, this.evmProvider);
       this.evmAddress = this.evmWallet.address;
 
-      // Initialize XRP wallet
-      this.xrplClient = xrplClient;
-      this.xrpWallet = XRPLWallet.fromSecret(xrpPrivateKey);
-      this.xrpAddress = this.xrpWallet.address;
-
-      logger.info('Treasury wallet initialized', {
-        evmAddress: this.evmAddress,
-        xrpAddress: this.xrpAddress,
-      });
+      logger.info('EVM wallet initialized', { evmAddress: this.evmAddress });
+      return this.evmWallet;
     } catch (error) {
-      // CRITICAL: Never log private keys in error messages
-      logger.error('Failed to initialize treasury wallet', {
+      if (error instanceof Error && error.message.includes('is required for')) {
+        throw error;
+      }
+      logger.error('Failed to initialize EVM wallet', {
         error: error instanceof Error ? error.message : String(error),
       });
-      throw new Error('Failed to initialize treasury wallet');
+      throw new Error('Failed to initialize treasury EVM wallet');
     }
+  }
+
+  /**
+   * Lazily initialize the XRP wallet via dynamic import of xrpl.
+   */
+  private async ensureXrpInitialized(): Promise<void> {
+    if (this.xrpInitialized) return;
+
+    const { Wallet: XWallet } = await requireOptional<typeof import('xrpl')>(
+      'xrpl',
+      'XRP settlement'
+    );
+    this.xrpWallet = XWallet.fromSecret(this.xrpPrivateKey);
+    this.xrpAddress = this.xrpWallet.address;
+    this.xrpInitialized = true;
+
+    logger.info('XRP wallet initialized', { xrpAddress: this.xrpAddress });
   }
 
   /**
@@ -105,6 +135,9 @@ export class TreasuryWallet {
    */
   async sendETH(to: string, amount: bigint): Promise<Transaction> {
     try {
+      const { ethers } = await requireOptional<typeof import('ethers')>('ethers', 'EVM settlement');
+      const evmWallet = await this.ensureEvmInitialized();
+
       // Validate recipient address
       if (!ethers.isAddress(to)) {
         throw new Error(`Invalid EVM address: ${to}`);
@@ -117,7 +150,7 @@ export class TreasuryWallet {
       const feeData = await this.evmProvider.getFeeData();
 
       // Create transaction
-      const tx = await this.evmWallet.sendTransaction({
+      const tx = await evmWallet.sendTransaction({
         to,
         value: amount,
         nonce,
@@ -160,6 +193,9 @@ export class TreasuryWallet {
    */
   async sendERC20(to: string, tokenAddress: string, amount: bigint): Promise<Transaction> {
     try {
+      const { ethers } = await requireOptional<typeof import('ethers')>('ethers', 'EVM settlement');
+      const evmWallet = await this.ensureEvmInitialized();
+
       // Validate addresses
       if (!ethers.isAddress(to)) {
         throw new Error(`Invalid recipient address: ${to}`);
@@ -169,7 +205,7 @@ export class TreasuryWallet {
       }
 
       // Create ERC20 contract instance
-      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.evmWallet);
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, evmWallet);
 
       // Send tokens
       const tx = await tokenContract.transfer!(to, amount);
@@ -208,6 +244,8 @@ export class TreasuryWallet {
    */
   async sendXRP(to: string, amount: bigint): Promise<Transaction> {
     try {
+      await this.ensureXrpInitialized();
+
       // Create XRP payment transaction
       const payment: Payment = {
         TransactionType: 'Payment',
@@ -259,6 +297,12 @@ export class TreasuryWallet {
   async getBalance(chain: 'evm' | 'xrp', token: string): Promise<bigint> {
     try {
       if (chain === 'evm') {
+        const { ethers } = await requireOptional<typeof import('ethers')>(
+          'ethers',
+          'EVM settlement'
+        );
+        await this.ensureEvmInitialized();
+
         if (token === 'ETH' || token.toLowerCase() === 'eth') {
           // Get ETH balance
           const balance = await this.evmProvider.getBalance(this.evmAddress);
@@ -273,6 +317,8 @@ export class TreasuryWallet {
           return balance;
         }
       } else {
+        // Ensure XRP wallet is initialized (for xrpAddress)
+        await this.ensureXrpInitialized();
         // Get XRP balance
         const accountInfo = await this.xrplClient.request({
           command: 'account_info',
