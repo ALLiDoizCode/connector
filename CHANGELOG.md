@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.13.0...v1.14.0) (2026-02-14)
+
+### Features
+
+- **epic-27:** complete test suite optimization - reduce pre-push hook from 13min to <30s ([e82f94d](https://github.com/ALLiDoizCode/agent-runtime/commit/e82f94d7fa690e4ed1692c5c2ea0439d78e9849b))
+
+### Bug Fixes
+
+- **epic-27:** prevent pre-push hook from running jest with empty file list ([2ec3505](https://github.com/ALLiDoizCode/agent-runtime/commit/2ec3505af13baa908e283a56ae67e22e28a6219d))
+- **epic-27:** skip pre-push tests when pushing clean new branch ([a6dbcac](https://github.com/ALLiDoizCode/agent-runtime/commit/a6dbcacb8a5d3e0254cdc5e91e28a939df622835))
+
 ## [1.13.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.12.0...v1.13.0) (2026-02-12)
 
 ### Features
