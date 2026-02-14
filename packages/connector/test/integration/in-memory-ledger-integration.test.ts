@@ -120,9 +120,15 @@ describe('InMemoryLedgerClient Integration', () => {
         peers: [],
       };
 
-      // Act: Start and stop connector (triggers persist on close)
+      // Act: Start connector, create an account to trigger dirty flag, then stop
       const connector = new ConnectorNode(config, logger);
       await connector.start();
+
+      // Create an account so the ledger is marked dirty and persists on close
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const accountManager = (connector as any)._accountManager as AccountManager;
+      await accountManager.createPeerAccounts('env-test-peer', 'ILP');
+
       await connector.stop();
 
       // Assert: Snapshot file exists at custom path
