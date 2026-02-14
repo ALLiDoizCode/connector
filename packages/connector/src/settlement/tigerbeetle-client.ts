@@ -19,6 +19,7 @@ import type {
 } from 'tigerbeetle-node';
 import { Logger } from 'pino';
 import { requireOptional } from '../utils/optional-require';
+import type { ILedgerClient } from './ledger-client';
 import {
   TigerBeetleError,
   TigerBeetleConnectionError,
@@ -77,7 +78,7 @@ export interface AccountBalance {
  * - Timeout handling for resilience
  * - Batch operation support
  */
-export class TigerBeetleClient {
+export class TigerBeetleClient implements ILedgerClient {
   private _client?: Client;
   private _config: Required<TigerBeetleConfig>;
   private _initialized = false;

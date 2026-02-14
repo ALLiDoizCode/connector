@@ -1,22 +1,17 @@
 version: 1.1.1
-installed_at: '2025-12-26T09:15:00.286Z'
+installed_at: '2026-02-12T14:43:48.797Z'
 install_type: expansion-pack
 expansion_pack_id: bmad-creative-writing
 expansion_pack_name: bmad-creative-writing
 ides_setup:
   - claude-code
+  - opencode
 files:
   - path: .bmad-creative-writing/config.yaml
     hash: aa98aea88c0eb3c0
     modified: false
   - path: .bmad-creative-writing/README.md
     hash: 8c5daf4843b3bec7
-    modified: false
-  - path: .bmad-creative-writing/utils/workflow-management.md
-    hash: c2196880f2281f84
-    modified: false
-  - path: .bmad-creative-writing/utils/bmad-doc-template.md
-    hash: 34df6ead8b91abfc
     modified: false
   - path: .bmad-creative-writing/workflows/short-story-creation.yaml
     hash: dc69e1af88038387
@@ -41,6 +36,12 @@ files:
     modified: false
   - path: .bmad-creative-writing/workflows/book-cover-design-workflow.md
     hash: 6951394062781d4c
+    modified: false
+  - path: .bmad-creative-writing/utils/workflow-management.md
+    hash: c2196880f2281f84
+    modified: false
+  - path: .bmad-creative-writing/utils/bmad-doc-template.md
+    hash: 34df6ead8b91abfc
     modified: false
   - path: .bmad-creative-writing/templates/world-guide-tmpl.yaml
     hash: 0c81af3b84db3705
@@ -144,14 +145,8 @@ files:
   - path: .bmad-creative-writing/tasks/advanced-elicitation.md
     hash: d39118bf32237a21
     modified: false
-  - path: .bmad-creative-writing/data/story-structures.md
-    hash: f811632dc6a55576
-    modified: false
-  - path: .bmad-creative-writing/data/elicitation-methods.md
-    hash: 8c3ca9b84c8784c9
-    modified: false
-  - path: .bmad-creative-writing/data/bmad-kb.md
-    hash: b210278058c1f59a
+  - path: .bmad-creative-writing/agent-teams/agent-team.yaml
+    hash: cf95ac2f45fea323
     modified: false
   - path: .bmad-creative-writing/agents/world-builder.md
     hash: 493b7b3198746bb2
@@ -185,6 +180,15 @@ files:
     modified: false
   - path: .bmad-creative-writing/agents/beta-reader.md
     hash: 84176130a73756f9
+    modified: false
+  - path: .bmad-creative-writing/data/story-structures.md
+    hash: f811632dc6a55576
+    modified: false
+  - path: .bmad-creative-writing/data/elicitation-methods.md
+    hash: 8c3ca9b84c8784c9
+    modified: false
+  - path: .bmad-creative-writing/data/bmad-kb.md
+    hash: b210278058c1f59a
     modified: false
   - path: .bmad-creative-writing/checklists/ya-appropriateness-checklist.md
     hash: f605fc34857ea4ae
@@ -267,7 +271,4 @@ files:
     modified: false
   - path: .bmad-creative-writing/checklists/beta-feedback-closure-checklist.md
     hash: 31ee50ddc0c84415
-    modified: false
-  - path: .bmad-creative-writing/agent-teams/agent-team.yaml
-    hash: cf95ac2f45fea323
     modified: false

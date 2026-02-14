@@ -20,22 +20,14 @@
 
 import { Logger } from 'pino';
 import type { Transfer } from 'tigerbeetle-node';
-import { requireOptional } from '../utils/optional-require';
 
-// Module-level SDK cache for tigerbeetle-node
-let _tbSdk: typeof import('tigerbeetle-node') | null = null;
-async function loadTigerBeetleSdk(): Promise<typeof import('tigerbeetle-node')> {
-  if (!_tbSdk) {
-    _tbSdk = await requireOptional<typeof import('tigerbeetle-node')>(
-      'tigerbeetle-node',
-      'TigerBeetle accounting'
-    );
-  }
-  return _tbSdk;
-}
+// Local constants replacing runtime tigerbeetle-node SDK access.
+// Both AccountFlags.none and TransferFlags.none are 0 in tigerbeetle-node.
+const ACCOUNT_FLAGS_NONE = 0;
+const TRANSFER_FLAGS_NONE = 0;
 
 import { SettlementState } from '@agent-runtime/shared';
-import { TigerBeetleClient } from './tigerbeetle-client';
+import type { ILedgerClient } from './ledger-client';
 import { TigerBeetleAccountError } from './tigerbeetle-errors';
 import { generateAccountId } from './account-id-generator';
 import { encodeAccountMetadata } from './account-metadata';
@@ -152,7 +144,7 @@ export class AccountManager {
 
   constructor(
     config: AccountManagerConfig,
-    private readonly _tigerBeetleClient: TigerBeetleClient,
+    private readonly _ledgerClient: ILedgerClient,
     private readonly _logger: Logger
   ) {
     this._config = {
@@ -314,7 +306,7 @@ export class AccountManager {
 
       // Create both accounts atomically in a batch operation
       // This ensures either both accounts are created or neither
-      await this._tigerBeetleClient.createAccountsBatch([debitAccount, creditAccount]);
+      await this._ledgerClient.createAccountsBatch([debitAccount, creditAccount]);
 
       this._logger.info(
         {
@@ -520,7 +512,7 @@ export class AccountManager {
 
     try {
       // Query both accounts in a single batch operation
-      const balances = await this._tigerBeetleClient.getAccountsBatch([
+      const balances = await this._ledgerClient.getAccountsBatch([
         accountPair.debitAccountId,
         accountPair.creditAccountId,
       ]);
@@ -607,8 +599,6 @@ export class AccountManager {
     ledger: number,
     code: number
   ): Promise<void> {
-    const tbSdk = await loadTigerBeetleSdk();
-
     // Ensure accounts exist before recording transfers
     // createPeerAccounts is idempotent - safe to call multiple times
     const fromPeerAccounts = await this.ensurePeerAccounts(fromPeerId, tokenId);
@@ -649,7 +639,7 @@ export class AccountManager {
         timeout: 0,
         ledger,
         code,
-        flags: tbSdk.TransferFlags.none,
+        flags: TRANSFER_FLAGS_NONE,
         timestamp: 0n,
       },
       // Transfer 2 (Outgoing): We forward value to next peer
@@ -667,13 +657,13 @@ export class AccountManager {
         timeout: 0,
         ledger,
         code,
-        flags: tbSdk.TransferFlags.none,
+        flags: TRANSFER_FLAGS_NONE,
         timestamp: 0n,
       },
     ];
 
     // Post both transfers atomically
-    await this._tigerBeetleClient.createTransfersBatch(transfers);
+    await this._ledgerClient.createTransfersBatch(transfers);
 
     this._logger.info(
       {
@@ -916,8 +906,6 @@ export class AccountManager {
    * console.log(newBalance.creditBalance); // 0n
    */
   async recordSettlement(peerId: string, tokenId: string, amount: bigint): Promise<void> {
-    const tbSdk = await loadTigerBeetleSdk();
-
     // Get peer account IDs
     const accountPair = this.getPeerAccountPair(peerId, tokenId);
 
@@ -952,7 +940,7 @@ export class AccountManager {
       amount,
       ledger: this._config.defaultLedger,
       code: 1, // Settlement transfer code (distinguishes from packet transfers)
-      flags: tbSdk.TransferFlags.none,
+      flags: TRANSFER_FLAGS_NONE,
       userData128: 0n, // Future: Settlement metadata (settlement ID, blockchain tx hash)
       userData64: 0n, // Future: Settlement reason code
       userData32: 0,
@@ -976,7 +964,7 @@ export class AccountManager {
       } else {
         // Direct synchronous write (backward compatibility)
         const tbTransfer: Transfer = this._convertToBatchWriterTransfer(transfer);
-        await this._tigerBeetleClient.createTransfersBatch([tbTransfer]);
+        await this._ledgerClient.createTransfersBatch([tbTransfer]);
         this._logger.debug(
           {
             transferId: transferId.toString(),
@@ -1038,8 +1026,6 @@ export class AccountManager {
     user_data_64: bigint;
     user_data_32: number;
   }> {
-    const sdk = await loadTigerBeetleSdk();
-
     // Encode metadata into user_data fields
     const encodedMetadata = encodeAccountMetadata(metadata);
 
@@ -1053,7 +1039,7 @@ export class AccountManager {
       id: accountId,
       ledger: this._config.defaultLedger,
       code,
-      flags: sdk.AccountFlags.none,
+      flags: ACCOUNT_FLAGS_NONE,
       user_data_128: encodedMetadata.user_data_128,
       user_data_64: encodedMetadata.user_data_64,
       user_data_32: encodedMetadata.user_data_32,
@@ -1253,7 +1239,7 @@ export class AccountManager {
 
     try {
       // Post transfers to TigerBeetle
-      await this._tigerBeetleClient.createTransfersBatch(tbTransfers);
+      await this._ledgerClient.createTransfersBatch(tbTransfers);
       return []; // All transfers succeeded
     } catch (error) {
       // TigerBeetle error - convert to transfer errors

@@ -1,9 +1,10 @@
 version: 4.44.3
-installed_at: '2025-12-26T09:15:00.365Z'
+installed_at: '2026-02-12T14:43:49.624Z'
 install_type: full
 agent: null
 ides_setup:
   - claude-code
+  - opencode
 expansion_packs:
   - bmad-creative-writing
   - bmad-infrastructure-devops
@@ -19,6 +20,12 @@ files:
     modified: false
   - path: .bmad-core/core-config.yaml
     hash: 073cf6d2527c545d
+    modified: false
+  - path: .bmad-core/utils/workflow-management.md
+    hash: c2196880f2281f84
+    modified: false
+  - path: .bmad-core/utils/bmad-doc-template.md
+    hash: 34df6ead8b91abfc
     modified: false
   - path: .bmad-core/workflows/greenfield-ui.yaml
     hash: 2b595f235c095790
@@ -38,11 +45,23 @@ files:
   - path: .bmad-core/workflows/brownfield-fullstack.yaml
     hash: 9716ad5956a37037
     modified: false
-  - path: .bmad-core/utils/workflow-management.md
-    hash: c2196880f2281f84
+  - path: .bmad-core/data/test-priorities-matrix.md
+    hash: 1dd5698a46ab054e
     modified: false
-  - path: .bmad-core/utils/bmad-doc-template.md
-    hash: 34df6ead8b91abfc
+  - path: .bmad-core/data/test-levels-framework.md
+    hash: f814f8efed0e96e1
+    modified: false
+  - path: .bmad-core/data/technical-preferences.md
+    hash: a829f3172a10b396
+    modified: false
+  - path: .bmad-core/data/elicitation-methods.md
+    hash: 8c3ca9b84c8784c9
+    modified: false
+  - path: .bmad-core/data/brainstorming-techniques.md
+    hash: 62b0bf50648906b0
+    modified: false
+  - path: .bmad-core/data/bmad-kb.md
+    hash: c23a5fc5c6508c5c
     modified: false
   - path: .bmad-core/templates/story-tmpl.yaml
     hash: 11e79b87ff700c8f
@@ -152,23 +171,35 @@ files:
   - path: .bmad-core/tasks/advanced-elicitation.md
     hash: d39118bf32237a21
     modified: false
-  - path: .bmad-core/data/test-priorities-matrix.md
-    hash: 1dd5698a46ab054e
+  - path: .bmad-core/agents/ux-expert.md
+    hash: 5de34d36ca9a747c
     modified: false
-  - path: .bmad-core/data/test-levels-framework.md
-    hash: f814f8efed0e96e1
+  - path: .bmad-core/agents/sm.md
+    hash: bd6543412a550438
     modified: false
-  - path: .bmad-core/data/technical-preferences.md
-    hash: a829f3172a10b396
+  - path: .bmad-core/agents/qa.md
+    hash: 4ad40f692ee9c9fe
     modified: false
-  - path: .bmad-core/data/elicitation-methods.md
-    hash: 8c3ca9b84c8784c9
+  - path: .bmad-core/agents/po.md
+    hash: 02a321a754de36e3
     modified: false
-  - path: .bmad-core/data/brainstorming-techniques.md
-    hash: 62b0bf50648906b0
+  - path: .bmad-core/agents/pm.md
+    hash: eef91ef67b74c2cf
     modified: false
-  - path: .bmad-core/data/bmad-kb.md
-    hash: c23a5fc5c6508c5c
+  - path: .bmad-core/agents/dev.md
+    hash: 944c6b2750c3f0a7
+    modified: false
+  - path: .bmad-core/agents/bmad-orchestrator.md
+    hash: 1adabdf959dddf55
+    modified: false
+  - path: .bmad-core/agents/bmad-master.md
+    hash: 7e7928ef673b5f79
+    modified: false
+  - path: .bmad-core/agents/architect.md
+    hash: f5d211e80b8e160d
+    modified: false
+  - path: .bmad-core/agents/analyst.md
+    hash: 220103a5b3af7eb1
     modified: false
   - path: .bmad-core/checklists/story-draft-checklist.md
     hash: 0bc8a90678dba318
@@ -199,36 +230,6 @@ files:
     modified: false
   - path: .bmad-core/agent-teams/team-all.yaml
     hash: db5b0ff0a9c9c2e8
-    modified: false
-  - path: .bmad-core/agents/ux-expert.md
-    hash: 5de34d36ca9a747c
-    modified: false
-  - path: .bmad-core/agents/sm.md
-    hash: bd6543412a550438
-    modified: false
-  - path: .bmad-core/agents/qa.md
-    hash: 4ad40f692ee9c9fe
-    modified: false
-  - path: .bmad-core/agents/po.md
-    hash: 02a321a754de36e3
-    modified: false
-  - path: .bmad-core/agents/pm.md
-    hash: eef91ef67b74c2cf
-    modified: false
-  - path: .bmad-core/agents/dev.md
-    hash: 944c6b2750c3f0a7
-    modified: false
-  - path: .bmad-core/agents/bmad-orchestrator.md
-    hash: 1adabdf959dddf55
-    modified: false
-  - path: .bmad-core/agents/bmad-master.md
-    hash: 7e7928ef673b5f79
-    modified: false
-  - path: .bmad-core/agents/architect.md
-    hash: f5d211e80b8e160d
-    modified: false
-  - path: .bmad-core/agents/analyst.md
-    hash: 220103a5b3af7eb1
     modified: false
   - path: .bmad-creative-writing/agents/world-builder.md
     hash: 493b7b3198746bb2

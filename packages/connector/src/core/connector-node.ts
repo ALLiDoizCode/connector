@@ -54,6 +54,7 @@ import { SettlementMonitor } from '../settlement/settlement-monitor';
 import { KeyManager } from '../security/key-manager';
 import { requireOptional } from '../utils/optional-require';
 import { TigerBeetleClient } from '../settlement/tigerbeetle-client';
+import { InMemoryLedgerClient } from '../settlement/in-memory-ledger-client';
 import { promises as dns } from 'dns';
 // Import package.json for version information
 import packageJson from '../../package.json';
@@ -82,6 +83,7 @@ export class ConnectorNode implements HealthStatusProvider {
   private _settlementMonitor: SettlementMonitor | null = null;
   private _settlementExecutor: SettlementExecutor | null = null;
   private _tigerBeetleClient: TigerBeetleClient | null = null;
+  private _inMemoryLedgerClient: InMemoryLedgerClient | null = null;
   private readonly _settlementPeers: Map<string, SettlementPeerConfig> = new Map();
   private _healthStatus: 'healthy' | 'unhealthy' | 'starting' = 'starting';
   private readonly _startTime: Date = new Date();
@@ -472,10 +474,10 @@ export class ConnectorNode implements HealthStatusProvider {
                   clusterId: tigerBeetleClusterId,
                   replicas: tigerBeetleReplicas,
                 },
-                'TigerBeetle AccountManager initialized for balance tracking'
+                `Accounting backend: TigerBeetle (cluster: ${tigerBeetleClusterId}, replicas: ${tigerBeetleReplicas})`
               );
             } catch (error) {
-              // Fall back to mock if TigerBeetle initialization fails
+              // Fall back to in-memory ledger if TigerBeetle initialization fails
               const errorMessage = error instanceof Error ? error.message : String(error);
               this._logger.warn(
                 {
@@ -484,18 +486,20 @@ export class ConnectorNode implements HealthStatusProvider {
                   clusterId: tigerBeetleClusterId,
                   replicas: tigerBeetleReplicas,
                 },
-                'TigerBeetle initialization failed, using mock AccountManager (balance tracking disabled)'
+                'TigerBeetle initialization failed, using in-memory ledger'
               );
-              // Create a NoOp AccountManager with stub methods
-              accountManager = this._createNoOpAccountManager();
+              // Create InMemoryLedgerClient-backed AccountManager
+              accountManager = await this._createInMemoryAccountManager();
+              this._accountManager = accountManager;
             }
           } else {
             this._logger.info(
-              { event: 'tigerbeetle_disabled' },
-              'TigerBeetle accounting disabled (TIGERBEETLE_CLUSTER_ID or TIGERBEETLE_REPLICAS not set)'
+              { event: 'tigerbeetle_not_configured' },
+              'TigerBeetle not configured (TIGERBEETLE_CLUSTER_ID or TIGERBEETLE_REPLICAS not set), using in-memory ledger'
             );
-            // Create a NoOp AccountManager with stub methods
-            accountManager = this._createNoOpAccountManager();
+            // Create InMemoryLedgerClient-backed AccountManager
+            accountManager = await this._createInMemoryAccountManager();
+            this._accountManager = accountManager;
           }
 
           // Initialize SettlementMonitor for threshold-based settlement triggering
@@ -618,12 +622,14 @@ export class ConnectorNode implements HealthStatusProvider {
           );
 
           // Wire AccountManager into PacketHandler for settlement recording
-          if (tigerBeetleClusterId && tigerBeetleReplicas && accountManager) {
+          if (accountManager) {
             const settlementConfig: SettlementConfig = {
               connectorFeePercentage: 0.1, // 0.1% default fee
               enableSettlement: true,
-              tigerBeetleClusterId: parseInt(tigerBeetleClusterId, 10),
-              tigerBeetleReplicas: tigerBeetleReplicas.split(',').map((s) => s.trim()),
+              tigerBeetleClusterId: tigerBeetleClusterId ? parseInt(tigerBeetleClusterId, 10) : 0, // Placeholder for in-memory ledger
+              tigerBeetleReplicas: tigerBeetleReplicas
+                ? tigerBeetleReplicas.split(',').map((s) => s.trim())
+                : [], // Placeholder for in-memory ledger
             };
 
             this._packetHandler.setSettlement(accountManager, settlementConfig);
@@ -1050,6 +1056,14 @@ export class ConnectorNode implements HealthStatusProvider {
         this._logger.info({ event: 'tigerbeetle_client_closed' }, 'TigerBeetle client closed');
         this._tigerBeetleClient = null;
       }
+
+      // Close InMemoryLedgerClient if connected (ensures final snapshot persistence)
+      if (this._inMemoryLedgerClient) {
+        await this._inMemoryLedgerClient.close();
+        this._logger.info({ event: 'in_memory_ledger_closed' }, 'In-memory ledger client closed');
+        this._inMemoryLedgerClient = null;
+      }
+
       this._accountManager = null;
 
       // Stop explorer server if running (before health server)
@@ -1154,44 +1168,99 @@ export class ConnectorNode implements HealthStatusProvider {
    * @private
    */
   /**
-   * Creates a NoOp AccountManager with stub methods for when TigerBeetle is unavailable.
-   * All methods are no-ops that allow packets to flow without balance tracking.
+   * Creates an AccountManager backed by InMemoryLedgerClient when TigerBeetle is unavailable.
+   * Provides working balance tracking with snapshot persistence.
+   * @returns AccountManager instance with in-memory ledger backend
+   * @private
    */
-  private _createNoOpAccountManager(): AccountManager {
-    const noOpAccountManager = {
-      // Credit limit check - always allow (return null = no violation)
-      checkCreditLimit: async () => null,
-      wouldExceedCreditLimit: async () => false,
+  private async _createInMemoryAccountManager(): Promise<AccountManager> {
+    const snapshotPath = process.env.LEDGER_SNAPSHOT_PATH || './data/ledger-snapshot.json';
+    const persistIntervalMs = parseInt(process.env.LEDGER_PERSIST_INTERVAL_MS || '30000', 10);
 
-      // Balance operations - return zero balances
-      getAccountBalance: async () => ({
-        debitBalance: 0n,
-        creditBalance: 0n,
-        netBalance: 0n,
-      }),
+    let inMemoryClient: InMemoryLedgerClient;
 
-      // Account creation - no-op
-      createPeerAccounts: async () => ({
-        debitAccountId: 0n,
-        creditAccountId: 0n,
-      }),
+    try {
+      // Create InMemoryLedgerClient with persistence config
+      inMemoryClient = new InMemoryLedgerClient(
+        {
+          snapshotPath,
+          persistIntervalMs,
+        },
+        this._logger
+      );
 
-      // Settlement recording - no-op
-      recordSettlement: async () => {},
-      recordPacketSettlement: async () => {},
-      recordPacketTransfers: async () => {},
+      // Initialize (will restore from snapshot if it exists)
+      await inMemoryClient.initialize();
 
-      // Event store/broadcaster wiring - no-op
-      setEventStore: () => {},
-      setEventBroadcaster: () => {},
+      this._logger.info(
+        {
+          event: 'in_memory_ledger_initialized',
+          snapshotPath,
+          persistIntervalMs,
+        },
+        `Accounting backend: in-memory ledger (snapshot: ${snapshotPath})`
+      );
+    } catch (error) {
+      // Snapshot restore failed (corrupt file, disk permission, etc.)
+      // Retry with fresh in-memory client (no snapshot restore)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this._logger.warn(
+        {
+          event: 'in_memory_ledger_snapshot_restore_failed',
+          error: errorMessage,
+          snapshotPath,
+        },
+        'Failed to restore from snapshot, starting with fresh in-memory ledger'
+      );
 
-      // Config getters
-      get nodeId() {
-        return 'noop';
+      try {
+        // Create fresh client with a unique path to skip snapshot restore
+        inMemoryClient = new InMemoryLedgerClient(
+          {
+            snapshotPath: `${snapshotPath}.fresh-${Date.now()}`,
+            persistIntervalMs,
+          },
+          this._logger
+        );
+
+        await inMemoryClient.initialize();
+
+        this._logger.info(
+          {
+            event: 'in_memory_ledger_fresh_start',
+            snapshotPath,
+          },
+          'In-memory ledger started with empty state'
+        );
+      } catch (freshInitError) {
+        // Even fresh initialization failed - this should be impossible
+        // Re-throw to let outer settlement block catch handle it
+        const freshErrorMessage =
+          freshInitError instanceof Error ? freshInitError.message : String(freshInitError);
+        this._logger.error(
+          {
+            event: 'in_memory_ledger_fresh_init_failed',
+            error: freshErrorMessage,
+          },
+          'Critical: Fresh in-memory ledger initialization failed'
+        );
+        throw freshInitError;
+      }
+    }
+
+    // Store reference for shutdown lifecycle
+    this._inMemoryLedgerClient = inMemoryClient;
+
+    const accountManager = new AccountManager(
+      {
+        nodeId: this._config.nodeId,
+        telemetryEmitter: this._telemetryEmitter || undefined,
       },
-    };
+      inMemoryClient,
+      this._logger
+    );
 
-    return noOpAccountManager as unknown as AccountManager;
+    return accountManager;
   }
 
   private _updateHealthStatus(): void {

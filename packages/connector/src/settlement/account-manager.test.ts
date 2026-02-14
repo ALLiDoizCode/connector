@@ -5,18 +5,14 @@
  */
 
 import { AccountManager } from './account-manager';
-import { TigerBeetleClient } from './tigerbeetle-client';
+import { ILedgerClient } from './ledger-client';
 import { TigerBeetleAccountError } from './tigerbeetle-errors';
 import { AccountLedgerCodes } from './types';
 import { Logger } from 'pino';
-import pino from 'pino';
-
-// Mock TigerBeetleClient
-jest.mock('./tigerbeetle-client');
 
 describe('AccountManager', () => {
   let accountManager: AccountManager;
-  let mockTigerBeetleClient: jest.Mocked<TigerBeetleClient>;
+  let mockLedgerClient: jest.Mocked<ILedgerClient>;
   let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
@@ -33,11 +29,15 @@ describe('AccountManager', () => {
       silent: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    // Create mock TigerBeetleClient
-    mockTigerBeetleClient = new TigerBeetleClient(
-      { clusterId: 0, replicaAddresses: ['localhost:3000'] },
-      pino({ level: 'silent' })
-    ) as jest.Mocked<TigerBeetleClient>;
+    // Create mock ILedgerClient
+    mockLedgerClient = {
+      initialize: jest.fn().mockResolvedValue(undefined),
+      close: jest.fn().mockResolvedValue(undefined),
+      createAccountsBatch: jest.fn().mockResolvedValue(undefined),
+      createTransfersBatch: jest.fn().mockResolvedValue(undefined),
+      getAccountBalance: jest.fn(),
+      getAccountsBatch: jest.fn().mockResolvedValue(new Map()),
+    } as jest.Mocked<ILedgerClient>;
 
     // Reset all mocks
     jest.clearAllMocks();
@@ -45,11 +45,7 @@ describe('AccountManager', () => {
 
   describe('Initialization', () => {
     it('should initialize with valid config', () => {
-      accountManager = new AccountManager(
-        { nodeId: 'test-node' },
-        mockTigerBeetleClient,
-        mockLogger
-      );
+      accountManager = new AccountManager({ nodeId: 'test-node' }, mockLedgerClient, mockLogger);
 
       expect(accountManager).toBeDefined();
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -63,11 +59,7 @@ describe('AccountManager', () => {
     });
 
     it('should initialize cache as empty', () => {
-      accountManager = new AccountManager(
-        { nodeId: 'test-node' },
-        mockTigerBeetleClient,
-        mockLogger
-      );
+      accountManager = new AccountManager({ nodeId: 'test-node' }, mockLedgerClient, mockLogger);
 
       const stats = accountManager.getCacheStats();
       expect(stats.size).toBe(0);
@@ -76,7 +68,7 @@ describe('AccountManager', () => {
     it('should use custom default ledger if provided', () => {
       accountManager = new AccountManager(
         { nodeId: 'test-node', defaultLedger: 99 },
-        mockTigerBeetleClient,
+        mockLedgerClient,
         mockLogger
       );
 
@@ -93,22 +85,18 @@ describe('AccountManager', () => {
 
   describe('Peer Account Creation', () => {
     beforeEach(() => {
-      accountManager = new AccountManager(
-        { nodeId: 'test-node' },
-        mockTigerBeetleClient,
-        mockLogger
-      );
+      accountManager = new AccountManager({ nodeId: 'test-node' }, mockLedgerClient, mockLogger);
 
       // Mock successful account creation
-      mockTigerBeetleClient.createAccountsBatch = jest.fn().mockResolvedValue(undefined);
+      mockLedgerClient.createAccountsBatch = jest.fn().mockResolvedValue(undefined);
     });
 
     it('should create debit and credit accounts for peer', async () => {
       const accountPair = await accountManager.createPeerAccounts('peer-a', 'USD');
 
       // Verify createAccountsBatch called with 2 accounts
-      expect(mockTigerBeetleClient.createAccountsBatch).toHaveBeenCalledTimes(1);
-      expect(mockTigerBeetleClient.createAccountsBatch).toHaveBeenCalledWith(
+      expect(mockLedgerClient.createAccountsBatch).toHaveBeenCalledTimes(1);
+      expect(mockLedgerClient.createAccountsBatch).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
             ledger: AccountLedgerCodes.DEFAULT_LEDGER,
@@ -144,7 +132,7 @@ describe('AccountManager', () => {
     it('should create accounts with correct ledger and codes', async () => {
       await accountManager.createPeerAccounts('peer-c', 'BTC');
 
-      const callArgs = mockTigerBeetleClient.createAccountsBatch.mock.calls[0]![0];
+      const callArgs = mockLedgerClient.createAccountsBatch.mock.calls[0]![0];
 
       // Verify debit account
       const debitAccount = callArgs.find(
@@ -163,7 +151,7 @@ describe('AccountManager', () => {
 
     it('should handle duplicate account creation gracefully', async () => {
       // Mock error for duplicate account
-      mockTigerBeetleClient.createAccountsBatch = jest
+      mockLedgerClient.createAccountsBatch = jest
         .fn()
         .mockRejectedValue(new TigerBeetleAccountError('Account creation failed: exists', 123n));
 
@@ -198,7 +186,7 @@ describe('AccountManager', () => {
 
     it('should throw error for non-duplicate account failures', async () => {
       // Mock error for validation failure (not duplicate)
-      mockTigerBeetleClient.createAccountsBatch = jest
+      mockLedgerClient.createAccountsBatch = jest
         .fn()
         .mockRejectedValue(
           new TigerBeetleAccountError('Account creation failed: invalid_flags', 123n)
@@ -213,7 +201,7 @@ describe('AccountManager', () => {
     it('should include metadata in account objects', async () => {
       await accountManager.createPeerAccounts('peer-g', 'USD');
 
-      const callArgs = mockTigerBeetleClient.createAccountsBatch.mock.calls[0]![0] as Array<{
+      const callArgs = mockLedgerClient.createAccountsBatch.mock.calls[0]![0] as Array<{
         id: bigint;
         ledger: number;
         code: number;
@@ -237,16 +225,12 @@ describe('AccountManager', () => {
 
   describe('Balance Queries', () => {
     beforeEach(() => {
-      accountManager = new AccountManager(
-        { nodeId: 'test-node' },
-        mockTigerBeetleClient,
-        mockLogger
-      );
+      accountManager = new AccountManager({ nodeId: 'test-node' }, mockLedgerClient, mockLogger);
     });
 
     it('should query balances for peer', async () => {
       // Mock balance response
-      mockTigerBeetleClient.getAccountsBatch = jest.fn().mockResolvedValue(
+      mockLedgerClient.getAccountsBatch = jest.fn().mockResolvedValue(
         new Map([
           [123n, { debits: 1000n, credits: 500n, balance: -500n }],
           [456n, { debits: 200n, credits: 800n, balance: 600n }],
@@ -285,7 +269,7 @@ describe('AccountManager', () => {
         tokenId: 'ETH',
       });
 
-      mockTigerBeetleClient.getAccountsBatch = jest.fn().mockResolvedValue(
+      mockLedgerClient.getAccountsBatch = jest.fn().mockResolvedValue(
         new Map([
           [111n, { debits: 0n, credits: 0n, balance: 0n }],
           [222n, { debits: 0n, credits: 0n, balance: 0n }],
@@ -295,12 +279,12 @@ describe('AccountManager', () => {
       await accountManager.getAccountBalance('peer-i', 'ETH');
 
       // Should query with cached account IDs
-      expect(mockTigerBeetleClient.getAccountsBatch).toHaveBeenCalledWith([111n, 222n]);
+      expect(mockLedgerClient.getAccountsBatch).toHaveBeenCalledWith([111n, 222n]);
     });
 
     it('should handle account not found in TigerBeetle', async () => {
       // Mock empty response (accounts not found)
-      mockTigerBeetleClient.getAccountsBatch = jest.fn().mockResolvedValue(new Map());
+      mockLedgerClient.getAccountsBatch = jest.fn().mockResolvedValue(new Map());
 
       const balance = await accountManager.getAccountBalance('peer-j', 'BTC');
 
@@ -311,12 +295,12 @@ describe('AccountManager', () => {
     });
 
     it('should generate account IDs if not cached', async () => {
-      mockTigerBeetleClient.getAccountsBatch = jest.fn().mockResolvedValue(new Map());
+      mockLedgerClient.getAccountsBatch = jest.fn().mockResolvedValue(new Map());
 
       await accountManager.getAccountBalance('peer-k', 'USD');
 
       // Should have called getAccountsBatch with deterministically generated IDs
-      expect(mockTigerBeetleClient.getAccountsBatch).toHaveBeenCalledWith(
+      expect(mockLedgerClient.getAccountsBatch).toHaveBeenCalledWith(
         expect.arrayContaining([expect.any(BigInt), expect.any(BigInt)])
       );
 
@@ -328,13 +312,9 @@ describe('AccountManager', () => {
 
   describe('Cache Management', () => {
     beforeEach(() => {
-      accountManager = new AccountManager(
-        { nodeId: 'test-node' },
-        mockTigerBeetleClient,
-        mockLogger
-      );
+      accountManager = new AccountManager({ nodeId: 'test-node' }, mockLedgerClient, mockLogger);
 
-      mockTigerBeetleClient.createAccountsBatch = jest.fn().mockResolvedValue(undefined);
+      mockLedgerClient.createAccountsBatch = jest.fn().mockResolvedValue(undefined);
     });
 
     it('should clear cache on clearCache()', async () => {
@@ -392,15 +372,11 @@ describe('AccountManager', () => {
 
   describe('Error Handling', () => {
     beforeEach(() => {
-      accountManager = new AccountManager(
-        { nodeId: 'test-node' },
-        mockTigerBeetleClient,
-        mockLogger
-      );
+      accountManager = new AccountManager({ nodeId: 'test-node' }, mockLedgerClient, mockLogger);
     });
 
     it('should propagate connection errors', async () => {
-      mockTigerBeetleClient.createAccountsBatch = jest
+      mockLedgerClient.createAccountsBatch = jest
         .fn()
         .mockRejectedValue(new Error('Connection timeout'));
 
@@ -410,9 +386,7 @@ describe('AccountManager', () => {
     });
 
     it('should propagate balance query errors', async () => {
-      mockTigerBeetleClient.getAccountsBatch = jest
-        .fn()
-        .mockRejectedValue(new Error('Query failed'));
+      mockLedgerClient.getAccountsBatch = jest.fn().mockRejectedValue(new Error('Query failed'));
 
       await expect(accountManager.getAccountBalance('peer-s', 'USD')).rejects.toThrow(
         'Query failed'

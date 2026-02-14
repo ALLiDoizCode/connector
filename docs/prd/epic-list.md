@@ -78,11 +78,17 @@ Separate the CLI entrypoint from library exports, remove `process.exit()` calls 
 **Epic 26: npm Publishing Readiness**
 Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publication. Trim connector dependencies to minimize install footprint (core consumers pull ~5 packages instead of 30+), configure package.json for dual library/CLI usage, add publish automation with correct build ordering, and validate packages install and import correctly in a clean consumer project.
 
+**Epic 27: Test Suite & Pre-Push Hook Optimization**
+Reduce pre-push hook execution from 13+ minutes to <30 seconds by restructuring the hook to run only unit tests for changed files, scoping lint/format checks to changed files (not all 1,158 files), running lint and format in parallel, and eliminating ~20 redundant test cases across 2 deleted test files introduced in epics 24-26. Establishes a proper test pyramid: pre-push runs fast unit tests, CI runs full integration suite, nightly runs performance benchmarks. Fixes 6 currently-failing performance test suites.
+
+**Epic 28: In-Memory Ledger — Zero-Dependency Accounting**
+Replace TigerBeetle as the default accounting backend with a zero-dependency, in-memory double-entry ledger that implements the same `TigerBeetleClient` interface. Uses `Map<bigint, Account>` for O(1) balance operations, persists snapshots to disk on a configurable interval (default 30s), and restores state on restart. TigerBeetle remains available as an optional high-performance backend when explicitly configured. Eliminates the mandatory external service dependency that currently degrades the connector to a stateless packet router when TigerBeetle is unavailable.
+
 ---
 
 ## Project Status
 
-Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. Epics 22-23 implement the Unified Deployment Plan for full agent-runtime + agent-society integration. Epics 24-26 implement the ElizaOS integration refactoring — transforming the connector from a standalone CLI application into an importable npm library for in-process composition. The connector is feature-complete with:
+Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. Epics 22-23 implement the Unified Deployment Plan for full agent-runtime + agent-society integration. Epics 24-26 implement the ElizaOS integration refactoring — transforming the connector from a standalone CLI application into an importable npm library for in-process composition. Epic 27 optimizes the test suite and pre-push hook for developer velocity. Epic 28 eliminates the mandatory TigerBeetle dependency by providing a zero-dependency in-memory accounting backend as the default. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering

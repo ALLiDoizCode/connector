@@ -8,7 +8,7 @@ This package implements:
 
 - ILP packet routing and forwarding
 - Settlement coordination (EVM and XRP Ledger)
-- Balance tracking with TigerBeetle
+- Balance tracking with in-memory ledger (default) or TigerBeetle (optional)
 - Peer management via BTP
 - Security controls and rate limiting
 - Explorer UI for telemetry visualization
@@ -70,6 +70,30 @@ docker-compose -f docker/docker-compose.hub-spoke.yml up -d
 # Hub: http://localhost:3010
 # Spokes: http://localhost:3011-3013
 ```
+
+## Accounting Backend
+
+The connector uses a double-entry accounting ledger for balance tracking, settlement threshold detection, and claim signing.
+
+### Default: In-Memory Ledger (Zero Dependencies)
+
+By default, the connector uses a pure TypeScript in-memory ledger that requires no external services or native addons. Balances are persisted to a JSON snapshot file on a configurable interval and restored on restart.
+
+| Variable                     | Default                       | Description               |
+| ---------------------------- | ----------------------------- | ------------------------- |
+| `LEDGER_SNAPSHOT_PATH`       | `./data/ledger-snapshot.json` | Snapshot file path        |
+| `LEDGER_PERSIST_INTERVAL_MS` | `30000`                       | Persistence interval (ms) |
+
+### Optional: TigerBeetle (High-Performance)
+
+For production workloads requiring higher throughput, TigerBeetle can be enabled:
+
+| Variable                 | Required | Description                       |
+| ------------------------ | -------- | --------------------------------- |
+| `TIGERBEETLE_CLUSTER_ID` | Yes      | TigerBeetle cluster identifier    |
+| `TIGERBEETLE_REPLICAS`   | Yes      | Comma-separated replica addresses |
+
+When both env vars are set, the connector uses TigerBeetle. If TigerBeetle initialization fails, it falls back to the in-memory ledger automatically.
 
 ## Workflow Peer Mode (Epic 31)
 

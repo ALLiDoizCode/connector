@@ -8,25 +8,25 @@
  */
 
 import { AccountManager, AccountManagerConfig } from './account-manager';
-import { TigerBeetleClient } from './tigerbeetle-client';
+import { ILedgerClient } from './ledger-client';
 import { CreditLimitConfig } from '../config/types';
 import pino from 'pino';
 
-// Mock TigerBeetleClient
-jest.mock('./tigerbeetle-client');
-
 describe('AccountManager Credit Limit Enforcement', () => {
   let accountManager: AccountManager;
-  let mockTigerBeetleClient: jest.Mocked<TigerBeetleClient>;
+  let mockLedgerClient: jest.Mocked<ILedgerClient>;
   let mockLogger: pino.Logger;
 
   beforeEach(() => {
-    // Create mock TigerBeetle client
-    mockTigerBeetleClient = {
+    // Create mock ILedgerClient
+    mockLedgerClient = {
+      initialize: jest.fn().mockResolvedValue(undefined),
+      close: jest.fn().mockResolvedValue(undefined),
       createAccountsBatch: jest.fn().mockResolvedValue(undefined),
-      getAccountsBatch: jest.fn().mockResolvedValue(new Map()),
       createTransfersBatch: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<TigerBeetleClient>;
+      getAccountBalance: jest.fn(),
+      getAccountsBatch: jest.fn().mockResolvedValue(new Map()),
+    } as jest.Mocked<ILedgerClient>;
 
     // Create mock logger
     mockLogger = pino({ level: 'silent' });
@@ -45,10 +45,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
       const config: AccountManagerConfig = {
         nodeId: 'test-node',
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [123n, { debits: 500n, credits: 0n, balance: 500n }],
           [456n, { debits: 0n, credits: 300n, balance: 300n }],
@@ -73,10 +73,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 500n, credits: 0n, balance: 500n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 200n, balance: 200n }], // creditBalance
@@ -101,10 +101,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 700n, credits: 0n, balance: 700n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -129,13 +129,13 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock createAccountsBatch to succeed (accounts may need to be created)
-      mockTigerBeetleClient.createAccountsBatch.mockResolvedValue(undefined);
+      mockLedgerClient.createAccountsBatch.mockResolvedValue(undefined);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockImplementation(async (ids: bigint[]) => {
+      mockLedgerClient.getAccountsBatch.mockImplementation(async (ids: bigint[]) => {
         const resultMap = new Map();
         // First account (debit) has balance of 800n
         resultMap.set(ids[0], { debits: 800n, credits: 0n, balance: 800n });
@@ -169,10 +169,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -196,10 +196,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -227,10 +227,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -256,10 +256,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -285,10 +285,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -314,10 +314,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return current balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -344,13 +344,13 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock createAccountsBatch to succeed
-      mockTigerBeetleClient.createAccountsBatch.mockResolvedValue(undefined);
+      mockLedgerClient.createAccountsBatch.mockResolvedValue(undefined);
 
       // Mock getAccountsBatch to return balance
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
@@ -361,8 +361,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       const violation = await accountManager.checkCreditLimit('new-peer', 'ILP', 100n);
 
       // Assert: createAccountsBatch called, then balance queried
-      expect(mockTigerBeetleClient.createAccountsBatch).toHaveBeenCalled();
-      expect(mockTigerBeetleClient.getAccountsBatch).toHaveBeenCalled();
+      expect(mockLedgerClient.createAccountsBatch).toHaveBeenCalled();
+      expect(mockLedgerClient.getAccountsBatch).toHaveBeenCalled();
       expect(violation).toBeNull();
     });
   });
@@ -378,13 +378,13 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock createAccountsBatch to succeed
-      mockTigerBeetleClient.createAccountsBatch.mockResolvedValue(undefined);
+      mockLedgerClient.createAccountsBatch.mockResolvedValue(undefined);
 
       // Mock getAccountsBatch to return balance exceeding limit
-      mockTigerBeetleClient.getAccountsBatch.mockImplementation(async (ids: bigint[]) => {
+      mockLedgerClient.getAccountsBatch.mockImplementation(async (ids: bigint[]) => {
         const resultMap = new Map();
         resultMap.set(ids[0], { debits: 900n, credits: 0n, balance: 900n });
         resultMap.set(ids[1], { debits: 0n, credits: 0n, balance: 0n });
@@ -409,13 +409,13 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock createAccountsBatch to succeed
-      mockTigerBeetleClient.createAccountsBatch.mockResolvedValue(undefined);
+      mockLedgerClient.createAccountsBatch.mockResolvedValue(undefined);
 
       // Mock getAccountsBatch to return balance exceeding limit
-      mockTigerBeetleClient.getAccountsBatch.mockImplementation(async (ids: bigint[]) => {
+      mockLedgerClient.getAccountsBatch.mockImplementation(async (ids: bigint[]) => {
         const resultMap = new Map();
         resultMap.set(ids[0], { debits: 900n, credits: 0n, balance: 900n });
         resultMap.set(ids[1], { debits: 0n, credits: 0n, balance: 0n });
@@ -438,10 +438,10 @@ describe('AccountManager Credit Limit Enforcement', () => {
         nodeId: 'test-node',
         creditLimits,
       };
-      accountManager = new AccountManager(config, mockTigerBeetleClient, mockLogger);
+      accountManager = new AccountManager(config, mockLedgerClient, mockLogger);
 
       // Mock getAccountsBatch to return balance below limit
-      mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
+      mockLedgerClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 500n, credits: 0n, balance: 500n }], // debitBalance
           [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
