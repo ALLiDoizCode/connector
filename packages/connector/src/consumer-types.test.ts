@@ -8,6 +8,8 @@
  * types are correctly exported. Runtime assertions are minimal.
  */
 
+import * as lib from './lib';
+
 import {
   // Value exports (15 total: 10 existing + 5 new)
   ConnectorNode,
@@ -67,6 +69,10 @@ describe('consumer-types compilation test', () => {
       expect(typeof SettlementMonitor).toBe('function');
       expect(typeof UnifiedSettlementExecutor).toBe('function');
       expect(typeof createLogger).toBe('function');
+    });
+
+    it('should NOT export main', () => {
+      expect('main' in lib).toBe(false);
     });
   });
 

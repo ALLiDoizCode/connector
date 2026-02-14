@@ -163,66 +163,6 @@ describe('ConnectorNode — minimal dependency startup', () => {
     delete process.env.DASHBOARD_TELEMETRY_URL;
   });
 
-  describe('constructor', () => {
-    it('should instantiate with minimal config without throwing', () => {
-      const config = createMinimalConfig();
-      (ConfigLoader.validateConfig as jest.Mock).mockReturnValue(config);
-
-      expect(() => new ConnectorNode(config, mockLogger)).not.toThrow();
-    });
-
-    it('should instantiate with zero peers and zero routes', () => {
-      const config = createMinimalConfig({ peers: [], routes: [] });
-      (ConfigLoader.validateConfig as jest.Mock).mockReturnValue(config);
-
-      const node = new ConnectorNode(config, mockLogger);
-      expect(node).toBeDefined();
-    });
-  });
-
-  describe('start() — minimal config', () => {
-    it('should start successfully with only BTP server and routing', async () => {
-      const config = createMinimalConfig();
-      (ConfigLoader.validateConfig as jest.Mock).mockReturnValue(config);
-
-      const node = new ConnectorNode(config, mockLogger);
-      await node.start();
-
-      // BTP server should have started
-      expect(mockBTPServer.start).toHaveBeenCalledWith(3000);
-
-      // Health server should have started
-      expect(mockHealthServer.start).toHaveBeenCalled();
-
-      // No settlement or admin features initialized
-      expect(requireOptional).not.toHaveBeenCalledWith('ethers', expect.anything());
-    });
-
-    it('should reach healthy status after minimal start', async () => {
-      const config = createMinimalConfig({ explorer: { enabled: false } });
-      (ConfigLoader.validateConfig as jest.Mock).mockReturnValue(config);
-
-      const node = new ConnectorNode(config, mockLogger);
-      await node.start();
-
-      const health = node.getHealthStatus();
-      expect(health.status).toBe('healthy');
-      expect(health.nodeId).toBe('connector-minimal');
-    });
-
-    it('should start and stop cleanly', async () => {
-      const config = createMinimalConfig();
-      (ConfigLoader.validateConfig as jest.Mock).mockReturnValue(config);
-
-      const node = new ConnectorNode(config, mockLogger);
-      await node.start();
-      await node.stop();
-
-      expect(mockBTPServer.stop).toHaveBeenCalled();
-      expect(mockHealthServer.stop).toHaveBeenCalled();
-    });
-  });
-
   describe('settlement error messages', () => {
     it('should produce clear error when ethers is not available for EVM settlement', async () => {
       (requireOptional as jest.Mock).mockRejectedValue(

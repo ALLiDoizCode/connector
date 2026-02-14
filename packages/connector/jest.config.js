@@ -7,18 +7,27 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   // Ignore cloud KMS backend tests - they require optional provider-specific packages
   // Ignore integration tests with missing type dependencies (future features)
+  // Ignore performance tests (run via jest.performance.config.js)
+  // Ignore acceptance tests (run separately)
+  // Ignore slow integration tests (wallet-derivation, xrp-channel-*)
   testPathIgnorePatterns: [
     '/node_modules/',
-    'aws-kms-backend\\.test\\.ts$',
-    'azure-kv-backend\\.test\\.ts$',
-    'gcp-kms-backend\\.test\\.ts$',
-    'wallet-disaster-recovery\\.test\\.ts$',
-    'connector-aptos-settlement\\.test\\.ts$',
-    'production-acceptance\\.test\\.ts$',
-    'agent-wallet-integration\\.doc\\.test\\.ts$',
-    'tri-chain-settlement\\.test\\.ts$',
-    'aptos-local-testnet\\.test\\.ts$',
-    'tigerbeetle-5peer-deployment\\.test\\.ts$',
+    'aws-kms-backend\.test\.ts$',
+    'azure-kv-backend\.test\.ts$',
+    'gcp-kms-backend\.test\.ts$',
+    'wallet-disaster-recovery\.test\.ts$',
+    'connector-aptos-settlement\.test\.ts$',
+    'production-acceptance\.test\.ts$',
+    'agent-wallet-integration\.doc\.test\.ts$',
+    'tri-chain-settlement\.test\.ts$',
+    'aptos-local-testnet\.test\.ts$',
+    'tigerbeetle-5peer-deployment\.test\.ts$',
+    'test/performance/', // Performance benchmarks (run via test:performance)
+    'test/acceptance/', // Acceptance tests (run separately)
+    'test/unit/performance/', // Unit performance tests (timing-sensitive)
+    'wallet-derivation\.test\.ts$', // 587s runtime, resource intensive
+    'xrp-channel-manager\.test\.ts$', // Requires rippled, unstable in CI
+    'xrp-channel-lifecycle\.test\.ts$', // Requires rippled, unstable in CI
   ],
   testTimeout: 30000, // 30 second default timeout for integration tests
   collectCoverageFrom: [

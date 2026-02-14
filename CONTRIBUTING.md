@@ -379,6 +379,57 @@ describe('PacketHandler', () => {
 });
 ```
 
+## Test Distribution
+
+Tests are organized into different categories based on execution time and purpose. This ensures fast feedback during development while maintaining comprehensive coverage in CI.
+
+### Test Categories
+
+| Category              | Location                                                        | Execution Time | When to Run                  |
+| --------------------- | --------------------------------------------------------------- | -------------- | ---------------------------- |
+| **Unit Tests**        | `src/**/*.test.ts` (co-located)                                 | <30s           | Every commit (pre-push hook) |
+| **Integration Tests** | `test/integration/*.test.ts`                                    | 1-3 min        | CI pipeline                  |
+| **Performance Tests** | `test/performance/*.test.ts`, `test/unit/performance/*.test.ts` | 2-5 min        | Nightly CI, on-demand        |
+| **Acceptance Tests**  | `test/acceptance/*.test.ts`                                     | 5-30 min       | Nightly CI, release testing  |
+
+### Running Tests by Category
+
+```bash
+# Unit tests only (fastest - used in pre-push hook)
+npm run test:unit
+
+# Default test run (unit + integration, excludes performance/acceptance)
+npm test
+
+# Performance tests (isolated configuration)
+npm run test:performance
+
+# Integration tests (requires docker-compose-dev.yml services)
+npm run test:integration
+
+# Full test suite (all categories)
+npm test && npm run test:performance && npm run test:acceptance
+```
+
+### Test Stage Summary
+
+| Stage            | Command                    | Scope                             | Typical Duration |
+| ---------------- | -------------------------- | --------------------------------- | ---------------- |
+| **Pre-commit**   | `lint-staged`              | Staged files only (lint + format) | <5s              |
+| **Pre-push**     | `.husky/pre-push`          | Unit tests for changed files      | <30s             |
+| **CI (PR)**      | `npm test`                 | Unit + Integration tests          | 3-5 min          |
+| **CI (Nightly)** | `npm run test:performance` | Performance benchmarks            | 5-10 min         |
+
+### Excluded Tests
+
+The following tests are excluded from the default `npm test` run and must be executed explicitly:
+
+- **Performance benchmarks** (`test/performance/`): Timing-sensitive tests requiring isolated execution
+- **Unit performance tests** (`test/unit/performance/`): Profiler and metrics tests with strict thresholds
+- **Acceptance tests** (`test/acceptance/`): Long-running end-to-end scenarios
+- **Wallet derivation** (`wallet-derivation.test.ts`): 587s runtime, 1000+ wallet derivations
+- **XRP channel tests** (`xrp-channel-*.test.ts`): Requires rippled node, unstable in CI
+
 ## When Things Go Wrong
 
 If you encounter issues during development or CI failures, use these resources:

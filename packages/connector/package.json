@@ -64,6 +64,7 @@
     "test:list": "node scripts/run-tests.js --list-domains",
     "test:list-epics": "node scripts/run-tests.js --list-epics",
     "test:unit": "jest --testPathIgnorePatterns='test/integration|test/acceptance'",
+    "test:performance": "jest --config jest.performance.config.js",
     "test:integration": "jest --testPathPattern=test/integration",
     "test:tigerbeetle": "jest --testPathPattern='tigerbeetle|account-manager|packet-forwarding-with-accounting'",
     "test:xrp": "jest --testPathPattern='xrp-|xrpl-|rippled-'",

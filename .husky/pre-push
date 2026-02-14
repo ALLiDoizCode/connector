@@ -1,6 +1,11 @@
 #!/usr/bin/env sh
 
-echo "🚀 Running pre-push quality gates..."
+# Optimized pre-push hook - Epic 27 Test Suite Optimization
+# Target: <30 seconds for typical changes (down from 13+ minutes)
+
+set -e
+
+echo "🚀 Running optimized pre-push quality gates..."
 
 # Get current branch and remote branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -11,44 +16,161 @@ if ! git rev-parse --verify "$REMOTE_BRANCH" >/dev/null 2>&1; then
   REMOTE_BRANCH="origin/main"
 fi
 
-# Get list of changed TypeScript files (exclude deleted, .test.ts, .d.ts)
-CHANGED_TS_FILES=$(git diff --name-only --diff-filter=ACM "$REMOTE_BRANCH" | grep -E '\.tsx?$' | grep -v '\.test\.ts$' | grep -v '\.d\.ts$' || true)
+# Get list of all changed files (Added, Copied, Modified)
+ALL_CHANGED_FILES=$(git diff --name-only --diff-filter=ACM "$REMOTE_BRANCH" || true)
 
-# 1/3 Linting changed files
-echo "1/3 Linting changed TypeScript files..."
-if [ -n "$CHANGED_TS_FILES" ]; then
-  echo "$CHANGED_TS_FILES" | xargs npx eslint
-  if [ $? -ne 0 ]; then
-    echo "❌ Linting failed. Run 'npm run lint' to see all errors, or 'npx eslint --fix <file>' to auto-fix."
+# Early exit: Check if any source files changed (not just docs/tests/config)
+# Skip hook for: *.md, *.test.ts, *.config.*, docs/**, .github/**
+SOURCE_FILES_CHANGED=false
+
+# Check if .husky/pre-push itself changed (always run in that case)
+HOOK_CHANGED=$(echo "$ALL_CHANGED_FILES" | grep -E '^\.husky/pre-push$' || true)
+
+if [ -n "$HOOK_CHANGED" ]; then
+  SOURCE_FILES_CHANGED=true
+  echo "📋 Hook file changed, running full checks..."
+else
+  # Check for source file changes
+  for file in $ALL_CHANGED_FILES; do
+    case "$file" in
+      *.md|*.test.ts|*.config.*|*.config.js|*.config.ts)
+        # Skip - these don't require pre-push checks
+        ;;
+      docs/*|.github/*|.vscode/*|.cursor/*)
+        # Skip - documentation/config changes
+        ;;
+      scripts/*)
+        # Skip - script changes
+        ;;
+      *)
+        SOURCE_FILES_CHANGED=true
+        break
+        ;;
+    esac
+  done
+fi
+
+if [ "$SOURCE_FILES_CHANGED" = "false" ]; then
+  echo "📄 Non-source files changed, skipping pre-push checks"
+  exit 0
+fi
+
+# Filter changed files to relevant extensions for linting/formatting
+# Include: .ts, .tsx, .js, .json, .md
+CHANGED_FORMAT_FILES=$(echo "$ALL_CHANGED_FILES" | grep -E '\.(tsx?|js|json|md)$' || true)
+
+# Filter to TypeScript source files only (exclude .test.ts, .d.ts) for linting
+CHANGED_TS_FILES=$(echo "$ALL_CHANGED_FILES" | grep -E '\.tsx?$' | grep -v '\.test\.ts$' | grep -v '\.d\.ts$' || true)
+
+# If no format-relevant files changed, skip to tests
+if [ -z "$CHANGED_FORMAT_FILES" ] && [ -z "$CHANGED_TS_FILES" ]; then
+  echo "📝 No source files to lint or format, proceeding to tests..."
+  CHANGED_TS_FILES=""
+fi
+
+# Stage 1: Parallel Linting and Format Checking
+echo "1/2 Running lint and format checks in parallel..."
+
+# Initialize exit codes
+ESLINT_EXIT=0
+PRETTIER_EXIT=0
+
+# Run ESLint and Prettier in parallel if there are files to check
+if [ -n "$CHANGED_TS_FILES" ] || [ -n "$CHANGED_FORMAT_FILES" ]; then
+  
+  # Start ESLint in background (only if TypeScript files changed)
+  if [ -n "$CHANGED_TS_FILES" ]; then
+    echo "   🔄 Starting ESLint on changed TypeScript files..."
+    # shellcheck disable=SC2086
+    npx eslint $CHANGED_TS_FILES &
+    ESLINT_PID=$!
+  fi
+  
+  # Start Prettier in background (only if format files changed)
+  if [ -n "$CHANGED_FORMAT_FILES" ]; then
+    echo "   🔄 Starting Prettier check on changed files..."
+    # shellcheck disable=SC2086
+    npx prettier --check $CHANGED_FORMAT_FILES &
+    PRETTIER_PID=$!
+  fi
+  
+  # Wait for ESLint to complete (if it was started)
+  if [ -n "$CHANGED_TS_FILES" ]; then
+    wait $ESLINT_PID
+    ESLINT_EXIT=$?
+    if [ $ESLINT_EXIT -eq 0 ]; then
+      echo "   ✅ ESLint passed"
+    else
+      echo "   ❌ ESLint failed"
+    fi
+  fi
+  
+  # Wait for Prettier to complete (if it was started)
+  if [ -n "$CHANGED_FORMAT_FILES" ]; then
+    wait $PRETTIER_PID
+    PRETTIER_EXIT=$?
+    if [ $PRETTIER_EXIT -eq 0 ]; then
+      echo "   ✅ Prettier check passed"
+    else
+      echo "   ❌ Prettier check failed"
+    fi
+  fi
+  
+  # Check combined results
+  if [ $ESLINT_EXIT -ne 0 ] || [ $PRETTIER_EXIT -ne 0 ]; then
+    echo ""
+    echo "❌ Pre-push checks failed!"
+    echo ""
+    if [ $ESLINT_EXIT -ne 0 ]; then
+      echo "   ESLint errors found. Fix with:"
+      echo "   npx eslint --fix $(echo $CHANGED_TS_FILES | head -5)"
+      echo "   Or run: npm run lint"
+    fi
+    if [ $PRETTIER_EXIT -ne 0 ]; then
+      echo "   Formatting errors found. Fix with:"
+      echo "   npx prettier --write $(echo $CHANGED_FORMAT_FILES | head -5)"
+      echo "   Or run: npm run format"
+    fi
     exit 1
   fi
 else
-  echo "No TypeScript files changed, skipping lint."
+  echo "   ⏭️ No files to lint or format, skipping..."
 fi
 
-# 2/3 Format check
-echo "2/3 Checking code formatting..."
-npm run format:check
-if [ $? -ne 0 ]; then
-  echo "❌ Formatting failed. Run 'npm run format' to fix all files."
-  exit 1
-fi
+# Stage 2: Running related unit tests only
+echo "2/2 Running unit tests for changed files..."
 
-# 3/3 Running related tests
-echo "3/3 Running tests for changed files..."
 if [ -n "$CHANGED_TS_FILES" ]; then
-  # Filter to source files only (exclude test files)
+  # Convert to space-separated list for Jest
   SOURCE_FILES=$(echo "$CHANGED_TS_FILES" | tr '\n' ' ')
-
-  if [ -n "$SOURCE_FILES" ]; then
-    npx jest --findRelatedTests --passWithNoTests --bail $SOURCE_FILES
-    if [ $? -ne 0 ]; then
-      echo "❌ Tests failed. Run 'npm test -- <file>' to debug, or fix the failing test."
-      exit 1
-    fi
+  
+  # Run Jest with ignore patterns for integration/performance/acceptance tests
+  # shellcheck disable=SC2086
+  npx jest \
+    --findRelatedTests \
+    --passWithNoTests \
+    --bail \
+    --testPathIgnorePatterns='test/integration|test/performance|test/acceptance|\.perf\.test\.' \
+    $SOURCE_FILES
+  
+  JEST_EXIT=$?
+  
+  if [ $JEST_EXIT -ne 0 ]; then
+    echo ""
+    echo "❌ Tests failed!"
+    echo "   Run tests locally with:"
+    echo "   npx jest --findRelatedTests $SOURCE_FILES"
+    echo "   Or debug specific test: npm test -- <test-name>"
+    exit 1
   fi
+  
+  echo "   ✅ Unit tests passed"
 else
-  echo "No source files changed, skipping tests."
+  echo "   ⏭️ No source files changed, skipping tests..."
 fi
 
+echo ""
 echo "✅ All pre-push checks passed! Ready to push."
+echo ""
+echo "   Note: Pre-push runs unit tests only."
+echo "   Integration tests run in CI-on-PR, performance tests in CI-nightly."
