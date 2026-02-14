@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.15.0...v1.16.0) (2026-02-14)
+
+### Features
+
+- **epic-29:** config-driven settlement infrastructure with multi-node isolation ([88d5ca5](https://github.com/ALLiDoizCode/agent-runtime/commit/88d5ca5dfb8306a719a6a0251d4c3b0d834106ca))
+
+### Bug Fixes
+
+- **hooks:** fix pre-push jest --findRelatedTests argument ordering ([61dea08](https://github.com/ALLiDoizCode/agent-runtime/commit/61dea089b413931a0f5d7792965a4f70d6e390d0))
+
 ## [1.15.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.14.0...v1.15.0) (2026-02-14)
 
 ### Features
