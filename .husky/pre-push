@@ -158,13 +158,19 @@ if [ -n "$CHANGED_TS_FILES" ]; then
   # Only run jest if there are actual files to test
   if [ -n "$SOURCE_FILES" ] && [ "$SOURCE_FILES" != " " ]; then
     # Run Jest with ignore patterns for integration/performance/acceptance tests
+    # NOTE: $SOURCE_FILES must come BEFORE --testPathIgnorePatterns because
+    # Jest's --testPathIgnorePatterns is an array arg that greedily consumes
+    # all subsequent positional arguments, starving --findRelatedTests of file paths.
+    # NOTE: --findRelatedTests ignores the jest config's testPathIgnorePatterns,
+    # so we must re-specify cloud KMS backend patterns (normally excluded in jest.config.js).
     # shellcheck disable=SC2086
     npx jest \
       --findRelatedTests \
+      $SOURCE_FILES \
       --passWithNoTests \
       --bail \
-      --testPathIgnorePatterns='test/integration|test/performance|test/acceptance|\.perf\.test\.' \
-      $SOURCE_FILES
+      --forceExit \
+      --testPathIgnorePatterns='test/integration|test/performance|test/acceptance|\.perf\.test\.|aws-kms-backend\.test|azure-kv-backend\.test|gcp-kms-backend\.test|wallet-disaster-recovery\.test|tri-chain-settlement\.test|aptos-local-testnet\.test|wallet-derivation\.test|xrp-channel-manager\.test|xrp-channel-lifecycle\.test'
 
     JEST_EXIT=$?
 
