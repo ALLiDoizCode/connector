@@ -16,6 +16,17 @@ if ! git rev-parse --verify "$REMOTE_BRANCH" >/dev/null 2>&1; then
   REMOTE_BRANCH="origin/main"
 fi
 
+# Early exit: If working directory is clean and pushing to a new branch,
+# skip tests (everything is already committed and will be tested in CI)
+if git diff --quiet && git diff --cached --quiet; then
+  if [ "$REMOTE_BRANCH" = "origin/main" ]; then
+    echo "📦 Pushing new branch '$CURRENT_BRANCH' with clean working directory"
+    echo "   ✅ Skipping pre-push tests (all changes committed, CI will run full suite)"
+    echo ""
+    exit 0
+  fi
+fi
+
 # Get list of all changed files (Added, Copied, Modified)
 ALL_CHANGED_FILES=$(git diff --name-only --diff-filter=ACM "$REMOTE_BRANCH" || true)
 
