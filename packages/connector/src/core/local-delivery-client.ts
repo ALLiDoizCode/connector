@@ -1,9 +1,10 @@
 /**
  * Local Delivery Client
  *
- * HTTP client for forwarding ILP packets to an external agent runtime
- * for local delivery handling. Replaces the built-in auto-fulfill stub
- * when localDelivery is configured.
+ * HTTP client for forwarding ILP packets to an external business logic server
+ * for local delivery handling. Sends simplified PaymentRequest/PaymentResponse
+ * (no ILP knowledge required on the BLS side) and handles fulfillment
+ * computation, reject code mapping, and data validation internally.
  */
 
 import { Logger } from 'pino';
@@ -14,7 +15,15 @@ import {
   PacketType,
   ILPErrorCode,
 } from '@agent-runtime/shared';
-import { LocalDeliveryConfig, LocalDeliveryRequest, LocalDeliveryResponse } from '../config/types';
+import { LocalDeliveryConfig } from '../config/types';
+import {
+  PaymentRequest,
+  PaymentResponse,
+  computeFulfillmentFromData,
+  generatePaymentId,
+  mapRejectCode,
+  validateResponseData,
+} from './payment-handler';
 
 // Re-export for backward compatibility
 export type { LocalDeliveryRequest, LocalDeliveryResponse } from '../config/types';
@@ -25,7 +34,7 @@ export type { LocalDeliveryRequest, LocalDeliveryResponse } from '../config/type
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 
 /**
- * Client for forwarding local delivery to agent runtime.
+ * Client for forwarding local delivery to an external business logic server.
  */
 export class LocalDeliveryClient {
   private readonly config: Required<LocalDeliveryConfig>;
@@ -52,30 +61,48 @@ export class LocalDeliveryClient {
   }
 
   /**
-   * Forward a packet to the agent runtime for local delivery.
+   * Forward a packet to the business logic server for local delivery.
+   *
+   * Sends a simplified PaymentRequest (no ILP internals exposed) and maps
+   * the PaymentResponse back to ILP fulfill/reject packets internally.
    *
    * @param packet - ILP Prepare packet
-   * @param sourcePeer - Peer that sent this packet
+   * @param _sourcePeer - Peer that sent this packet (unused, kept for interface compat)
    * @returns ILP Fulfill or Reject packet
    */
   async deliver(
     packet: ILPPreparePacket,
-    sourcePeer: string
+    _sourcePeer: string
   ): Promise<ILPFulfillPacket | ILPRejectPacket> {
-    const url = `${this.config.handlerUrl}/ilp/packets`;
+    // Check expiry before making the HTTP call
+    if (packet.expiresAt < new Date()) {
+      this.logger.warn(
+        { destination: packet.destination, expiresAt: packet.expiresAt.toISOString() },
+        'Payment expired before delivery'
+      );
+      return {
+        type: PacketType.REJECT,
+        code: ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+        triggeredBy: '',
+        message: 'Payment has expired',
+        data: Buffer.alloc(0),
+      };
+    }
 
-    const request: LocalDeliveryRequest = {
+    const url = `${this.config.handlerUrl}/handle-packet`;
+    const paymentId = generatePaymentId();
+
+    const request: PaymentRequest = {
+      paymentId,
       destination: packet.destination,
       amount: packet.amount.toString(),
-      executionCondition: packet.executionCondition.toString('base64'),
       expiresAt: packet.expiresAt.toISOString(),
-      data: packet.data.toString('base64'),
-      sourcePeer,
+      data: packet.data.length > 0 ? packet.data.toString('base64') : undefined,
     };
 
     this.logger.debug(
-      { destination: request.destination, amount: request.amount, url },
-      'Forwarding packet to agent runtime'
+      { paymentId, destination: request.destination, amount: request.amount, url },
+      'Forwarding packet to business logic server'
     );
 
     try {
@@ -95,67 +122,75 @@ export class LocalDeliveryClient {
 
       if (!response.ok) {
         this.logger.error(
-          { status: response.status, destination: request.destination },
-          'Agent runtime returned error status'
+          { status: response.status, paymentId, destination: request.destination },
+          'Business logic server returned error status'
         );
 
         return {
           type: PacketType.REJECT,
           code: ILPErrorCode.T00_INTERNAL_ERROR,
           triggeredBy: '',
-          message: `Agent runtime returned status ${response.status}`,
+          message: `Business logic server returned status ${response.status}`,
           data: Buffer.alloc(0),
         };
       }
 
-      const result = (await response.json()) as LocalDeliveryResponse;
+      const result = (await response.json()) as PaymentResponse;
 
-      if (result.fulfill) {
+      // Validate response shape
+      if (typeof result.accept !== 'boolean') {
+        this.logger.error(
+          { paymentId, destination: request.destination },
+          'Business logic server returned malformed response (missing accept field)'
+        );
+
+        return {
+          type: PacketType.REJECT,
+          code: ILPErrorCode.T00_INTERNAL_ERROR,
+          triggeredBy: '',
+          message: 'Malformed response from business logic server',
+          data: Buffer.alloc(0),
+        };
+      }
+
+      if (result.accept) {
+        // Compute fulfillment = SHA256(data)
+        const fulfillment = computeFulfillmentFromData(packet.data);
+        const validatedData = validateResponseData(result.data, this.logger);
+
         this.logger.info(
-          { destination: request.destination, amount: request.amount },
-          'Packet fulfilled by agent runtime'
+          { paymentId, destination: request.destination, amount: request.amount },
+          'Packet fulfilled by business logic server'
         );
 
         return {
           type: PacketType.FULFILL,
-          fulfillment: Buffer.from(result.fulfill.fulfillment, 'base64'),
-          data: result.fulfill.data ? Buffer.from(result.fulfill.data, 'base64') : Buffer.alloc(0),
-        };
-      } else if (result.reject) {
-        this.logger.info(
-          {
-            destination: request.destination,
-            code: result.reject.code,
-            message: result.reject.message,
-          },
-          'Packet rejected by agent runtime'
-        );
-
-        return {
-          type: PacketType.REJECT,
-          code: (result.reject.code as ILPErrorCode) || ILPErrorCode.F99_APPLICATION_ERROR,
-          triggeredBy: '',
-          message: result.reject.message || 'Rejected by agent',
-          data: result.reject.data ? Buffer.from(result.reject.data, 'base64') : Buffer.alloc(0),
+          fulfillment,
+          data: validatedData ? Buffer.from(validatedData, 'base64') : Buffer.alloc(0),
         };
       } else {
-        this.logger.error(
-          { destination: request.destination },
-          'Agent runtime returned invalid response (no fulfill or reject)'
+        // Map business reject code to ILP error code
+        const ilpCode = result.rejectReason ? mapRejectCode(result.rejectReason.code) : 'F99';
+        const message = result.rejectReason?.message ?? 'Payment rejected';
+        const validatedData = validateResponseData(result.data, this.logger);
+
+        this.logger.info(
+          { paymentId, destination: request.destination, code: ilpCode, message },
+          'Packet rejected by business logic server'
         );
 
         return {
           type: PacketType.REJECT,
-          code: ILPErrorCode.T00_INTERNAL_ERROR,
+          code: ilpCode as ILPErrorCode,
           triggeredBy: '',
-          message: 'Invalid response from agent runtime',
-          data: Buffer.alloc(0),
+          message,
+          data: validatedData ? Buffer.from(validatedData, 'base64') : Buffer.alloc(0),
         };
       }
     } catch (error) {
       this.logger.error(
-        { destination: request.destination, error },
-        'Failed to forward packet to agent runtime'
+        { paymentId, destination: request.destination, error },
+        'Failed to forward packet to business logic server'
       );
 
       if (error instanceof Error && error.name === 'AbortError') {
@@ -163,7 +198,7 @@ export class LocalDeliveryClient {
           type: PacketType.REJECT,
           code: ILPErrorCode.R00_TRANSFER_TIMED_OUT,
           triggeredBy: '',
-          message: 'Agent runtime request timed out',
+          message: 'Business logic server request timed out',
           data: Buffer.alloc(0),
         };
       }
@@ -179,7 +214,7 @@ export class LocalDeliveryClient {
   }
 
   /**
-   * Check if the agent runtime is healthy.
+   * Check if the business logic server is healthy.
    */
   async healthCheck(): Promise<boolean> {
     if (!this.config.enabled) {

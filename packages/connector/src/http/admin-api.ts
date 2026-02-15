@@ -47,6 +47,8 @@ import type { AccountManager } from '../settlement/account-manager';
 import type { SettlementMonitor } from '../settlement/settlement-monitor';
 import type { ClaimReceiver } from '../settlement/claim-receiver';
 import type { BlockchainType } from '../btp/btp-claim-types';
+import { IlpSendHandler } from './ilp-send-handler';
+import type { PacketSenderFn, IsReadyFn } from './ilp-send-handler';
 
 /**
  * Admin API Configuration
@@ -91,6 +93,12 @@ export interface AdminAPIConfig {
 
   /** Optional ClaimReceiver for payment channel claim queries */
   claimReceiver?: ClaimReceiver;
+
+  /** Optional callback for sending ILP packets via ConnectorNode.sendPacket() */
+  packetSender?: PacketSenderFn;
+
+  /** Optional callback for checking if the connector is ready to send packets */
+  isReady?: IsReadyFn;
 }
 
 /**
@@ -202,6 +210,8 @@ export async function createAdminRouter(config: AdminAPIConfig): Promise<Router>
     accountManager,
     settlementMonitor,
     claimReceiver,
+    packetSender,
+    isReady,
   } = config;
   const log = logger.child({ component: 'AdminAPI' });
 
@@ -1558,6 +1568,15 @@ export async function createAdminRouter(config: AdminAPIConfig): Promise<Router>
       res.status(500).json({ error: 'Internal error', message: 'Claim query failed' });
     }
   });
+
+  // --- ILP Send Endpoint ---
+
+  /**
+   * POST /admin/ilp/send
+   * Send an outbound ILP Prepare packet
+   */
+  const ilpSendHandler = new IlpSendHandler(packetSender ?? null, isReady ?? null, log);
+  router.post('/ilp/send', ilpSendHandler.handle.bind(ilpSendHandler));
 
   return router;
 }

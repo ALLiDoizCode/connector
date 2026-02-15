@@ -1,171 +1,257 @@
 # Agent Runtime
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.15.0-blue.svg)](CHANGELOG.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **A payment network built for agents.**
+> **A payment network for agents.** Messages carry value. Peers earn routing fees. Settlement happens on-chain — in bulk.
 
----
+## Install
 
-## The Problem
-
-Agents are already crypto-native. Protocols like x402 and frameworks like ElizaOS have shown that agents can hold wallets, sign transactions, and move value on-chain. Much of the trading volume today is driven by agents, and the expectation is that agents will hold most tokens in the near future.
-
-**But blockchains are slow.**
-
-When Agent A wants to pay Agent B for data, an on-chain transaction takes seconds to minutes and costs gas. That's fine for settlement, but agents need to communicate _fast_ — thousands of messages per second, each one carrying value.
-
-Agents need a network where **sending a message and sending money are the same action**, and where settlement happens later, in bulk.
-
----
-
-## The Insight
-
-**Humans spend time to communicate. Agents spend tokens.**
-
-When humans collaborate, they spend the currency of _time_ — slow, expensive, doesn't scale. Agents are different. On the right network, they can exchange value as fast as they can exchange data.
-
-Agent Runtime is that network. It tightly couples **data and value in every message**. Agents pay to send messages. Agents earn by receiving them. The network grows because relaying messages earns fees.
-
-This is a network where agents have the natural advantage — communicating, negotiating, and transacting at speeds humans can't match.
-
----
-
-## How It Works
-
-### Messages Carry Value
-
-On this network, every message has tokens attached. Think of it like an envelope with cash inside.
-
-```
-┌─────────────────────────────────────────────────┐
-│  MESSAGE                                        │
-├─────────────────────────────────────────────────┤
-│  To:      Agent B                               │
-│  From:    Agent A                               │
-│  Tokens:  1000                                  │
-│  Data:    "What is the current price of ETH?"   │
-└─────────────────────────────────────────────────┘
+```bash
+npm install @agent-runtime/connector
 ```
 
-Agent B receives the message, sees 1000 tokens attached, and decides: _"Is this worth answering?"_ If yes, they respond.
+That's it. No external databases required — the connector ships with an in-memory ledger that persists to disk via JSON snapshots. For high-throughput production workloads, you can optionally plug in [TigerBeetle](https://tigerbeetle.com).
 
-### Peers Earn Routing Fees
+## What This Does
 
-Messages don't go directly from A to B. They pass through **peers** — other agents on the network that forward messages and take a small fee for the service.
+Agent Runtime is a connector node for the [Interledger Protocol (ILP)](https://interledger.org). It routes messages between agents, tracks balances off-chain, and settles to real blockchains when ready.
+
+Every message on the network has tokens attached. Agents pay to send messages. Agents earn by receiving them. Peers earn routing fees for relaying traffic between agents.
 
 ```
-Agent A                       Peer                      Agent B
-   │                          │                            │
-   │  REQUEST                 │                            │
-   │  "What's ETH?" + 1000    │                            │
-   │ ────────────────────────►│                            │
-   │                          │  "What's ETH?" + 999       │
-   │                          │ ──────────────────────────►│
-   │                          │                            │
-   │                          │  RESPONSE                  │
-   │                          │  "$3,421"                  │
-   │                          │◄────────────────────────── │
-   │  "$3,421"                │                            │
-   │◄──────────────────────── │                            │
+Agent A ──── 1000 tokens + "What's ETH price?" ────► Peer ────► Agent B
+                                                     (keeps 1)  (gets 999)
 ```
 
-**Peer earned:** 1 token (fee taken from the request)
-**Agent B earned:** 999 tokens (for providing the answer)
-
-Responses flow back for free — only requests carry payment. The more peers in the network, the more paths available. The more traffic they route, the more they earn.
-
-This creates an incentive for the network to grow.
-
-### Settlement Happens Later
-
-All these messages are tracked off-chain. Agents don't pay gas for every message — they accumulate balances with each other. When they're ready, they **settle** the net balance on a real blockchain:
-
-- **Base L2** — Ethereum ecosystem, ERC-20 tokens
-- **XRP Ledger** — 3-5 second finality, low fees
-- **Aptos** — 160k+ TPS, sub-second finality
-
-Thousands of messages, one on-chain transaction.
-
----
-
-## Building an Agent
-
-You write the business logic. Agent Runtime handles the rest.
-
-Your agent exposes a `/handle-payment` endpoint that answers one question: **"Is this message worth responding to?"**
-
-```typescript
-// POST /handle-payment
-async function handlePayment(request: PaymentRequest): Promise<PaymentResponse> {
-  const { amount, data } = request;
-
-  // Is the payment enough?
-  if (BigInt(amount) < MINIMUM_PAYMENT) {
-    return { accept: false, rejectReason: { code: 'invalid_amount', message: 'Pay more' } };
-  }
-
-  // Process and get paid
-  return { accept: true };
-}
-```
-
-Agent Runtime provides:
-
-- **Routing** — Messages find your agent across any number of peers
-- **Accounting** — Track balances with every peer automatically
-- **Settlement** — Cash out to Base L2, XRP, or Aptos when ready
-
----
+Thousands of messages, one on-chain settlement.
 
 ## Quick Start
 
-### Option 1: Run the Example
+### As a CLI
+
+The package includes an `agent-runtime` CLI:
 
 ```bash
-# Clone and install
-git clone https://github.com/ALLiDoizCode/agent-runtime.git
-cd agent-runtime
-npm install
+# Interactive setup — generates a .env config file
+npx agent-runtime setup
 
-# Start a local network with 5 connectors
-npm run dev
+# Check health of a running connector
+npx agent-runtime health
+
+# Validate a config file
+npx agent-runtime validate config.yaml
 ```
 
-Open the Explorer UI at `http://localhost:5173` to watch messages flow.
+### As a Library
 
-### Option 2: Build Your Own Agent
+```typescript
+import { ConnectorNode, createLogger } from '@agent-runtime/connector';
+
+const logger = createLogger('my-agent', 'info');
+const node = new ConnectorNode('config.yaml', logger);
+
+await node.start();
+
+// Send a packet through the network
+await node.sendPacket({
+  destination: 'g.peer.agent',
+  amount: 1000n,
+  executionCondition: Buffer.alloc(32),
+  expiresAt: new Date(Date.now() + 30000),
+  data: Buffer.from('Hello'),
+});
+
+// Register peers at runtime
+await node.registerPeer({
+  id: 'peer-b',
+  url: 'ws://peer-b:3001',
+  authToken: 'secret',
+  routes: [{ prefix: 'g.peer-b' }],
+});
+
+await node.stop();
+```
+
+You can also pass a config object instead of a YAML path:
+
+```typescript
+const node = new ConnectorNode(
+  {
+    nodeId: 'my-agent',
+    btpServerPort: 3000,
+    peers: [],
+    routes: [],
+  },
+  logger
+);
+```
+
+### Handling Incoming Packets
+
+When a packet arrives for your agent, the connector needs to know what to do with it. Each packet carries an amount (tokens attached to the message) and a data payload. You provide the business logic; the connector handles routing, accounting, fulfillment, and settlement.
+
+There are two ways to wire this up:
+
+**Option A: Same process** (recommended)
+
+Register a packet handler directly. No ILP knowledge needed — the connector handles fulfillment computation, error code mapping, and protocol details for you.
+
+```typescript
+import { ConnectorNode, createLogger } from '@agent-runtime/connector';
+
+const logger = createLogger('my-agent', 'info');
+const node = new ConnectorNode('config.yaml', logger);
+
+node.setPacketHandler(async (request) => {
+  // request includes: paymentId, destination, amount, expiresAt, data
+  const payload = request.data ? Buffer.from(request.data, 'base64').toString() : '';
+
+  if (BigInt(request.amount) < 100n) {
+    return { accept: false, rejectReason: { code: 'invalid_amount', message: 'Pay more' } };
+  }
+
+  console.log(`Received ${request.amount} tokens with message: ${payload}`);
+  return { accept: true };
+});
+
+await node.start();
+```
+
+<details>
+<summary>Advanced: packet-level handler with raw ILP types</summary>
+
+If you need direct control over fulfillment computation and ILP error codes, use `setLocalDeliveryHandler()` instead:
+
+```typescript
+import { createHash } from 'crypto';
+import { ConnectorNode, createLogger } from '@agent-runtime/connector';
+import type { LocalDeliveryRequest, LocalDeliveryResponse } from '@agent-runtime/connector';
+
+const logger = createLogger('my-agent', 'info');
+const node = new ConnectorNode('config.yaml', logger);
+
+node.setLocalDeliveryHandler(
+  async (packet: LocalDeliveryRequest): Promise<LocalDeliveryResponse> => {
+    const amount = BigInt(packet.amount);
+
+    if (amount < 100n) {
+      return { reject: { code: 'F06', message: 'Insufficient payment' } };
+    }
+
+    // Fulfillment = SHA256(data). The sender set condition = SHA256(SHA256(data)).
+    const data = Buffer.from(packet.data, 'base64');
+    const fulfillment = createHash('sha256').update(data).digest().toString('base64');
+
+    return { fulfill: { fulfillment } };
+  }
+);
+
+await node.start();
+```
+
+Both methods share the same underlying slot — setting one overwrites the other.
+
+</details>
+
+**Option B: Separate process** (process isolation)
+
+If you want your business logic in a separate process — for independent scaling, language flexibility, or deployment isolation — the connector posts packets directly to your server via HTTP. No middleware needed.
+
+```
+                Inbound packets               Outbound sends
+Connector ──POST /handle-packet──► Your BLS
+Your BLS  ──POST /admin/ilp/send──► Connector
+```
+
+Configure the connector to forward incoming packets to your server:
+
+```yaml
+# config.yaml
+localDelivery:
+  enabled: true
+  handlerUrl: http://localhost:8080 # Your business logic server URL
+  timeout: 30000
+
+adminApi:
+  enabled: true
+  port: 8081 # For outbound sends from your BLS
+```
+
+Your server handles incoming packets on `POST /handle-packet`:
+
+```typescript
+// Receive packets — connector calls this when a packet arrives for you
+app.post('/handle-packet', async (req, res) => {
+  const { paymentId, destination, amount, expiresAt, data } = req.body;
+  const message = data ? Buffer.from(data, 'base64').toString() : '';
+
+  if (BigInt(amount) < MINIMUM_PAYMENT) {
+    return res.json({
+      accept: false,
+      rejectReason: { code: 'invalid_amount', message: 'Pay more' },
+    });
+  }
+
+  console.log(`Received ${amount} tokens with message: ${message}`);
+  res.json({ accept: true });
+});
+```
+
+Your server sends outbound payments via the connector's admin API:
 
 ```bash
-# Copy the boilerplate
-cp -r examples/business-logic-typescript my-agent
-cd my-agent
-npm install
-
-# Edit src/server.ts with your logic
-# Then run it
-npm run dev
+# Send a payment through the network
+curl -X POST http://localhost:8081/admin/ilp/send \
+  -H 'Content-Type: application/json' \
+  -d '{"destination":"g.peer.agent","amount":"1000","data":"aGVsbG8="}'
 ```
 
-**Full guide:** [Building Agents](docs/building-agents.md)
+See [examples/business-logic-typescript](examples/business-logic-typescript) for a full starter template.
 
----
+## Configuration
 
-## Core Capabilities
+The connector is configured with a YAML file. Here's a minimal example:
 
-| Capability               | What It Does                                                |
-| ------------------------ | ----------------------------------------------------------- |
-| **Multi-Hop Routing**    | Messages find their destination through any number of peers |
-| **Off-Chain Messaging**  | Thousands of messages without touching the blockchain       |
-| **Automatic Settlement** | Net balances settle on-chain when thresholds are reached    |
-| **Real-Time Explorer**   | Watch messages, balances, and settlements as they happen    |
+```yaml
+nodeId: my-agent
+btpServerPort: 3000
+healthCheckPort: 8080
+logLevel: info
 
----
+peers:
+  - id: peer-b
+    url: ws://peer-b:3001
+    authToken: secret-token
 
-## Multichain Settlement
+routes:
+  - prefix: g.peer-b
+    nextHop: peer-b
+    priority: 0
+```
 
-When agents are ready to settle, they move their accumulated balances on-chain:
+Full config options:
+
+| Section         | What It Controls                                                     |
+| --------------- | -------------------------------------------------------------------- |
+| `nodeId`        | Unique identifier for this connector                                 |
+| `btpServerPort` | WebSocket port for incoming peer connections                         |
+| `peers`         | Other connectors to connect to                                       |
+| `routes`        | Routing table — which prefixes go to which peers                     |
+| `localDelivery` | Forward packets to an external business logic server (Option B only) |
+| `settlement`    | On-chain settlement settings                                         |
+| `explorer`      | Real-time telemetry UI                                               |
+| `security`      | Rate limiting, allowlists                                            |
+| `performance`   | Timeouts, buffer sizes                                               |
+
+Sensitive values (private keys, RPC URLs) are loaded from environment variables. Run `npx agent-runtime setup` to generate a `.env` file interactively.
+
+See [examples/](examples/) for topology configs: linear, mesh, hub-spoke, and production setups.
+
+## Settlement
+
+Agents accumulate balances off-chain. When ready, they settle the net balance in a single on-chain transaction using payment channels.
 
 | Chain          | Why Use It                                             |
 | -------------- | ------------------------------------------------------ |
@@ -173,69 +259,100 @@ When agents are ready to settle, they move their accumulated balances on-chain:
 | **XRP Ledger** | Native payment channels, 3-5 second finality, low fees |
 | **Aptos**      | Move language, 160k+ TPS, sub-second finality          |
 
-All three use **payment channels** — a way to lock funds between two parties, exchange thousands of messages off-chain, and then settle the net balance in a single on-chain transaction.
+Settlement is optional. All chain SDKs are peer dependencies — install only the ones you need:
 
----
+```bash
+# For Base L2 / EVM settlement
+npm install ethers
+
+# For XRP Ledger settlement
+npm install xrpl
+
+# For Aptos settlement
+npm install @aptos-labs/ts-sdk
+```
+
+## Packages
+
+This repo is a monorepo with two packages:
+
+| Package                                          | Description                                           |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| [`@agent-runtime/connector`](packages/connector) | Connector node — routing, accounting, settlement, CLI |
+| [`@agent-runtime/shared`](packages/shared)       | Shared types and OER codec utilities                  |
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph "Your Agent"
-        BL[Business Logic<br/>YOUR CODE]
-    end
-
-    subgraph "Agent Runtime (provided)"
-        AR[Message Handler]
-        CN[Peer]
-        TB[(Accounting)]
-    end
-
-    subgraph "Settlement Layer"
-        BASE[Base L2]
-        XRP[XRP Ledger]
-        APT[Aptos]
-    end
-
-    BL <-->|HTTP| AR
-    AR <--> CN
-    CN <--> TB
-    CN -.->|Settlement| BASE
-    CN -.->|Settlement| XRP
-    CN -.->|Settlement| APT
-
-    style BL fill:#10b981,color:#fff
-    style AR fill:#0284c7,color:#fff
-    style CN fill:#0284c7,color:#fff
-```
-
-**You only write the green box.** Everything else is provided.
-
----
-
-## Repository Structure
+**Option A — embedded (recommended):**
 
 ```
-agent-runtime/
-├── packages/
-│   ├── connector/          # Peer node
-│   │   ├── src/
-│   │   │   ├── core/       # Message routing
-│   │   │   ├── btp/        # Peer-to-peer protocol
-│   │   │   ├── settlement/ # Blockchain settlement
-│   │   │   └── explorer/   # Real-time UI server
-│   │   └── explorer-ui/    # React dashboard
-│   ├── agent-runtime/      # Message handler for agents
-│   └── shared/             # Common types
-├── examples/
-│   └── business-logic-typescript/  # Starter template
-└── docs/
-    ├── building-agents.md  # How to build agents
-    ├── deployment.md       # Docker & Kubernetes
-    └── protocols.md        # Technical protocol details
+┌─────────────────────────────────────────────────────────────┐
+│  Your Agent                                                  │
+│  import @agent-runtime/connector                             │
+│  setPacketHandler(request => ...) + sendPacket()              │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ (same process)
+┌──────────────────────▼──────────────────────────────────────┐
+│  @agent-runtime/connector                                   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────┐  │
+│  │ Routing  │ │ BTP/WS   │ │ Ledger   │ │  Settlement   │  │
+│  │ Table    │ │ Peers    │ │ Accounts │ │  (optional)   │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────┬───────┘  │
+└─────────────────────────────────────────────────┼───────────┘
+                                                  │
+                              ┌────────────┬──────┴─────┐
+                              │ Base L2    │ XRP Ledger │ Aptos
+                              └────────────┴────────────┘
 ```
 
----
+**Option B — isolated process:**
+
+```
+┌──────────────┐   /handle-packet   ┌──────────────┐
+│  Your BLS    │◄──────────────────│  @agent-     │
+│              │                    │  runtime/    │
+│  Outbound:   │  /admin/ilp/send  │  connector   │
+│  POST ───────│──────────────────►│              │
+│              │                    │              │
+└──────────────┘                    └──────────────┘
+```
+
+## Explorer UI
+
+The connector includes a built-in real-time dashboard. Enable it in your config:
+
+```yaml
+explorer:
+  enabled: true
+  port: 3001
+```
+
+Then open `http://localhost:3001` to watch messages, balances, and settlements as they happen.
+
+## Development
+
+```bash
+# Clone and install
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
+cd agent-runtime
+npm install
+
+# Build all packages
+npm run build
+
+# Run tests
+npm test
+
+# Start a local dev network
+npm run dev
+```
+
+### Requirements
+
+- **Node.js** >= 22.11.0
+- **Docker** (for TigerBeetle and multi-node testing)
+
+**macOS note:** TigerBeetle requires native installation. Run `npm run tigerbeetle:install` first. See [macOS Setup](docs/guides/local-development-macos.md).
 
 ## Documentation
 
@@ -245,74 +362,13 @@ agent-runtime/
 | [Deployment](docs/deployment.md)           | Docker Compose & Kubernetes setup               |
 | [Protocols](docs/protocols.md)             | Technical details on ILP, BTP, payment channels |
 
----
-
-## Requirements
-
-- **Node.js** 22.11.0 LTS
-- **Docker** (for TigerBeetle and multi-peer testing)
-- **8GB RAM** minimum
-
-**macOS note:** TigerBeetle requires native installation. Run `npm run tigerbeetle:install` first. See [macOS Setup](docs/guides/local-development-macos.md).
-
----
-
-## Use Cases
-
-### Paid APIs
-
-Your agent has valuable data or compute? Other agents pay per-message to access it. No API keys, no invoicing — payment is the authentication.
-
-### Routing
-
-Run a peer node. Every message that passes through earns you a routing fee. More traffic = more revenue.
-
-### Agent Swarms
-
-A coordinator agent sends paid tasks to worker agents. Workers earn by receiving these tasks and responding with results. Thousands of agents collaborating, each earning for their contribution.
-
-### Real-Time Data
-
-Agents query other agents for prices, sentiment, predictions. Every query costs tokens. Every answer earns them. Markets clear in microseconds.
-
----
-
-## Why Interledger?
-
-Agent Runtime is built on [Interledger Protocol (ILP)](https://interledger.org) — an open standard for routing payments across networks, like how IP routes data across the internet.
-
-We chose it because:
-
-| What ILP Does           | Why Agents Need It                                     |
-| ----------------------- | ------------------------------------------------------ |
-| Messages carry value    | No separate "pay then communicate" step                |
-| Peers earn routing fees | Network grows because routing is profitable            |
-| Microsecond latency     | Agents transact at machine speed, not blockchain speed |
-| Settles to any chain    | Use whichever blockchain your agents prefer            |
-| Proven in production    | Used by Coil, Rafiki, and Web Monetization             |
-
-ILP treats money like data packets. That's what agents need.
-
----
-
 ## Contributing
 
-We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-```bash
-npm install   # Install dependencies
-npm test      # Run tests
-npm run lint  # Check code style
-npm run build # Build all packages
-```
-
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
-
----
+MIT — see [LICENSE](LICENSE).
 
 ## Links
 

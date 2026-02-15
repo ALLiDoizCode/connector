@@ -1,9 +1,9 @@
 /**
  * ILP Send Handler Tests
  *
- * Unit tests for the POST /ilp/send endpoint handler.
+ * Unit tests for the POST /admin/ilp/send endpoint handler.
  * Tests condition computation, request validation, response mapping,
- * timeout handling, and sender connectivity checks.
+ * timeout handling, and connector readiness checks.
  */
 
 import * as crypto from 'crypto';
@@ -11,25 +11,17 @@ import express, { Express } from 'express';
 import request from 'supertest';
 import pino from 'pino';
 import { PacketType, ILPErrorCode } from '@agent-runtime/shared';
-import type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
+import type { ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
 import {
   IlpSendHandler,
   computeConditionFromData,
   validateIlpSendRequest,
 } from './ilp-send-handler';
-import type { IPacketSender } from '../types';
+import type { PacketSenderFn, IsReadyFn } from './ilp-send-handler';
+import type { SendPacketParams } from '../config/types';
 
 /** Silent logger for tests */
 const logger = pino({ level: 'silent' });
-
-/** Helper to create a mock IPacketSender */
-function createMockSender(overrides: Partial<IPacketSender> = {}): jest.Mocked<IPacketSender> {
-  return {
-    sendPacket: jest.fn(),
-    isConnected: jest.fn().mockReturnValue(true),
-    ...overrides,
-  } as jest.Mocked<IPacketSender>;
-}
 
 /** Helper to build a valid request body */
 function validRequestBody(): Record<string, unknown> {
@@ -41,10 +33,13 @@ function validRequestBody(): Record<string, unknown> {
 }
 
 /** Helper to create an Express app with the handler */
-function createApp(sender: IPacketSender | null): Express {
+function createApp(
+  sendPacket: PacketSenderFn | null,
+  isReady: IsReadyFn | null = () => true
+): Express {
   const app = express();
   app.use(express.json());
-  const handler = new IlpSendHandler(sender, logger);
+  const handler = new IlpSendHandler(sendPacket, isReady, logger);
   app.post('/ilp/send', handler.handle.bind(handler));
   return app;
 }
@@ -215,13 +210,15 @@ describe('validateIlpSendRequest', () => {
 });
 
 describe('IlpSendHandler', () => {
-  let mockSender: jest.Mocked<IPacketSender>;
+  let mockSendPacket: jest.Mock<Promise<ILPFulfillPacket | ILPRejectPacket>, [SendPacketParams]>;
+  let mockIsReady: jest.Mock<boolean>;
   let app: Express;
   const pendingTimers: NodeJS.Timeout[] = [];
 
   beforeEach(() => {
-    mockSender = createMockSender();
-    app = createApp(mockSender);
+    mockSendPacket = jest.fn();
+    mockIsReady = jest.fn().mockReturnValue(true);
+    app = createApp(mockSendPacket, mockIsReady);
   });
 
   afterEach(() => {
@@ -232,8 +229,8 @@ describe('IlpSendHandler', () => {
   });
 
   describe('sender not configured', () => {
-    it('should return 503 when sender is null', async () => {
-      const nullApp = createApp(null);
+    it('should return 503 when sendPacket is null', async () => {
+      const nullApp = createApp(null, null);
 
       const res = await request(nullApp).post('/ilp/send').send(validRequestBody());
 
@@ -245,16 +242,16 @@ describe('IlpSendHandler', () => {
     });
   });
 
-  describe('sender not connected', () => {
-    it('should return 503 when sender.isConnected() returns false', async () => {
-      mockSender.isConnected.mockReturnValue(false);
+  describe('connector not ready', () => {
+    it('should return 503 when isReady() returns false', async () => {
+      mockIsReady.mockReturnValue(false);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
       expect(res.status).toBe(503);
       expect(res.body).toEqual({
         error: 'Service unavailable',
-        message: 'Outbound sender not connected',
+        message: 'Connector not ready',
       });
     });
   });
@@ -290,7 +287,7 @@ describe('IlpSendHandler', () => {
         fulfillment: fulfillmentBuf,
         data: responseData,
       };
-      mockSender.sendPacket.mockResolvedValue(fulfillPacket);
+      mockSendPacket.mockResolvedValue(fulfillPacket);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
@@ -308,7 +305,7 @@ describe('IlpSendHandler', () => {
         message: 'No route to destination',
         data: Buffer.from('error details'),
       };
-      mockSender.sendPacket.mockResolvedValue(rejectPacket);
+      mockSendPacket.mockResolvedValue(rejectPacket);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
@@ -325,7 +322,7 @@ describe('IlpSendHandler', () => {
         fulfillment: Buffer.alloc(32, 0xaa),
         data: Buffer.alloc(0),
       };
-      mockSender.sendPacket.mockResolvedValue(fulfillPacket);
+      mockSendPacket.mockResolvedValue(fulfillPacket);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
@@ -341,7 +338,7 @@ describe('IlpSendHandler', () => {
         message: 'No route',
         data: Buffer.alloc(0),
       };
-      mockSender.sendPacket.mockResolvedValue(rejectPacket);
+      mockSendPacket.mockResolvedValue(rejectPacket);
 
       const res2 = await request(app).post('/ilp/send').send(validRequestBody());
 
@@ -356,7 +353,7 @@ describe('IlpSendHandler', () => {
         fulfillment: Buffer.alloc(32, 0xbb),
         data: Buffer.alloc(0),
       };
-      mockSender.sendPacket.mockResolvedValue(fulfillPacket);
+      mockSendPacket.mockResolvedValue(fulfillPacket);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
@@ -375,7 +372,7 @@ describe('IlpSendHandler', () => {
         message: 'Internal error',
         data: Buffer.alloc(0),
       };
-      mockSender.sendPacket.mockResolvedValue(rejectPacket);
+      mockSendPacket.mockResolvedValue(rejectPacket);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
@@ -388,7 +385,7 @@ describe('IlpSendHandler', () => {
   describe('timeout handling', () => {
     it('should return 408 when sender times out', async () => {
       // Mock sender that resolves after the timeout
-      mockSender.sendPacket.mockImplementation(
+      mockSendPacket.mockImplementation(
         () =>
           new Promise((resolve) => {
             const timer = setTimeout(
@@ -419,57 +416,56 @@ describe('IlpSendHandler', () => {
         fulfillment: Buffer.alloc(32, 0xcc),
         data: Buffer.alloc(0),
       };
-      mockSender.sendPacket.mockResolvedValue(fulfillPacket);
+      mockSendPacket.mockResolvedValue(fulfillPacket);
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
       expect(res.status).toBe(200);
 
-      // Verify the Prepare packet was constructed with correct expiresAt
-      const prepareArg = mockSender.sendPacket.mock.calls[0]![0] as ILPPreparePacket;
+      // Verify the SendPacketParams was constructed with correct expiresAt
+      const paramsArg = mockSendPacket.mock.calls[0]![0] as SendPacketParams;
       const expectedExpiry = Date.now() + 30000;
       // Allow 2 second tolerance
-      expect(Math.abs(prepareArg.expiresAt.getTime() - expectedExpiry)).toBeLessThan(2000);
+      expect(Math.abs(paramsArg.expiresAt.getTime() - expectedExpiry)).toBeLessThan(2000);
     });
   });
 
   describe('packet construction', () => {
-    it('should construct ILP Prepare packet with correct fields', async () => {
+    it('should construct SendPacketParams with correct fields', async () => {
       const fulfillPacket: ILPFulfillPacket = {
         type: PacketType.FULFILL,
         fulfillment: Buffer.alloc(32, 0xdd),
         data: Buffer.alloc(0),
       };
-      mockSender.sendPacket.mockResolvedValue(fulfillPacket);
+      mockSendPacket.mockResolvedValue(fulfillPacket);
 
       const body = validRequestBody();
       await request(app).post('/ilp/send').send(body);
 
-      expect(mockSender.sendPacket).toHaveBeenCalledTimes(1);
-      const prepareArg = mockSender.sendPacket.mock.calls[0]![0] as ILPPreparePacket;
+      expect(mockSendPacket).toHaveBeenCalledTimes(1);
+      const paramsArg = mockSendPacket.mock.calls[0]![0] as SendPacketParams;
 
-      expect(prepareArg.type).toBe(PacketType.PREPARE);
-      expect(prepareArg.amount).toBe(BigInt('1500000'));
-      expect(prepareArg.destination).toBe('g.connector.peer1');
-      expect(prepareArg.executionCondition.length).toBe(32);
-      expect(prepareArg.data.equals(Buffer.from('Hello World'))).toBe(true);
+      expect(paramsArg.destination).toBe('g.connector.peer1');
+      expect(paramsArg.amount).toBe(BigInt('1500000'));
+      expect(paramsArg.executionCondition.length).toBe(32);
+      expect(paramsArg.data!.equals(Buffer.from('Hello World'))).toBe(true);
 
       // Verify condition matches SHA256(SHA256(data))
       const rawData = Buffer.from(body.data as string, 'base64');
       const { condition: expectedCondition } = computeConditionFromData(rawData);
-      expect(prepareArg.executionCondition.equals(expectedCondition)).toBe(true);
+      expect(paramsArg.executionCondition.equals(expectedCondition)).toBe(true);
     });
   });
 
   describe('internal error handling', () => {
-    it('should return 500 when sender throws an unexpected error', async () => {
-      mockSender.sendPacket.mockRejectedValue(new Error('BTP connection reset'));
+    it('should return 500 when sendPacket throws an unexpected error', async () => {
+      mockSendPacket.mockRejectedValue(new Error('Connection reset'));
 
       const res = await request(app).post('/ilp/send').send(validRequestBody());
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('Internal server error');
-      expect(res.body.message).toBe('BTP connection reset');
+      expect(res.body.message).toBe('Connection reset');
     });
   });
 });

@@ -1602,10 +1602,10 @@ export interface LocalDeliveryConfig {
   enabled?: boolean;
 
   /**
-   * URL to the agent runtime's packet handling endpoint
-   * The connector will POST to {handlerUrl}/ilp/packets
+   * URL to the business logic server's base endpoint
+   * The connector will POST to {handlerUrl}/handle-packet
    * Environment variable: LOCAL_DELIVERY_URL
-   * Example: 'http://agent-runtime:3100'
+   * Example: 'http://localhost:8080'
    */
   handlerUrl?: string;
 
@@ -1786,6 +1786,42 @@ export interface RemovePeerResult {
   peerId: string;
   /** ILP address prefixes of routes that were removed (empty if removeRoutes=false) */
   removedRoutes: string[];
+}
+
+/**
+ * Request body for `POST /admin/ilp/send`.
+ * Used by the BLS to initiate outbound ILP packets through the connector.
+ *
+ * @property destination - Valid ILP address (RFC-0015 format)
+ * @property amount - Non-negative integer string (smallest currency unit)
+ * @property data - Base64-encoded application data (max 64KB decoded)
+ * @property timeoutMs - Optional timeout in milliseconds (default: 30000)
+ */
+export interface IlpSendRequest {
+  destination: string;
+  amount: string;
+  data: string;
+  timeoutMs?: number;
+}
+
+/**
+ * Response body for `POST /admin/ilp/send`.
+ * HTTP 200 for both FULFILL and REJECT responses (distinguished by `accepted` boolean).
+ *
+ * @property accepted - Whether the ILP packet was accepted (fulfilled)
+ * @property fulfilled - Deprecated alias for `accepted` (backward compatibility)
+ * @property fulfillment - Base64-encoded 32-byte fulfillment preimage (when accepted=true)
+ * @property code - ILP error code (when accepted=false)
+ * @property message - Human-readable error message (when accepted=false)
+ * @property data - Base64-encoded response data (optional)
+ */
+export interface IlpSendResponse {
+  accepted: boolean;
+  fulfilled?: boolean;
+  fulfillment?: string;
+  code?: string;
+  message?: string;
+  data?: string;
 }
 
 export interface AdminApiConfig {

@@ -1,31 +1,24 @@
 /**
  * ILP Send Handler
  *
- * Handles `POST /ilp/send` requests from the BLS to initiate outbound ILP packets.
+ * Handles `POST /admin/ilp/send` requests from the BLS to initiate outbound ILP packets.
  * Validates the request, computes the execution condition using SHA256(SHA256(data)),
- * constructs an ILP Prepare packet, sends it via the injected `IPacketSender`,
+ * constructs an ILP Prepare packet, sends it via the injected `sendPacket` callback,
  * and maps the response back to HTTP.
- *
- * @example
- * ```typescript
- * // Register the handler on an Express app
- * const handler = new IlpSendHandler(sender, logger);
- * app.post('/ilp/send', handler.handle.bind(handler));
- * ```
  *
  * HTTP Response Codes:
  * - 200: Both FULFILL and REJECT ILP responses (distinguished by `accepted` boolean)
  * - 400: Validation failure (invalid ILP address, negative amount, non-base64 data, data > 64KB)
  * - 408: No response within timeoutMs
- * - 503: BTP sender not connected or not configured
+ * - 503: Connector not ready or sendPacket not configured
  */
 
 import * as crypto from 'crypto';
 import { Request, Response } from 'express';
-import { Logger } from 'pino';
+import { Logger } from '../utils/logger';
 import { PacketType, isValidILPAddress } from '@agent-runtime/shared';
-import type { ILPPreparePacket, ILPAddress } from '@agent-runtime/shared';
-import type { IlpSendRequest, IlpSendResponse, IPacketSender } from '../types';
+import type { ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
+import type { IlpSendRequest, IlpSendResponse, SendPacketParams } from '../config/types';
 
 /** Default timeout for outbound ILP packets in milliseconds */
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -107,34 +100,37 @@ export function validateIlpSendRequest(body: Record<string, unknown>): string | 
   return null;
 }
 
+/** Callback type for sending an ILP Prepare packet */
+export type PacketSenderFn = (
+  params: SendPacketParams
+) => Promise<ILPFulfillPacket | ILPRejectPacket>;
+
+/** Callback type for checking if the connector is ready */
+export type IsReadyFn = () => boolean;
+
 /**
- * Handler for `POST /ilp/send`.
+ * Handler for `POST /admin/ilp/send`.
  */
 export class IlpSendHandler {
-  private readonly _sender: IPacketSender | null;
+  private readonly _sendPacket: PacketSenderFn | null;
+  private readonly _isReady: IsReadyFn | null;
   private readonly _logger: Logger;
 
-  constructor(sender: IPacketSender | null, logger: Logger) {
-    this._sender = sender;
+  constructor(sendPacket: PacketSenderFn | null, isReady: IsReadyFn | null, logger: Logger) {
+    this._sendPacket = sendPacket;
+    this._isReady = isReady;
     this._logger = logger.child({ component: 'IlpSendHandler' });
   }
 
   /**
-   * Handle an incoming `POST /ilp/send` request.
-   *
-   * Validates the request, checks sender connectivity, computes the execution
-   * condition, constructs an ILP Prepare packet, sends it, and maps the
-   * response back to HTTP.
-   *
-   * @param req - Express request
-   * @param res - Express response
+   * Handle an incoming `POST /admin/ilp/send` request.
    */
   async handle(req: Request, res: Response): Promise<void> {
     this._logger.info({ path: req.path }, 'Received ILP send request');
 
     try {
       // Check sender configured
-      if (!this._sender) {
+      if (!this._sendPacket) {
         this._logger.warn('Outbound sender not configured');
         res.status(503).json({
           error: 'Service unavailable',
@@ -143,12 +139,12 @@ export class IlpSendHandler {
         return;
       }
 
-      // Check sender connected
-      if (!this._sender.isConnected()) {
-        this._logger.warn('Outbound sender not connected');
+      // Check connector ready
+      if (!this._isReady || !this._isReady()) {
+        this._logger.warn('Connector not ready');
         res.status(503).json({
           error: 'Service unavailable',
-          message: 'Outbound sender not connected',
+          message: 'Connector not ready',
         });
         return;
       }
@@ -172,11 +168,10 @@ export class IlpSendHandler {
       // Compute condition
       const { condition } = computeConditionFromData(rawDataBytes);
 
-      // Construct ILP Prepare packet
-      const preparePacket: ILPPreparePacket = {
-        type: PacketType.PREPARE,
+      // Construct SendPacketParams
+      const params: SendPacketParams = {
+        destination: request.destination,
         amount: BigInt(request.amount),
-        destination: request.destination as ILPAddress,
         executionCondition: condition,
         expiresAt: new Date(Date.now() + timeoutMs),
         data: rawDataBytes,
@@ -185,7 +180,7 @@ export class IlpSendHandler {
       // Send packet with timeout
       let timeoutHandle: NodeJS.Timeout | undefined;
       const response = await Promise.race([
-        this._sender.sendPacket(preparePacket),
+        this._sendPacket(params),
         new Promise<never>((_resolve, reject) => {
           timeoutHandle = setTimeout(() => reject(new TimeoutError(timeoutMs)), timeoutMs);
         }),

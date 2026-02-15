@@ -25,6 +25,7 @@ import type { XRPChannelLifecycleManager } from '../settlement/xrp-channel-lifec
 import type { AccountManager } from '../settlement/account-manager';
 import type { SettlementMonitor } from '../settlement/settlement-monitor';
 import type { ClaimReceiver } from '../settlement/claim-receiver';
+import type { PacketSenderFn, IsReadyFn } from './ilp-send-handler';
 import { requireOptional } from '../utils/optional-require';
 
 /**
@@ -67,6 +68,8 @@ export class AdminServer {
     accountManager?: AccountManager;
     settlementMonitor?: SettlementMonitor;
     claimReceiver?: ClaimReceiver;
+    packetSender?: PacketSenderFn;
+    isReady?: IsReadyFn;
   };
 
   /**
@@ -92,6 +95,8 @@ export class AdminServer {
     accountManager?: AccountManager;
     settlementMonitor?: SettlementMonitor;
     claimReceiver?: ClaimReceiver;
+    packetSender?: PacketSenderFn;
+    isReady?: IsReadyFn;
   }) {
     this._options = options;
     this._nodeId = options.nodeId;
@@ -120,6 +125,8 @@ export class AdminServer {
       accountManager,
       settlementMonitor,
       claimReceiver,
+      packetSender,
+      isReady,
     } = this._options;
 
     this._app = express();
@@ -138,6 +145,8 @@ export class AdminServer {
       accountManager,
       settlementMonitor,
       claimReceiver,
+      packetSender,
+      isReady,
     });
 
     this._app.use('/admin', adminRouter);
@@ -200,6 +209,7 @@ export class AdminServer {
                 'GET /admin/balances/:peerId',
                 'GET /admin/settlement/states',
                 'GET /admin/channels/:channelId/claims',
+                'POST /admin/ilp/send',
               ],
             },
             `Admin API server started on ${host}:${port}`

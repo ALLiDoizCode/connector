@@ -10,7 +10,13 @@ import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPServer } from '../btp/btp-server';
 import { PacketHandler } from './packet-handler';
 import { Logger } from '../utils/logger';
-import { RoutingTableEntry, PacketType, ILPErrorCode } from '@agent-runtime/shared';
+import {
+  RoutingTableEntry,
+  PacketType,
+  ILPErrorCode,
+  ILPFulfillPacket,
+  ILPRejectPacket,
+} from '@agent-runtime/shared';
 import { ConfigLoader, ConnectorNotStartedError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 
@@ -832,6 +838,77 @@ describe('ConnectorNode', () => {
     });
   });
 
+  describe('setPacketHandler()', () => {
+    beforeEach(() => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+    });
+
+    it('should wrap handler and propagate to PacketHandler', () => {
+      // Arrange
+      const handler = jest.fn().mockResolvedValue({ accept: true });
+
+      // Act
+      connectorNode.setPacketHandler(handler);
+
+      // Assert — should have called setLocalDeliveryHandler with a function (the adapter)
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'packet_handler_set',
+          hasHandler: true,
+        }),
+        'Packet handler registered'
+      );
+    });
+
+    it('should clear the handler when called with null', () => {
+      // Arrange — set a handler first
+      connectorNode.setPacketHandler(jest.fn().mockResolvedValue({ accept: true }));
+      jest.clearAllMocks();
+
+      // Act
+      connectorNode.setPacketHandler(null);
+
+      // Assert
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(null);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'packet_handler_set',
+          hasHandler: false,
+        }),
+        'Packet handler cleared'
+      );
+    });
+
+    it('should be callable before start()', () => {
+      // Arrange
+      const handler = jest.fn().mockResolvedValue({ accept: true });
+
+      // Act — call before start()
+      connectorNode.setPacketHandler(handler);
+
+      // Assert — no errors, adapter propagated
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledWith(expect.any(Function));
+    });
+
+    it('should overwrite previous setLocalDeliveryHandler (last writer wins)', () => {
+      // Arrange — set a raw local delivery handler first
+      const rawHandler = jest.fn().mockResolvedValue({ fulfill: { fulfillment: 'dGVzdA==' } });
+      connectorNode.setLocalDeliveryHandler(rawHandler);
+      jest.clearAllMocks();
+
+      // Act — now set a payment handler, should overwrite
+      connectorNode.setPacketHandler(jest.fn().mockResolvedValue({ accept: true }));
+
+      // Assert — setLocalDeliveryHandler called with new adapter (not the raw handler)
+      expect(mockPacketHandler.setLocalDeliveryHandler).toHaveBeenCalledTimes(1);
+      const calledWith = mockPacketHandler.setLocalDeliveryHandler.mock.calls[0]![0];
+      expect(calledWith).not.toBe(rawHandler);
+      expect(typeof calledWith).toBe('function');
+    });
+  });
+
   describe('sendPacket()', () => {
     const validParams = {
       destination: 'g.peerA.alice',
@@ -840,13 +917,13 @@ describe('ConnectorNode', () => {
       expiresAt: new Date(Date.now() + 30000),
     };
 
-    const createMockFulfill = () => ({
+    const createMockFulfill = (): ILPFulfillPacket => ({
       type: PacketType.FULFILL as const,
       fulfillment: Buffer.alloc(32, 0xcd),
       data: Buffer.alloc(0),
     });
 
-    const createMockReject = (code = ILPErrorCode.F02_UNREACHABLE) => ({
+    const createMockReject = (code = ILPErrorCode.F02_UNREACHABLE): ILPRejectPacket => ({
       type: PacketType.REJECT as const,
       code,
       triggeredBy: 'connector-test',

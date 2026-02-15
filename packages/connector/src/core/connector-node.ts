@@ -30,6 +30,7 @@ import {
   RouteInfo,
   RemovePeerResult,
 } from '../config/types';
+import { PaymentHandler, createPaymentHandlerAdapter } from './payment-handler';
 import { PeerConfig as SettlementPeerConfig, AdminSettlementConfig } from '../settlement/types';
 import { validateSettlementConfig } from '../http/admin-api';
 import {
@@ -226,6 +227,30 @@ export class ConnectorNode implements HealthStatusProvider {
         : 'Local delivery function handler cleared'
     );
     this._packetHandler.setLocalDeliveryHandler(handler);
+  }
+
+  /**
+   * Register a packet handler for local ILP packets.
+   * Wraps the handler with an adapter that handles fulfillment computation,
+   * error code mapping, and expiry checks — so the handler only needs to
+   * return `{ accept: true }` or `{ accept: false }`.
+   *
+   * Shares the same underlying slot as `setLocalDeliveryHandler()` —
+   * setting one overwrites the other (last writer wins).
+   *
+   * @param handler - Packet handler function, or null to clear
+   */
+  setPacketHandler(handler: PaymentHandler | null): void {
+    this._logger.info(
+      { event: 'packet_handler_set', hasHandler: handler !== null },
+      handler ? 'Packet handler registered' : 'Packet handler cleared'
+    );
+    if (handler) {
+      const adapter = createPaymentHandlerAdapter(handler, this._logger);
+      this._packetHandler.setLocalDeliveryHandler(adapter);
+    } else {
+      this._packetHandler.setLocalDeliveryHandler(null);
+    }
   }
 
   /**
@@ -704,6 +729,8 @@ export class ConnectorNode implements HealthStatusProvider {
           paymentChannelSDK: this._paymentChannelSDK ?? undefined,
           accountManager: this._accountManager ?? undefined,
           settlementMonitor: this._settlementMonitor ?? undefined,
+          packetSender: (params) => this.sendPacket(params),
+          isReady: () => this._btpServerStarted,
         });
 
         await this._adminServer.start();

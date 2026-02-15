@@ -17,6 +17,19 @@ import { AdminServer } from './http/admin-server';
 import { AccountManager } from './settlement/account-manager';
 import { SettlementMonitor } from './settlement/settlement-monitor';
 import { UnifiedSettlementExecutor } from './settlement/unified-settlement-executor';
+import {
+  createPaymentHandlerAdapter,
+  REJECT_CODE_MAP,
+  computeFulfillmentFromData,
+  generatePaymentId,
+  mapRejectCode,
+  validateResponseData,
+} from './core/payment-handler';
+import {
+  IlpSendHandler,
+  computeConditionFromData,
+  validateIlpSendRequest,
+} from './http/ilp-send-handler';
 
 // Export public API
 export {
@@ -35,6 +48,17 @@ export {
   SettlementMonitor,
   UnifiedSettlementExecutor,
   createLogger,
+  // Payment handler utilities
+  createPaymentHandlerAdapter,
+  REJECT_CODE_MAP,
+  computeFulfillmentFromData,
+  generatePaymentId,
+  mapRejectCode,
+  validateResponseData,
+  // ILP send handler
+  IlpSendHandler,
+  computeConditionFromData,
+  validateIlpSendRequest,
 };
 
 // Export configuration types
@@ -54,10 +78,18 @@ export type {
   PeerAccountBalance,
   RouteInfo,
   RemovePeerResult,
+  IlpSendRequest,
+  IlpSendResponse,
 } from './config/types';
 
 // Re-export settlement types for library consumers
 export type { AdminSettlementConfig } from './settlement/types';
+
+// Re-export payment handler types for library consumers
+export type { PaymentRequest, PaymentResponse, PaymentHandler } from './core/payment-handler';
+
+// Re-export ILP send handler types for library consumers
+export type { PacketSenderFn, IsReadyFn } from './http/ilp-send-handler';
 
 // Re-export ILP packet types for library consumers
 export type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
