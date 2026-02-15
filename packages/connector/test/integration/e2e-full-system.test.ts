@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars, no-console */
 /**
  * End-to-End Full System Integration Test
  * Tests complete system deployment, packet routing, and telemetry across 3-node network
@@ -25,7 +26,7 @@ import path from 'path';
 import WebSocket from 'ws';
 import { BTPClient, Peer } from '../../src/btp/btp-client';
 import { createLogger } from '../../src/utils/logger';
-import { ILPPreparePacket, PacketType } from '@agent-runtime/shared';
+import { ILPPreparePacket, PacketType } from '@agent-society/shared';
 import { TelemetryMessage } from '../../src/telemetry/types';
 
 const COMPOSE_FILE = 'docker-compose.yml';
@@ -261,7 +262,7 @@ const describeIfDockerCompose =
   dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('E2E Full System Integration', () => {
-  let containerLogs: { [key: string]: string } = {};
+  const containerLogs: { [key: string]: string } = {};
 
   beforeAll(async () => {
     // Set up authentication secret for test client

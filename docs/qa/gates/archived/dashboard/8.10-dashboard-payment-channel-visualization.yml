@@ -142,7 +142,7 @@ test_coverage:
 
 # Code Quality Assessment
 code_quality:
-  architecture: "EXCELLENT - Clean separation of concerns. Shared types in @agent-runtime/shared, backend state management in TelemetryServer, frontend components well-organized."
+  architecture: "EXCELLENT - Clean separation of concerns. Shared types in @agent-society/shared, backend state management in TelemetryServer, frontend components well-organized."
   typescript_compliance: "EXCELLENT - Full TypeScript strict mode compliance after refactoring. No 'any' types remaining after fixing usePaymentChannels hook."
   documentation: "EXCELLENT - Comprehensive JSDoc for all interfaces with usage examples. Clear inline comments explaining BigInt serialization and dashboard usage."
   error_handling: "EXCELLENT - Proper try-catch in usePaymentChannels hook. Non-blocking telemetry emission. Graceful handling of missing channels."

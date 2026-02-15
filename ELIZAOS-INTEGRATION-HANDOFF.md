@@ -2,7 +2,7 @@
 
 ## Goal
 
-Refactor `@agent-runtime/connector` from a standalone CLI application into an importable npm library so it can run **in-process** alongside `@agent-society/core` inside an ElizaOS Service.
+Refactor `@agent-society/connector` from a standalone CLI application into an importable npm library so it can run **in-process** alongside `@agent-society/core` inside an ElizaOS Service.
 
 The end state: a single ElizaOS agent process that embeds both the ILP connector (agent-runtime) and the Nostr protocol layer (agent-society), with no HTTP between them.
 
@@ -199,7 +199,7 @@ No `process.exit()` calls. No signal handlers. Those belong in the CLI entrypoin
 **Needed**: Two entry points:
 
 ```
-@agent-runtime/connector
+@agent-society/connector
 ├── src/
 │   ├── index.ts              ← library exports (ConnectorNode, types, etc.)
 │   └── cli/
@@ -214,7 +214,7 @@ No `process.exit()` calls. No signal handlers. Those belong in the CLI entrypoin
 The library should export everything needed for in-process composition:
 
 ```typescript
-// @agent-runtime/connector public API
+// @agent-society/connector public API
 export {
   // Core
   ConnectorNode,
@@ -262,7 +262,7 @@ export type {
 Once agent-runtime is a library, `@agent-society/core` will import it and wire the two together:
 
 ```typescript
-import { ConnectorNode } from '@agent-runtime/connector';
+import { ConnectorNode } from '@agent-society/connector';
 import { BusinessLogicServer, SqliteEventStore, PricingService } from '@agent-society/bls';
 import { BootstrapService, NostrSpspClient, SocialTrustManager } from '@agent-society/core';
 
@@ -395,15 +395,15 @@ The refactor is about **how you start and wire the connector**, not about changi
 ## Dependency Graph After Refactoring
 
 ```
-@agent-runtime/shared           (ILP types, OER codec — no changes)
+@agent-society/shared           (ILP types, OER codec — no changes)
         ▲
         │
-@agent-runtime/connector        (ILP connector library — refactored)
+@agent-society/connector        (ILP connector library — refactored)
         ▲
         │ imports
         │
 @agent-society/core              (Nostr protocol + composes connector + BLS)
-  ├── imports @agent-runtime/connector
+  ├── imports @agent-society/connector
   ├── imports @agent-society/bls
   └── wires: connector ↔ BLS ↔ bootstrap ↔ SPSP
         ▲
@@ -430,22 +430,22 @@ These existing gaps (from `INTEGRATION-GAPS.md` in agent-society) become easier 
 
 ## Publishing as npm Packages
 
-Both `@agent-runtime/shared` and `@agent-runtime/connector` need to be published to npm so `@agent-society/core` can depend on them.
+Both `@agent-society/shared` and `@agent-society/connector` need to be published to npm so `@agent-society/core` can depend on them.
 
 ### Current State
 
 - Root `package.json` has `"private": true` — correct, the monorepo root should not be published
-- `@agent-runtime/shared` — `"version": "0.1.0"`, no `"private"` flag, zero runtime dependencies. **Ready to publish as-is.**
-- `@agent-runtime/connector` — `"version": "0.1.0"`, no `"private"` flag, but has heavy dependencies and CLI concerns mixed in. **Needs refactoring before publishing.**
+- `@agent-society/shared` — `"version": "0.1.0"`, no `"private"` flag, zero runtime dependencies. **Ready to publish as-is.**
+- `@agent-society/connector` — `"version": "0.1.0"`, no `"private"` flag, but has heavy dependencies and CLI concerns mixed in. **Needs refactoring before publishing.**
 - `@agent-runtime/core` — `"version": "0.1.0"`, minimal Express-based package. Evaluate whether it's still needed or should merge into connector.
 
 ### Changes Required for Publishing
 
-#### 1. Package.json Updates for `@agent-runtime/connector`
+#### 1. Package.json Updates for `@agent-society/connector`
 
 ```jsonc
 {
-  "name": "@agent-runtime/connector",
+  "name": "@agent-society/connector",
   "version": "1.0.0",
   "description": "ILP connector with BTP support — importable library and CLI",
   "main": "dist/index.js",
@@ -475,11 +475,11 @@ Both `@agent-runtime/shared` and `@agent-runtime/connector` need to be published
 }
 ```
 
-#### 2. Package.json Updates for `@agent-runtime/shared`
+#### 2. Package.json Updates for `@agent-society/shared`
 
 ```jsonc
 {
-  "name": "@agent-runtime/shared",
+  "name": "@agent-society/shared",
   "version": "1.0.0",
   "description": "Shared ILP types, OER codec, and utilities for Agent Runtime",
   "main": "dist/index.js",
@@ -503,14 +503,14 @@ Both `@agent-runtime/shared` and `@agent-runtime/connector` need to be published
 }
 ```
 
-#### 3. Trim Dependencies for `@agent-runtime/connector`
+#### 3. Trim Dependencies for `@agent-society/connector`
 
 The current connector `package.json` has many dependencies that are only needed for specific features. For the published library, consider making heavy/optional dependencies peer dependencies:
 
 **Keep as direct dependencies** (core functionality):
 
 - `ws` — BTP WebSocket protocol (required)
-- `@agent-runtime/shared` — ILP types (required)
+- `@agent-society/shared` — ILP types (required)
 - `js-yaml` — config loading (required for CLI, could be optional for library)
 - `pino` — logging (required)
 - `tslib` — TypeScript runtime (required)
@@ -535,7 +535,7 @@ This reduces the install footprint dramatically. A consumer using just the ILP c
 ```jsonc
 {
   "dependencies": {
-    "@agent-runtime/shared": "^1.0.0",
+    "@agent-society/shared": "^1.0.0",
     "ws": "^8.16.0",
     "pino": "^8.21.0",
     "tslib": "^2.8.1",
@@ -578,7 +578,7 @@ cd ../shared
 npm publish --access public
 
 # 4. Update connector to use published shared version
-# Change "@agent-runtime/shared": "*" → "@agent-runtime/shared": "^1.0.0"
+# Change "@agent-society/shared": "*" → "@agent-society/shared": "^1.0.0"
 
 # 5. Publish connector
 cd ../connector
@@ -604,7 +604,7 @@ Or adopt [changesets](https://github.com/changesets/changesets) for proper versi
 
 #### 6. Versioning Strategy
 
-- `@agent-runtime/shared` and `@agent-runtime/connector` should be versioned independently
+- `@agent-society/shared` and `@agent-society/connector` should be versioned independently
 - Use semver: breaking API changes = major bump
 - The library refactoring (config object, public sendPacket, etc.) is a **major version bump** → `1.0.0`
 - Pre-refactoring state can be tagged `0.x` for existing Docker/CLI users
@@ -614,7 +614,7 @@ Or adopt [changesets](https://github.com/changesets/changesets) for proper versi
 Ensure only built artifacts are published (not test files, Docker configs, explorer UI, etc.):
 
 ```
-# .npmignore for @agent-runtime/connector
+# .npmignore for @agent-society/connector
 src/
 test/
 explorer-ui/

@@ -64,7 +64,7 @@ import type {
 } from '../btp/btp-claim-types';
 import type { XRPClaim } from './types';
 import type { AptosClaim } from './aptos-claim-signer';
-import type { BalanceProof } from '@agent-runtime/shared';
+import type { BalanceProof } from '@agent-society/shared';
 
 /**
  * Configuration for ClaimRedemptionService

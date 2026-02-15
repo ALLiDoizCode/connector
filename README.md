@@ -9,7 +9,7 @@
 ## Install
 
 ```bash
-npm install @agent-runtime/connector
+npm install @agent-society/connector
 ```
 
 That's it. No external databases required — the connector ships with an in-memory ledger that persists to disk via JSON snapshots. For high-throughput production workloads, you can optionally plug in [TigerBeetle](https://tigerbeetle.com).
@@ -47,7 +47,7 @@ npx agent-runtime validate config.yaml
 ### As a Library
 
 ```typescript
-import { ConnectorNode, createLogger } from '@agent-runtime/connector';
+import { ConnectorNode, createLogger } from '@agent-society/connector';
 
 const logger = createLogger('my-agent', 'info');
 const node = new ConnectorNode('config.yaml', logger);
@@ -99,7 +99,7 @@ There are two ways to wire this up:
 Register a packet handler directly. No ILP knowledge needed — the connector handles fulfillment computation, error code mapping, and protocol details for you.
 
 ```typescript
-import { ConnectorNode, createLogger } from '@agent-runtime/connector';
+import { ConnectorNode, createLogger } from '@agent-society/connector';
 
 const logger = createLogger('my-agent', 'info');
 const node = new ConnectorNode('config.yaml', logger);
@@ -126,8 +126,8 @@ If you need direct control over fulfillment computation and ILP error codes, use
 
 ```typescript
 import { createHash } from 'crypto';
-import { ConnectorNode, createLogger } from '@agent-runtime/connector';
-import type { LocalDeliveryRequest, LocalDeliveryResponse } from '@agent-runtime/connector';
+import { ConnectorNode, createLogger } from '@agent-society/connector';
+import type { LocalDeliveryRequest, LocalDeliveryResponse } from '@agent-society/connector';
 
 const logger = createLogger('my-agent', 'info');
 const node = new ConnectorNode('config.yaml', logger);
@@ -278,8 +278,8 @@ This repo is a monorepo with two packages:
 
 | Package                                          | Description                                           |
 | ------------------------------------------------ | ----------------------------------------------------- |
-| [`@agent-runtime/connector`](packages/connector) | Connector node — routing, accounting, settlement, CLI |
-| [`@agent-runtime/shared`](packages/shared)       | Shared types and OER codec utilities                  |
+| [`@agent-society/connector`](packages/connector) | Connector node — routing, accounting, settlement, CLI |
+| [`@agent-society/shared`](packages/shared)       | Shared types and OER codec utilities                  |
 
 ## Architecture
 
@@ -288,12 +288,12 @@ This repo is a monorepo with two packages:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Your Agent                                                  │
-│  import @agent-runtime/connector                             │
+│  import @agent-society/connector                             │
 │  setPacketHandler(request => ...) + sendPacket()              │
 └──────────────────────┬──────────────────────────────────────┘
                        │ (same process)
 ┌──────────────────────▼──────────────────────────────────────┐
-│  @agent-runtime/connector                                   │
+│  @agent-society/connector                                   │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────┐  │
 │  │ Routing  │ │ BTP/WS   │ │ Ledger   │ │  Settlement   │  │
 │  │ Table    │ │ Peers    │ │ Accounts │ │  (optional)   │  │

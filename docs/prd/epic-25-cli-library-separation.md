@@ -7,7 +7,7 @@
 
 ## Epic Goal
 
-Separate the CLI entrypoint from the library exports, remove `process.exit()` calls and signal handlers from library code, export all types needed for in-process composition, and ensure `ConnectorNode` has clean, reentrant lifecycle methods — making `@agent-runtime/connector` safe to import and embed without side effects.
+Separate the CLI entrypoint from the library exports, remove `process.exit()` calls and signal handlers from library code, export all types needed for in-process composition, and ensure `ConnectorNode` has clean, reentrant lifecycle methods — making `@agent-society/connector` safe to import and embed without side effects.
 
 ## Epic Description
 
@@ -44,13 +44,13 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 
 **How It Integrates:**
 
-- `import { ConnectorNode, type ConnectorConfig } from '@agent-runtime/connector'` — clean import, no side effects
+- `import { ConnectorNode, type ConnectorConfig } from '@agent-society/connector'` — clean import, no side effects
 - The CLI (`npx agent-runtime start config.yaml`) still works — it imports from the library and adds process lifecycle
 - ElizaOS Service imports the library, creates ConnectorNode, manages lifecycle via Service.start()/stop()
 
 **Success Criteria:**
 
-1. `import { ConnectorNode } from '@agent-runtime/connector'` has zero side effects (no signal handlers, no process listeners)
+1. `import { ConnectorNode } from '@agent-society/connector'` has zero side effects (no signal handlers, no process listeners)
 2. All types needed for programmatic composition are exported
 3. `ConnectorNode.start()` and `stop()` are clean — no process.exit(), no signal registration
 4. CLI still works for standalone usage
@@ -62,7 +62,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 ### Story 25.1: Split Library Exports from Process Entrypoint
 
 **As a** library consumer,
-**I want** importing `@agent-runtime/connector` to have zero side effects,
+**I want** importing `@agent-society/connector` to have zero side effects,
 **so that** I can safely embed it in my process without unexpected signal handlers or exit behavior.
 
 **Scope:**
@@ -96,7 +96,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 
 **Acceptance Criteria:**
 
-1. `import { ConnectorNode } from '@agent-runtime/connector'` imports from `lib.ts` — zero side effects
+1. `import { ConnectorNode } from '@agent-society/connector'` imports from `lib.ts` — zero side effects
 2. No `process.exit()`, `process.on('SIGTERM')`, or `process.on('uncaughtException')` in library code
 3. CLI entrypoint (`main.ts`) handles all process lifecycle concerns
 4. `npx agent-runtime` or direct execution of `main.js` works as before
@@ -168,7 +168,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
   - `ConnectorConfig`, `PeerConfig`, `RouteConfig`, `SettlementConfig`, `LocalDeliveryConfig`
   - `LocalDeliveryHandler` (function handler type from Epic 24 Story 24.2)
   - `PeerRegistrationRequest`, `PeerInfo`, `PeerAccountBalance`, `RouteInfo`
-  - ILP packet types: `ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket` (re-exported from `@agent-runtime/shared`)
+  - ILP packet types: `ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket` (re-exported from `@agent-society/shared`)
   - `SendPacketParams`, `SendPacketResult` (from Epic 24 Story 24.3)
 - **Verify completeness:**
   - Write a TypeScript "consumer test" file that imports all exported types and attempts to construct a ConnectorNode with full type safety
@@ -179,7 +179,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 1. All classes listed above are exported from library entry point
 2. All types listed above are exported from library entry point
 3. Consumer test file compiles with strict TypeScript — no `any` casts needed
-4. ILP packet types re-exported from `@agent-runtime/shared` for convenience
+4. ILP packet types re-exported from `@agent-society/shared` for convenience
 5. No internal-only types leaked (implementation details stay private)
 6. `npm pack` includes all `.d.ts` files for exported types
 7. TypeScript compilation succeeds across the monorepo
@@ -189,7 +189,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 ## Compatibility Requirements
 
 - [x] **CLI still works** — `npx agent-runtime` or direct `node dist/main.js` unchanged
-- [x] **Existing imports** — any internal consumers of `@agent-runtime/connector` still resolve (re-exports cover existing API)
+- [x] **Existing imports** — any internal consumers of `@agent-society/connector` still resolve (re-exports cover existing API)
 - [x] **Test imports** — existing test files import paths updated if needed
 - [x] **Docker deployments** — Dockerfile CMD still starts the connector correctly
 - [x] **No behavior changes** — same connector behavior, just different entry/exit structure

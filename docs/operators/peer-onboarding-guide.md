@@ -34,7 +34,7 @@ The onboarding wizard is the easiest way to configure your connector.
 
 ```bash
 # Using npx (recommended)
-npx @agent-runtime/connector setup
+npx @agent-society/connector setup
 
 # Or if installed locally
 npm run setup --workspace=packages/connector
@@ -314,7 +314,7 @@ curl http://localhost:8080/health | jq .peers
 Send a test packet through the network using the CLI tools:
 
 ```bash
-npx @agent-runtime/connector health --url http://localhost:8080/health
+npx @agent-society/connector health --url http://localhost:8080/health
 ```
 
 ### 4. Monitor Metrics

@@ -20,7 +20,7 @@ import {
   ILPRejectPacket,
   ILPErrorCode,
   PacketType,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import { SettlementConfig } from '../config/types';
 import pino from 'pino';
 

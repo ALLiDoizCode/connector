@@ -11,7 +11,7 @@ import {
   ILPErrorCode,
   PacketType,
   isValidILPAddress,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import { RoutingTable } from '../routing/routing-table';
 import { Logger, generateCorrelationId } from '../utils/logger';
 import { BTPClientManager } from '../btp/btp-client-manager';

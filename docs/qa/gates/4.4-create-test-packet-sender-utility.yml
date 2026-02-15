@@ -83,7 +83,7 @@ recommendations:
     - action: "Implement AC#7 fully: Add --type option for Fulfill/Reject packet sending"
       refs: ["tools/send-packet/src/index.ts"]
 
-    - action: "Consider extracting BTP message parsing to @agent-runtime/shared to reduce code duplication"
+    - action: "Consider extracting BTP message parsing to @agent-society/shared to reduce code duplication"
       refs: ["tools/send-packet/src/btp-sender.ts", "packages/connector/src/btp/btp-message-parser.ts"]
 
     - action: "Add --timeout option for configurable response timeout (currently hardcoded 10s)"

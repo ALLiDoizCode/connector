@@ -5,7 +5,7 @@
 
 import { ethers } from 'ethers';
 import { PaymentChannelSDK, ChallengeNotExpiredError } from './payment-channel-sdk';
-import type { BalanceProof } from '@agent-runtime/shared';
+import type { BalanceProof } from '@agent-society/shared';
 import type { Logger } from '../utils/logger';
 import type { KeyManager } from '../security/key-manager';
 

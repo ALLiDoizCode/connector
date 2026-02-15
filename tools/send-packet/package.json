@@ -15,7 +15,7 @@
     "test:integration": "jest test/integration"
   },
   "dependencies": {
-    "@agent-runtime/shared": "*",
+    "@agent-society/shared": "*",
     "commander": "^11.1.0",
     "ws": "^8.16.0",
     "pino": "^8.17.0",

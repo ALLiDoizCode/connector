@@ -33,7 +33,7 @@ Seed manager not initialized, or seed file missing from storage.
 **Option 1: Initialize New Seed (New Deployment)**
 
 ```typescript
-import { AgentSeedManager } from '@agent-runtime/connector/wallet/agent-seed-manager';
+import { AgentSeedManager } from '@agent-society/connector/wallet/agent-seed-manager';
 
 const seedManager = new AgentSeedManager();
 
@@ -134,7 +134,7 @@ Seed file corrupted due to disk error or interrupted write.
 3. **Restore from Backup:**
 
    ```typescript
-   import { WalletBackupManager } from '@agent-runtime/connector/wallet/wallet-backup-manager';
+   import { WalletBackupManager } from '@agent-society/connector/wallet/wallet-backup-manager';
 
    const backupManager = new WalletBackupManager();
    const backup = await loadBackup('backup-weekly.enc');
@@ -168,7 +168,7 @@ Agent ID already has a derived wallet.
 **Use Existing Wallet:**
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-runtime/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
 
 const lifecycle = new AgentWalletLifecycle();
 
@@ -224,7 +224,7 @@ Internal database inconsistency - derivation index already used by another agent
 1. **Check Agent Mapping:**
 
    ```typescript
-   import { AgentWalletDerivation } from '@agent-runtime/connector/wallet/agent-wallet-derivation';
+   import { AgentWalletDerivation } from '@agent-society/connector/wallet/agent-wallet-derivation';
 
    const derivation = new AgentWalletDerivation();
 
@@ -273,7 +273,7 @@ EVM wallet needs native ETH for gas fees, but balance is zero or too low.
 1. **Check ETH Balance:**
 
    ```typescript
-   import { AgentBalanceTracker } from '@agent-runtime/connector/wallet/agent-balance-tracker';
+   import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
 
    const balanceTracker = new AgentBalanceTracker();
    const ethBalance = await balanceTracker.getBalance('agent-001', 'evm', 'ETH');
@@ -285,7 +285,7 @@ EVM wallet needs native ETH for gas fees, but balance is zero or too low.
 2. **Fund Wallet with ETH:**
 
    ```typescript
-   import { AgentWalletFunder } from '@agent-runtime/connector/wallet/agent-wallet-funder';
+   import { AgentWalletFunder } from '@agent-society/connector/wallet/agent-wallet-funder';
 
    const funder = new AgentWalletFunder();
 
@@ -402,7 +402,7 @@ Transactions occurred after backup timestamp - backup is stale.
 **Automatic Reconciliation (Built-in):**
 
 ```typescript
-import { WalletBackupManager } from '@agent-runtime/connector/wallet/wallet-backup-manager';
+import { WalletBackupManager } from '@agent-society/connector/wallet/wallet-backup-manager';
 
 const backupManager = new WalletBackupManager();
 
@@ -415,7 +415,7 @@ logger.info('Backup restored - balances reconciled with on-chain data');
 **Manual Reconciliation (If Needed):**
 
 ```typescript
-import { AgentBalanceTracker } from '@agent-runtime/connector/wallet/agent-balance-tracker';
+import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
 
 const balanceTracker = new AgentBalanceTracker();
 
@@ -459,7 +459,7 @@ Payment channel already open with the specified peer.
 **Option 1: Use Existing Channel**
 
 ```typescript
-import { AgentChannelManager } from '@agent-runtime/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
 
 const channelManager = new AgentChannelManager();
 
@@ -1026,7 +1026,7 @@ RPC endpoint latency or balance not cached.
 1. **Enable Balance Caching:**
 
    ```typescript
-   import { AgentBalanceTracker } from '@agent-runtime/connector/wallet/agent-balance-tracker';
+   import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
 
    const balanceTracker = new AgentBalanceTracker({
      cacheEnabled: true,

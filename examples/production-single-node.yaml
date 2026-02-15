@@ -8,7 +8,7 @@
 # - Follows production security best practices
 #
 # Usage:
-#   1. Run the onboarding wizard: npx @agent-runtime/connector setup
+#   1. Run the onboarding wizard: npx @agent-society/connector setup
 #      OR copy .env.example to .env and edit manually
 #   2. Add peers to the peers array below (if needed)
 #   3. Add routes to the routes array below (if needed)

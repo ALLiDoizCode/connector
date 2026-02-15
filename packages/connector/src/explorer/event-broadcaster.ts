@@ -8,7 +8,7 @@
  */
 
 import WebSocket, { WebSocketServer } from 'ws';
-import { TelemetryEvent } from '@agent-runtime/shared';
+import { TelemetryEvent } from '@agent-society/shared';
 import { Logger } from '../utils/logger';
 
 /**

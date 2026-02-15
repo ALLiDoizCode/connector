@@ -11,7 +11,7 @@ import type {
   XRPChannelClaimedEvent,
   XRPChannelClosedEvent,
   TelemetryEvent,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 
 // Mock connector and dashboard for integration test
 describe('XRP Channel Telemetry Integration', () => {

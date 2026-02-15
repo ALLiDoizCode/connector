@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-console */
 /**
  * Integration tests for BTPClient and BTPServer
  * Tests end-to-end packet exchange between client and server
@@ -14,7 +15,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 
 /**
  * Create valid ILP Prepare packet for testing

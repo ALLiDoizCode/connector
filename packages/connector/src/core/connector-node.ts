@@ -18,7 +18,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import {
   ConnectorConfig,
   SettlementConfig,

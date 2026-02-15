@@ -16,7 +16,7 @@ import {
   ILPErrorCode,
   ILPFulfillPacket,
   ILPRejectPacket,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import { ConfigLoader, ConnectorNotStartedError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 

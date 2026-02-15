@@ -29,7 +29,7 @@ import { requireOptional } from '../utils/optional-require';
 import { RoutingTable } from '../routing/routing-table';
 import { BTPClientManager } from '../btp/btp-client-manager';
 import { Peer } from '../btp/btp-client';
-import { ILPAddress, isValidILPAddress } from '@agent-runtime/shared';
+import { ILPAddress, isValidILPAddress } from '@agent-society/shared';
 import {
   AdminSettlementConfig,
   PeerConfig as SettlementPeerConfig,

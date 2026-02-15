@@ -26,7 +26,7 @@ import type { Transfer } from 'tigerbeetle-node';
 const ACCOUNT_FLAGS_NONE = 0;
 const TRANSFER_FLAGS_NONE = 0;
 
-import { SettlementState } from '@agent-runtime/shared';
+import { SettlementState } from '@agent-society/shared';
 import type { ILedgerClient } from './ledger-client';
 import { TigerBeetleAccountError } from './tigerbeetle-errors';
 import { generateAccountId } from './account-id-generator';

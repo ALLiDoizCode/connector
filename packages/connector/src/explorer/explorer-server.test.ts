@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 import { ExplorerServer, ExplorerServerConfig } from './explorer-server';
 import { EventStore } from './event-store';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
-import { TelemetryEvent, AccountBalanceEvent, SettlementState } from '@agent-runtime/shared';
+import { TelemetryEvent, AccountBalanceEvent, SettlementState } from '@agent-society/shared';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs';

@@ -59,7 +59,7 @@ curl -X POST http://localhost:5005 \\
 ### Verifying Rippled Connection
 
 ```typescript
-import { XRPLClient, XRPLClientConfig } from '@agent-runtime/connector';
+import { XRPLClient, XRPLClientConfig } from '@agent-society/connector';
 import pino from 'pino';
 
 const config: XRPLClientConfig = {
@@ -137,7 +137,7 @@ interface XRPLClientConfig {
 ### Basic Operations
 
 ```typescript
-import { XRPLClient, XRPLClientConfig } from '@agent-runtime/connector';
+import { XRPLClient, XRPLClientConfig } from '@agent-society/connector';
 import pino from 'pino';
 
 const config: XRPLClientConfig = {
@@ -182,8 +182,8 @@ The `PaymentChannelManager` class provides a high-level interface for managing X
 #### Creating a Payment Channel
 
 ```typescript
-import { PaymentChannelManager } from '@agent-runtime/connector';
-import { XRPLClient } from '@agent-runtime/connector';
+import { PaymentChannelManager } from '@agent-society/connector';
+import { XRPLClient } from '@agent-society/connector';
 import Database from 'better-sqlite3';
 import pino from 'pino';
 
@@ -257,7 +257,7 @@ The `ClaimSigner` class provides cryptographic operations for signing and verify
 #### Signing a Claim
 
 ```typescript
-import { ClaimSigner } from '@agent-runtime/connector';
+import { ClaimSigner } from '@agent-society/connector';
 import Database from 'better-sqlite3';
 import pino from 'pino';
 
@@ -405,7 +405,7 @@ The `XRPLClient` and `PaymentChannelManager` support submitting signed claims to
 #### Submitting a Claim (Partial Claim)
 
 ```typescript
-import { XRPLClient, PaymentChannelManager, ClaimSigner } from '@agent-runtime/connector';
+import { XRPLClient, PaymentChannelManager, ClaimSigner } from '@agent-society/connector';
 import Database from 'better-sqlite3';
 import pino from 'pino';
 
@@ -574,7 +574,7 @@ Channel Creator (Source)                     Channel Recipient (Destination)
 #### Error Handling for Claim Submission
 
 ```typescript
-import { XRPLError, XRPLErrorCode } from '@agent-runtime/connector';
+import { XRPLError, XRPLErrorCode } from '@agent-society/connector';
 
 try {
   await xrplClient.submitClaim(channelId, amount, signature, publicKey);
@@ -649,7 +649,7 @@ console.log('Channel created:', channelId);
 ### Error Codes
 
 ```typescript
-import { XRPLError, XRPLErrorCode } from '@agent-runtime/connector';
+import { XRPLError, XRPLErrorCode } from '@agent-society/connector';
 
 try {
   await client.connect();
@@ -865,7 +865,7 @@ The `UnifiedSettlementExecutor` class orchestrates settlement routing:
 Configure peers with settlement preferences:
 
 ```typescript
-import { UnifiedSettlementExecutor, PeerConfig } from '@agent-runtime/connector';
+import { UnifiedSettlementExecutor, PeerConfig } from '@agent-society/connector';
 
 const peerConfig: PeerConfig = {
   peerId: 'peer-alice',
@@ -987,7 +987,7 @@ The `XRPChannelSDK` provides a high-level API for XRP payment channel management
 #### SDK Initialization
 
 ```typescript
-import { XRPChannelSDK } from '@agent-runtime/connector';
+import { XRPChannelSDK } from '@agent-society/connector';
 
 const sdk = new XRPChannelSDK(
   xrplClient, // XRPLClient instance
@@ -1139,7 +1139,7 @@ The `XRPChannelLifecycleManager` automates XRP payment channel lifecycle managem
 #### Lifecycle Configuration
 
 ```typescript
-import { XRPChannelLifecycleManager, XRPChannelLifecycleConfig } from '@agent-runtime/connector';
+import { XRPChannelLifecycleManager, XRPChannelLifecycleConfig } from '@agent-society/connector';
 
 const config: XRPChannelLifecycleConfig = {
   enabled: true, // Enable lifecycle management
@@ -1262,7 +1262,7 @@ Integration tests cover:
 Use test helpers for XRP integration tests:
 
 ```typescript
-import { XRPTestHelpers } from '@agent-runtime/connector/test/helpers';
+import { XRPTestHelpers } from '@agent-society/connector/test/helpers';
 
 // Create funded test account
 const testAccount = await XRPTestHelpers.createTestAccount(xrplClient, '100000000');

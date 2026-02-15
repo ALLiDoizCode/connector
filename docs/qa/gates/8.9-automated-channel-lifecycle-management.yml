@@ -161,7 +161,7 @@ compliance_assessment:
   notes:
     - "✓ Files in correct settlement/ directory"
     - "✓ Co-located test file follows *.test.ts convention"
-    - "✓ Proper imports from shared types (@agent-runtime/shared)"
+    - "✓ Proper imports from shared types (@agent-society/shared)"
     - "✓ Clean dependency injection via constructor"
 
   testing_strategy: PASS

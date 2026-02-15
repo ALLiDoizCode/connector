@@ -9,7 +9,7 @@ import WebSocket from 'ws';
 import { ExplorerServer } from '../../src/explorer/explorer-server';
 import { EventStore } from '../../src/explorer/event-store';
 import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
-import { TelemetryEvent, AccountBalanceEvent, SettlementState } from '@agent-runtime/shared';
+import { TelemetryEvent, AccountBalanceEvent, SettlementState } from '@agent-society/shared';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs';

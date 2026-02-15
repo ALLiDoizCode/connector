@@ -416,7 +416,7 @@ services:
         condition: service_healthy
     volumes:
       - ./packages/connector/src:/app/src # Hot-reload
-      - ./packages/shared/src:/app/node_modules/@agent-runtime/shared/src # Hot-reload shared
+      - ./packages/shared/src:/app/node_modules/@agent-society/shared/src # Hot-reload shared
 
   connector-bob:
     build:
@@ -444,7 +444,7 @@ services:
         condition: service_healthy
     volumes:
       - ./packages/connector/src:/app/src
-      - ./packages/shared/src:/app/node_modules/@agent-runtime/shared/src
+      - ./packages/shared/src:/app/node_modules/@agent-society/shared/src
 
   # ===== Dashboard =====
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type, no-console */
 /**
  * Performance Testing Suite - Validates NFR1-NFR4 under load
  *
@@ -21,7 +22,7 @@ import WebSocket from 'ws';
 import { BTPSender } from '../../../../tools/send-packet/src/btp-sender';
 import { createTestPreparePacket } from '../../../../tools/send-packet/src/packet-factory';
 import { createLogger } from '../../src/utils/logger';
-import { PacketType } from '@agent-runtime/shared';
+import { PacketType } from '@agent-society/shared';
 import { TelemetryMessage } from '../../src/telemetry/types';
 
 const COMPOSE_FILE_5NODE = 'docker-compose-5-node.yml';

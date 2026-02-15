@@ -164,7 +164,7 @@ log_info "Checking test status..."
 
 # Run unit tests
 log_info "Running unit tests..."
-if npm run test --workspace=@agent-runtime/connector 2>/dev/null | grep -q "passed"; then
+if npm run test --workspace=@agent-society/connector 2>/dev/null | grep -q "passed"; then
     log_pass "Unit tests passing"
 else
     log_warn "Unit tests may have issues - verify manually"

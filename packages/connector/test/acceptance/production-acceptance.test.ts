@@ -33,7 +33,7 @@ import {
   ILPPreparePacket,
   ILPFulfillPacket,
   ILPRejectPacket,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 
 // Acceptance tests have 5 minute timeout per test
 jest.setTimeout(300000);

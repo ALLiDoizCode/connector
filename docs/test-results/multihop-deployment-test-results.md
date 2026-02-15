@@ -165,7 +165,7 @@ docker build -t agent-runtime .
 
 # 2. Install dependencies and build tools
 npm install
-npm run build --workspace=@agent-runtime/shared
+npm run build --workspace=@agent-society/shared
 cd tools/fund-peers && npm run build
 # Result: ✅ Tools built successfully
 

@@ -15,7 +15,7 @@ import type {
   ChannelClosedEvent,
   ChannelSettledEvent,
   ChannelCooperativeSettledEvent,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import { getDomainSeparator, getBalanceProofTypes } from './eip712-helper';
 import type { Logger } from '../utils/logger';
 import type { KeyManager } from '../security/key-manager';

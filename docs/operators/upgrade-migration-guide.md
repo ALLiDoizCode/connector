@@ -401,7 +401,7 @@ docker compose -f docker-compose-production.yml stop connector
 cp data/wallet/agent-wallets.db data/wallet/agent-wallets.db.backup
 
 # Run migration script (if provided)
-npx @agent-runtime/connector migrate-wallet --from=1.0 --to=2.0
+npx @agent-society/connector migrate-wallet --from=1.0 --to=2.0
 
 # Verify migration
 sqlite3 data/wallet/agent-wallets.db "SELECT count(*) FROM wallets;"

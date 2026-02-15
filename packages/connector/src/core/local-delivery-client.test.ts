@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as crypto from 'crypto';
-import { PacketType, ILPErrorCode, ILPPreparePacket } from '@agent-runtime/shared';
+import { PacketType, ILPErrorCode, ILPPreparePacket } from '@agent-society/shared';
 import { LocalDeliveryClient } from './local-delivery-client';
 import type { PaymentResponse } from './payment-handler';
 

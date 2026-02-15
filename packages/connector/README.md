@@ -1,4 +1,4 @@
-# @agent-runtime/connector
+# @agent-society/connector
 
 The M2M Connector package provides the core ILP connector functionality for the Machine-to-Machine Economy platform.
 
@@ -164,7 +164,7 @@ The workflow peer will:
 ## Installation
 
 ```bash
-npm install @agent-runtime/connector
+npm install @agent-society/connector
 ```
 
 ## Usage

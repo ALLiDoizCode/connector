@@ -1,11 +1,11 @@
-# @agent-runtime/shared
+# @agent-society/shared
 
 Shared ILP types and OER codec for Agent Runtime.
 
 ## Install
 
 ```bash
-npm install @agent-runtime/shared
+npm install @agent-society/shared
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ import {
   PacketType,
   serializePacket,
   deserializePacket,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 
 // Create an ILP Prepare packet
 const prepare: ILPPreparePacket = {

@@ -7,7 +7,7 @@ import type {
   PaymentChannelOpenedEvent,
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import type { AdminChannelStatus } from './types';
 
 /**

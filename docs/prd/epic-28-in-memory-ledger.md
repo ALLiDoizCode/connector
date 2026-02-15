@@ -62,7 +62,7 @@ Replace TigerBeetle as the **default** accounting backend with a zero-dependency
 
 **Success Criteria:**
 
-1. `npm install @agent-runtime/connector` works with **zero native addons** required for basic accounting
+1. `npm install @agent-society/connector` works with **zero native addons** required for basic accounting
 2. Connector starts with working balance tracking, settlement threshold detection, and claim signing — no TigerBeetle service needed
 3. After restart, balances restore from the most recent snapshot within the configured persistence interval
 4. All existing `AccountManager` unit and integration tests pass against the in-memory backend

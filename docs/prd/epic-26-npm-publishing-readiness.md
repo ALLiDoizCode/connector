@@ -7,7 +7,7 @@
 
 ## Epic Goal
 
-Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publication by trimming dependencies to minimize install footprint, configuring package.json for dual library/CLI usage, adding publish automation, and validating that the packages install and import correctly in a clean consumer project.
+Prepare `@agent-society/shared` and `@agent-society/connector` for npm publication by trimming dependencies to minimize install footprint, configuring package.json for dual library/CLI usage, adding publish automation, and validating that the packages install and import correctly in a clean consumer project.
 
 ## Epic Description
 
@@ -16,8 +16,8 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 **Current Functionality:**
 
 - Root `package.json` has `"private": true` — monorepo root correctly excluded from publishing
-- `@agent-runtime/shared` — `"version": "0.1.0"`, zero runtime dependencies, exports ILP types and OER codec. Nearly ready to publish as-is.
-- `@agent-runtime/connector` — `"version": "0.1.0"`, has heavy dependencies including cloud SDKs, AI libraries, image processing, and blockchain clients. All dependencies are direct regardless of whether the consumer needs them.
+- `@agent-society/shared` — `"version": "0.1.0"`, zero runtime dependencies, exports ILP types and OER codec. Nearly ready to publish as-is.
+- `@agent-society/connector` — `"version": "0.1.0"`, has heavy dependencies including cloud SDKs, AI libraries, image processing, and blockchain clients. All dependencies are direct regardless of whether the consumer needs them.
 - `@agent-runtime/core` — `"version": "0.1.0"`, minimal Express middleware package. Evaluate merge into connector or independent publish.
 - No `"exports"` field in any package — missing modern Node.js resolution
 - No `"files"` field — `npm pack` would include test files, config, Docker assets, etc.
@@ -39,21 +39,21 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 
 **What's Being Changed:**
 
-1. **Dependency trimming for `@agent-runtime/connector`** — Move heavy/optional dependencies (blockchain SDKs, cloud KMS, AI libraries, image processing, observability) to `optionalDependencies` or `peerDependencies` with `peerDependenciesMeta: { optional: true }`. Core library consumers only pull in `ws`, `pino`, `zod`, `tslib`, and `@agent-runtime/shared`.
+1. **Dependency trimming for `@agent-society/connector`** — Move heavy/optional dependencies (blockchain SDKs, cloud KMS, AI libraries, image processing, observability) to `optionalDependencies` or `peerDependencies` with `peerDependenciesMeta: { optional: true }`. Core library consumers only pull in `ws`, `pino`, `zod`, `tslib`, and `@agent-society/shared`.
 2. **Package.json configuration** — Add `"exports"` field for modern resolution, `"files"` field to allowlist only `dist/`, `README.md`, `LICENSE`. Add `"publishConfig": { "access": "public" }` for scoped packages. Version bump to `1.0.0` to reflect stable API.
 3. **Publish automation** — Add root-level publish scripts (`publish:shared`, `publish:connector`, `publish:all`) with correct build-then-publish ordering. Optionally integrate changesets for versioning.
 4. **Package validation** — `npm pack` both packages, install in a fresh project, verify imports work and types resolve.
 
 **How It Integrates:**
 
-- `@agent-society/core` adds `"@agent-runtime/connector": "^1.0.0"` and `"@agent-runtime/shared": "^1.0.0"` to its dependencies
+- `@agent-society/core` adds `"@agent-society/connector": "^1.0.0"` and `"@agent-society/shared": "^1.0.0"` to its dependencies
 - Consumers who need settlement features install the optional blockchain SDKs alongside the connector
 - The connector package remains fully functional for both library and CLI use cases
 
 **Success Criteria:**
 
-1. `npm install @agent-runtime/connector` pulls only core dependencies (~5 packages, not 30+)
-2. `npm install @agent-runtime/shared` pulls zero runtime dependencies
+1. `npm install @agent-society/connector` pulls only core dependencies (~5 packages, not 30+)
+2. `npm install @agent-society/shared` pulls zero runtime dependencies
 3. Both packages install and import successfully in a clean TypeScript project
 4. All type declarations (`.d.ts`) resolve correctly
 5. `npm pack` produces clean tarballs without test files, Docker configs, or source maps
@@ -64,13 +64,13 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 ### Story 26.1: Trim Connector Dependencies and Configure Peer Dependencies
 
 **As a** package consumer,
-**I want** `@agent-runtime/connector` to have minimal required dependencies,
+**I want** `@agent-society/connector` to have minimal required dependencies,
 **so that** I don't pull in blockchain SDKs, cloud libraries, and AI frameworks when I only need the ILP connector.
 
 **Scope:**
 
 - **Keep as direct dependencies** (required for core functionality):
-  - `@agent-runtime/shared` — ILP types, OER codec
+  - `@agent-society/shared` — ILP types, OER codec
   - `ws` — BTP WebSocket protocol
   - `pino` — Logging
   - `tslib` — TypeScript runtime helpers
@@ -98,7 +98,7 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 
 **Acceptance Criteria:**
 
-1. `npm install @agent-runtime/connector` installs ≤ 10 direct dependencies
+1. `npm install @agent-society/connector` installs ≤ 10 direct dependencies
 2. Connector starts successfully with only core dependencies (no settlement, no AdminServer)
 3. Settlement features produce clear error message if blockchain SDK not installed
 4. AdminServer produces clear error message if Express not installed
@@ -117,7 +117,7 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 
 **Scope:**
 
-- **`@agent-runtime/shared` package.json:**
+- **`@agent-society/shared` package.json:**
   - Version bump: `"version": "1.0.0"`
   - Add `"exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } }`
   - Add `"files": ["dist", "README.md", "LICENSE"]`
@@ -126,14 +126,14 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
   - Add `"license": "Apache-2.0"` (or project's actual license)
   - Add `"engines": { "node": ">=22.11.0" }`
   - Verify `"types": "dist/index.d.ts"` is set
-- **`@agent-runtime/connector` package.json:**
+- **`@agent-society/connector` package.json:**
   - Version bump: `"version": "1.0.0"`
   - Update `"main"` to point to library entry (from Epic 25)
   - Add `"exports"` field matching library entry
   - Add `"files": ["dist", "README.md", "LICENSE"]`
   - Add `"publishConfig": { "access": "public" }`
   - Add `"repository"` with `"directory": "packages/connector"`
-  - Update `"@agent-runtime/shared"` dependency from `"*"` or `"workspace:*"` to `"^1.0.0"`
+  - Update `"@agent-society/shared"` dependency from `"*"` or `"workspace:*"` to `"^1.0.0"`
   - Add `"engines": { "node": ">=22.11.0" }`
 - **Verify builds:**
   - `npm run build` in both packages produces all expected files
@@ -145,7 +145,7 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 1. Both packages have `"version": "1.0.0"` and `"publishConfig": { "access": "public" }`
 2. Both packages have `"exports"` field for modern Node.js resolution
 3. Both packages have `"files"` field limiting published content to `dist/`, `README.md`, `LICENSE`
-4. `@agent-runtime/connector` depends on `@agent-runtime/shared` at `"^1.0.0"` (not workspace protocol)
+4. `@agent-society/connector` depends on `@agent-society/shared` at `"^1.0.0"` (not workspace protocol)
 5. `npm pack` in both packages produces tarballs with only `dist/`, `README.md`, `LICENSE`
 6. No test files, Docker configs, source maps, or config files in tarballs
 7. TypeScript declarations included and resolve correctly
@@ -177,8 +177,8 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
     3. Install both tarballs: `npm install ./agent-runtime-shared-1.0.0.tgz ./agent-runtime-connector-1.0.0.tgz`
     4. Create a TypeScript test file that imports key types and classes:
        ```typescript
-       import { ConnectorNode, type ConnectorConfig } from '@agent-runtime/connector';
-       import type { ILPPreparePacket } from '@agent-runtime/shared';
+       import { ConnectorNode, type ConnectorConfig } from '@agent-society/connector';
+       import type { ILPPreparePacket } from '@agent-society/shared';
        // Verify types resolve
        const config: ConnectorConfig = { ... };
        ```
@@ -210,7 +210,7 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 - [x] **Workspace development** — `npm install` at monorepo root still links packages locally
 - [x] **Existing CI/CD** — build and test scripts unchanged
 - [x] **Docker builds** — Dockerfile has all dependencies installed (optional deps available)
-- [x] **Standalone CLI** — `npx @agent-runtime/connector` still works after publishing
+- [x] **Standalone CLI** — `npx @agent-society/connector` still works after publishing
 
 ## Risk Mitigation
 
@@ -232,14 +232,14 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 
 **Rollback Plan:**
 
-1. `npm unpublish @agent-runtime/connector@1.0.0` (within 72h npm policy)
+1. `npm unpublish @agent-society/connector@1.0.0` (within 72h npm policy)
 2. Revert package.json changes — packages stay unpublished
 3. agent-society continues using monorepo-local dependency
 
 ## Definition of Done
 
 - [ ] All 3 stories completed with acceptance criteria met
-- [ ] `npm install @agent-runtime/connector` has minimal dependency footprint
+- [ ] `npm install @agent-society/connector` has minimal dependency footprint
 - [ ] Both packages configured with proper npm metadata
 - [ ] Publish automation works end-to-end
 - [ ] Package validation proves install + import + types in clean project
@@ -252,4 +252,4 @@ Prepare `@agent-runtime/shared` and `@agent-runtime/connector` for npm publicati
 - **Epic 25:** CLI/Library Separation (prerequisite — provides clean library entry point)
 - **Epic 22:** Agent-Runtime Middleware Simplification (companion — simplified middleware ships in published package)
 - **Epic 23:** Unified Deployment Infrastructure (companion — deployment uses published packages)
-- **agent-society integration:** Published packages enable `@agent-society/core` to depend on `@agent-runtime/connector`
+- **agent-society integration:** Published packages enable `@agent-society/core` to depend on `@agent-society/connector`

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runtime/shared",
+  "name": "@agent-society/shared",
   "version": "1.0.0",
   "description": "Shared TypeScript types and utilities for Agent Runtime",
   "main": "dist/index.js",

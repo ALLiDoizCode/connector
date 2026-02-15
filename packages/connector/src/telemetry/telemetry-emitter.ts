@@ -15,7 +15,7 @@ import {
   XRPChannelOpenedEvent,
   XRPChannelClaimedEvent,
   XRPChannelClosedEvent,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import { Logger } from '../utils/logger';
 import {
   TelemetryMessage,
@@ -417,7 +417,7 @@ export class TelemetryEmitter {
    * @param event - Settlement telemetry event (ACCOUNT_BALANCE, SETTLEMENT_TRIGGERED, SETTLEMENT_COMPLETED)
    * @remarks
    * Non-blocking: Errors are logged but never thrown.
-   * Supports new shared telemetry event types from @agent-runtime/shared package.
+   * Supports new shared telemetry event types from @agent-society/shared package.
    * All bigint fields must be pre-converted to strings by caller.
    * Called by AccountManager, SettlementMonitor, and SettlementAPI.
    *

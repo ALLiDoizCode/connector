@@ -15,7 +15,7 @@ import {
   PacketType,
   ILPErrorCode,
   serializePacket,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import WebSocket, { WebSocketServer } from 'ws';
 import { EventEmitter } from 'events';
 

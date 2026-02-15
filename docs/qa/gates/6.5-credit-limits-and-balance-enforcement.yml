@@ -88,7 +88,7 @@ acceptance_criteria_coverage:
     status: COVERED
     tests:
       - "credit-limit-enforcement.test.ts:96-123 - Scaffold demonstrates behavior"
-      - "Dev Agent Record confirms T04 error code in @agent-runtime/shared"
+      - "Dev Agent Record confirms T04 error code in @agent-society/shared"
     notes: "Scaffold acceptable for MVP, full Docker test deferred"
 
   - ac: 6

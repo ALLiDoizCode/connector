@@ -14,7 +14,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@agent-runtime/shared';
+} from '@agent-society/shared';
 import { LocalDeliveryConfig } from '../config/types';
 import {
   PaymentRequest,

@@ -6,7 +6,7 @@
  * All telemetry messages include nodeId for multi-connector differentiation.
  */
 
-import { RoutingTableEntry } from '@agent-runtime/shared';
+import { RoutingTableEntry } from '@agent-society/shared';
 
 /**
  * Telemetry message types supported by dashboard server

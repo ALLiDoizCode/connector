@@ -20,8 +20,8 @@ import {
   ILPFulfillPacket,
   ILPRejectPacket,
   PacketType,
-} from '@agent-runtime/shared';
-import { serializePacket, deserializePacket } from '@agent-runtime/shared';
+} from '@agent-society/shared';
+import { serializePacket, deserializePacket } from '@agent-society/shared';
 import type { PacketHandler } from '../core/packet-handler';
 
 /**

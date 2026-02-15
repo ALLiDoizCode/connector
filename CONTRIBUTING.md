@@ -167,9 +167,9 @@ This project uses **Conventional Commits** for clear and structured commit histo
 
 The scope specifies which package or component is affected:
 
-- `connector` - Changes to @agent-runtime/connector package
+- `connector` - Changes to @agent-society/connector package
 - `dashboard` - Changes to @agent-runtime/dashboard package
-- `shared` - Changes to @agent-runtime/shared package
+- `shared` - Changes to @agent-society/shared package
 - `monorepo` - Changes affecting the entire monorepo
 - `btp` - BTP protocol implementation
 - `routing` - Routing logic
@@ -310,8 +310,8 @@ All pull requests must pass:
 - ✅ Prettier formatting checks
 - ✅ TypeScript compilation (all packages)
 - ✅ Jest tests with coverage thresholds:
-  - `@agent-runtime/shared`: ≥90% coverage
-  - `@agent-runtime/connector`: ≥80% coverage
+  - `@agent-society/shared`: ≥90% coverage
+  - `@agent-society/connector`: ≥80% coverage
   - `@agent-runtime/dashboard`: ≥70% coverage
 
 ## Code Review Guidelines
@@ -334,8 +334,8 @@ All pull requests must pass:
 
 ### Test Coverage Thresholds
 
-- **@agent-runtime/shared**: Minimum 90% line coverage (critical protocol logic)
-- **@agent-runtime/connector**: Minimum 80% line coverage
+- **@agent-society/shared**: Minimum 90% line coverage (critical protocol logic)
+- **@agent-society/connector**: Minimum 80% line coverage
 - **@agent-runtime/dashboard**: Minimum 70% line coverage
 
 ### Test Organization
