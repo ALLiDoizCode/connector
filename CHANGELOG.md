@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.17.0...v1.18.0) (2026-02-15)
+
+### Features
+
+- bundle chain SDKs as dependencies instead of peer dependencies ([9cbde0b](https://github.com/ALLiDoizCode/agent-runtime/commit/9cbde0bc2d15f7beb37d0eb156a87ea579af6ed4))
+
 ## [1.17.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.16.0...v1.17.0) (2026-02-15)
 
 ### Features
