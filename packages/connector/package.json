@@ -1,6 +1,6 @@
 {
   "name": "@agent-society/connector",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Connector with BTP support and tri-chain settlement",
   "main": "dist/lib.js",
   "types": "dist/lib.d.ts",
