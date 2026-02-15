@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.16.0...v1.17.0) (2026-02-15)
+
+### Features
+
+- consolidate agent-runtime into connector, rename setPaymentHandler to setPacketHandler ([fa3a19b](https://github.com/ALLiDoizCode/agent-runtime/commit/fa3a19b8d18e5e750f46d93ec91cc058be76e333))
+
 ## [1.16.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.15.0...v1.16.0) (2026-02-14)
 
 ### Features
