@@ -11,7 +11,7 @@
 import * as lib from './lib';
 
 import {
-  // Value exports (15 total: 10 existing + 5 new)
+  // Value exports (14 total: LocalDeliveryClient removed - now internal only)
   ConnectorNode,
   ConfigLoader,
   ConfigurationError,
@@ -21,7 +21,7 @@ import {
   BTPServer,
   BTPClient,
   BTPClientManager,
-  LocalDeliveryClient,
+  // LocalDeliveryClient - REMOVED: internal only, use ConnectorNode.setLocalDeliveryHandler()
   AdminServer,
   AccountManager,
   SettlementMonitor,
@@ -53,7 +53,7 @@ import type {
 
 describe('consumer-types compilation test', () => {
   describe('value exports are constructors/functions', () => {
-    it('should export all 15 value exports as functions', () => {
+    it('should export all 14 value exports as functions', () => {
       expect(typeof ConnectorNode).toBe('function');
       expect(typeof ConfigLoader).toBe('function');
       expect(typeof ConfigurationError).toBe('function');
@@ -63,7 +63,7 @@ describe('consumer-types compilation test', () => {
       expect(typeof BTPServer).toBe('function');
       expect(typeof BTPClient).toBe('function');
       expect(typeof BTPClientManager).toBe('function');
-      expect(typeof LocalDeliveryClient).toBe('function');
+      // LocalDeliveryClient removed - internal only, use ConnectorNode.setLocalDeliveryHandler()
       expect(typeof AdminServer).toBe('function');
       expect(typeof AccountManager).toBe('function');
       expect(typeof SettlementMonitor).toBe('function');

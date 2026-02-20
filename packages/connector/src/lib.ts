@@ -12,7 +12,9 @@ import { PacketHandler } from './core/packet-handler';
 import { BTPServer } from './btp/btp-server';
 import { BTPClient } from './btp/btp-client';
 import { BTPClientManager } from './btp/btp-client-manager';
-import { LocalDeliveryClient } from './core/local-delivery-client';
+// LocalDeliveryClient is INTERNAL ONLY - not exported
+// Library consumers should use ConnectorNode.setLocalDeliveryHandler() instead
+// import { LocalDeliveryClient } from './core/local-delivery-client';
 import { AdminServer } from './http/admin-server';
 import { AccountManager } from './settlement/account-manager';
 import { SettlementMonitor } from './settlement/settlement-monitor';
@@ -42,7 +44,8 @@ export {
   BTPServer,
   BTPClient,
   BTPClientManager,
-  LocalDeliveryClient,
+  // LocalDeliveryClient is INTERNAL ONLY - not exported
+  // Library consumers should use ConnectorNode.setLocalDeliveryHandler() instead
   AdminServer,
   AccountManager,
   SettlementMonitor,
@@ -95,4 +98,4 @@ export type { PaymentRequest, PaymentResponse, PaymentHandler } from './core/pay
 export type { PacketSenderFn, IsReadyFn } from './http/ilp-send-handler';
 
 // Re-export ILP packet types for library consumers
-export type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-society/shared';
+export type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@crosstown/shared';
