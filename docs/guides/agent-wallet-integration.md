@@ -26,7 +26,7 @@ Get your first agent wallet up and running in just 5 minutes.
 ### Step 1: Create Agent Wallet
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 import { pino } from 'pino';
 
 const logger = pino({ level: 'info' });
@@ -68,7 +68,7 @@ createAgentWallet();
 ### Step 2: Check Balance
 
 ```typescript
-import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
+import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
 
 async function checkBalance(agentId: string) {
   const balanceTracker = new AgentBalanceTracker();
@@ -118,7 +118,7 @@ checkBalance('agent-001');
 ### Step 3: Open Payment Channel
 
 ```typescript
-import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-manager';
 
 async function openPaymentChannel(agentId: string) {
   const channelManager = new AgentChannelManager();
@@ -224,7 +224,7 @@ The wallet system uses a master seed to deterministically generate unique addres
 ### Creating an Agent Wallet
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 
 const lifecycle = new AgentWalletLifecycle();
 
@@ -305,7 +305,7 @@ When you create an agent wallet, the system automatically funds it with:
 ### Checking Funding Status
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 
 const lifecycle = new AgentWalletLifecycle();
 
@@ -350,7 +350,7 @@ try {
 For custom funding scenarios, use the `AgentWalletFunder`:
 
 ```typescript
-import { AgentWalletFunder } from '@agent-society/connector/wallet/agent-wallet-funder';
+import { AgentWalletFunder } from '@crosstown/connector/wallet/agent-wallet-funder';
 
 const funder = new AgentWalletFunder();
 
@@ -378,7 +378,7 @@ Track agent wallet balances across multiple chains and tokens.
 ### Get All Balances
 
 ```typescript
-import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
+import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
 
 const balanceTracker = new AgentBalanceTracker();
 
@@ -423,7 +423,7 @@ logger.info('XRP balance', { balance: xrpBalance.toString() });
 Display balances across all chains with human-readable formatting:
 
 ```typescript
-import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
+import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
 
 async function displayAllBalances(agentId: string) {
   const balanceTracker = new AgentBalanceTracker();
@@ -473,7 +473,7 @@ Payment channels enable fast, low-cost micropayments between agents without on-c
 ### Opening a Payment Channel
 
 ```typescript
-import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-manager';
 
 const channelManager = new AgentChannelManager();
 
@@ -567,7 +567,7 @@ channels.forEach((channel) => {
 Complete example showing channel open → payment → close:
 
 ```typescript
-import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-manager';
 import { pino } from 'pino';
 
 const logger = pino({ level: 'info' });
@@ -622,8 +622,8 @@ Best practices and patterns for integrating agent wallets into your applications
 Standard initialization pattern for new agents:
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
-import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
+import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
 import { pino } from 'pino';
 
 const logger = pino({ level: 'info' });
@@ -671,7 +671,7 @@ async function initializeAgent(agentId: string) {
 Pattern for managing wallet lifecycle in production:
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 
 class AgentWalletManager {
   private lifecycle: AgentWalletLifecycle;
@@ -726,7 +726,7 @@ class AgentWalletManager {
 Robust error handling for wallet operations:
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 
 async function safeWalletOperation(agentId: string) {
   const lifecycle = new AgentWalletLifecycle();

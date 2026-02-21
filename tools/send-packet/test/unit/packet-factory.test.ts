@@ -3,7 +3,7 @@
  */
 
 import { createHash } from 'crypto';
-import { PacketType, ILPErrorCode } from '@agent-society/shared';
+import { PacketType, ILPErrorCode } from '@crosstown/shared';
 import {
   createTestPreparePacket,
   createTestFulfillPacket,

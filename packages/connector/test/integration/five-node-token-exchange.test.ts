@@ -28,7 +28,7 @@ import {
   PeerConfig as ConnectorPeerConfig,
   RouteConfig,
 } from '../../src/config/types';
-import { PacketType, ILPFulfillPacket, ILPRejectPacket } from '@agent-society/shared';
+import { PacketType, ILPFulfillPacket, ILPRejectPacket } from '@crosstown/shared';
 
 // Increase Jest timeout — multi-node startup with real testnet wallet generation
 jest.setTimeout(120_000);

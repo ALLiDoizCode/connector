@@ -13,7 +13,7 @@ import {
   PacketType,
   ILPErrorCode,
   isValidILPAddress,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 
 /**
  * Result from creating a test Prepare packet

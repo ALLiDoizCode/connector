@@ -52,7 +52,7 @@
 
 ### Project Purpose and Goals
 
-**Connector** (npm: `@agent-society/connector`) is a production-ready Interledger Protocol (ILP) connector designed as both a library and CLI tool for building payment networks for agents. The system enables developers to:
+**Connector** (npm: `@crosstown/connector`) is a production-ready Interledger Protocol (ILP) connector designed as both a library and CLI tool for building payment networks for agents. The system enables developers to:
 
 - **Route messages with attached value** between agents and peers across ILP networks
 - **Track balances off-chain** with optional persistence (in-memory ledger or TigerBeetle)
@@ -69,7 +69,7 @@ The architectural choices in this system are driven by four key principles:
 
 #### Production-Ready Library with Educational Value
 
-The connector is designed as a production library (`@agent-society/connector`) that can be used both programmatically and via CLI. By providing comprehensive observability through the Explorer UI and detailed logging, developers can understand ILP packet flows, routing decisions, and settlement in production environments. The architecture exposes internal state (routing tables, peer connections, balances) for debugging while maintaining production-grade security and performance.
+The connector is designed as a production library (`@crosstown/connector`) that can be used both programmatically and via CLI. By providing comprehensive observability through the Explorer UI and detailed logging, developers can understand ILP packet flows, routing decisions, and settlement in production environments. The architecture exposes internal state (routing tables, peer connections, balances) for debugging while maintaining production-grade security and performance.
 
 #### Observability-First Design - Built-in Telemetry
 
@@ -110,9 +110,9 @@ The system uses **npm workspaces** to manage a monorepo containing five main pac
 ```
 connector/
 ├── packages/
-│   ├── connector/          # ILP Connector library and CLI (@agent-society/connector)
+│   ├── connector/          # ILP Connector library and CLI (@crosstown/connector)
 │   │   └── explorer-ui/    # Built-in Explorer UI (React + Vite + shadcn-ui)
-│   ├── shared/             # Shared TypeScript types and utilities (@agent-society/shared)
+│   ├── shared/             # Shared TypeScript types and utilities (@crosstown/shared)
 │   ├── contracts/          # Ethereum smart contracts (ERC20, TokenNetwork, Registry)
 │   ├── contracts-aptos/    # Aptos Move contracts for payment channels
 │   └── dashboard/          # Legacy visualization dashboard (deferred)
@@ -138,7 +138,7 @@ connector/
 
 **Responsibility:** Production ILP connector - packet routing, settlement, BTP protocol, telemetry, and observability
 
-**Published Package:** `@agent-society/connector` (npm)
+**Published Package:** `@crosstown/connector` (npm)
 
 **Key Module Structure:**
 
@@ -173,7 +173,7 @@ connector/
 
 **Tech Stack:** TypeScript 5.3.3, Node.js ≥22.11.0
 
-**CLI Binary:** `connector` (installed via `npx @agent-society/connector`)
+**CLI Binary:** `connector` (installed via `npx @crosstown/connector`)
 
 #### packages/dashboard
 
@@ -1957,7 +1957,7 @@ history timeline)
 
    ```typescript
    // packages/connector/src/http/http-ledger-plugin.ts
-   import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-society/shared';
+   import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@crosstown/shared';
 
    export interface ILedgerPlugin {
      sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>;

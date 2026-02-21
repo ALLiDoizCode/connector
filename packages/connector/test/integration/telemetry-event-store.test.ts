@@ -15,7 +15,7 @@ import {
   SettlementCompletedEvent,
   AgentChannelOpenedEvent,
   XRPChannelOpenedEvent,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import pino from 'pino';
 
 // Create mock logger for testing

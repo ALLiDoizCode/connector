@@ -15,7 +15,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 
 /**
  * Create valid ILP Prepare packet for testing

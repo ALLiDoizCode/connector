@@ -49,7 +49,7 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
-    '^@agent-society/shared$': '<rootDir>/../shared/src/index.ts',
+    '^@crosstown/shared$': '<rootDir>/../shared/src/index.ts',
   },
   transform: {
     '^.+\\.ts$': [

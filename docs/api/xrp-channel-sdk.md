@@ -12,7 +12,7 @@ The `XRPChannelSDK` class provides a high-level API for XRP payment channel mana
 - Local channel state caching with auto-refresh (30s interval)
 - Telemetry event emission for dashboard integration
 
-**Module:** `@agent-society/connector/settlement/xrp-channel-sdk`
+**Module:** `@crosstown/connector/settlement/xrp-channel-sdk`
 
 ## Constructor
 
@@ -31,7 +31,7 @@ Creates a new XRPChannelSDK instance.
 **Example:**
 
 ```typescript
-import { XRPChannelSDK } from '@agent-society/connector';
+import { XRPChannelSDK } from '@crosstown/connector';
 
 const sdk = new XRPChannelSDK(
   xrplClient,
@@ -331,7 +331,7 @@ sdk.stopAutoRefresh();
 ### Complete Workflow
 
 ```typescript
-import { XRPChannelSDK } from '@agent-society/connector';
+import { XRPChannelSDK } from '@crosstown/connector';
 import pino from 'pino';
 
 const logger = pino();
@@ -377,7 +377,7 @@ try {
 ## Error Handling
 
 ```typescript
-import { XRPLError, XRPLErrorCode } from '@agent-society/connector';
+import { XRPLError, XRPLErrorCode } from '@crosstown/connector';
 
 try {
   await sdk.submitClaim(claim, peerId);

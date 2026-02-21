@@ -569,7 +569,7 @@ npx tsc --noEmit packages/connector/src/core/connector-node.ts
 **Common Fixes:**
 
 - Build shared package first (provides type definitions)
-- Add missing type imports: `import type { ILPPacket } from '@agent-society/shared'`
+- Add missing type imports: `import type { ILPPacket } from '@crosstown/shared'`
 - Fix type annotations (replace `any` with specific types)
 - Handle null/undefined cases (use optional chaining, nullish coalescing)
 

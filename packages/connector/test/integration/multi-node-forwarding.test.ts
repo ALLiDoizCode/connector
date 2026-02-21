@@ -8,7 +8,7 @@ import * as path from 'path';
 import { ConnectorNode } from '../../src/core/connector-node';
 import { createLogger } from '../../src/utils/logger';
 import { BTPClient, Peer } from '../../src/btp/btp-client';
-import { ILPPreparePacket, ILPRejectPacket, PacketType, ILPErrorCode } from '@agent-society/shared';
+import { ILPPreparePacket, ILPRejectPacket, PacketType, ILPErrorCode } from '@crosstown/shared';
 
 /**
  * Create valid ILP Prepare packet for testing

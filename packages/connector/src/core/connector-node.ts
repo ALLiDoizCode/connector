@@ -18,7 +18,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import {
   ConnectorConfig,
   SettlementConfig,
@@ -540,6 +540,7 @@ export class ConnectorNode implements HealthStatusProvider {
           const tokenAddressMap = new Map<string, string>();
           tokenAddressMap.set('M2M', m2mTokenAddress);
           tokenAddressMap.set('ILP', m2mTokenAddress); // ILP token maps to M2M for settlement
+          tokenAddressMap.set(m2mTokenAddress, m2mTokenAddress); // Also map address to itself for direct lookups
 
           // Initialize ChannelManager with TigerBeetle accounting if configured
           const defaultSettlementTimeout =
@@ -776,7 +777,7 @@ export class ConnectorNode implements HealthStatusProvider {
           if (accountManager) {
             const settlementConfig: SettlementConfig = {
               connectorFeePercentage: 0.1, // 0.1% default fee
-              enableSettlement: true,
+              enableSettlement: process.env.SETTLEMENT_ENABLED === 'true',
               tigerBeetleClusterId: tigerBeetleClusterId ? parseInt(tigerBeetleClusterId, 10) : 0, // Placeholder for in-memory ledger
               tigerBeetleReplicas: tigerBeetleReplicas
                 ? tigerBeetleReplicas.split(',').map((s) => s.trim())
@@ -1514,8 +1515,12 @@ export class ConnectorNode implements HealthStatusProvider {
     if (!config.url || typeof config.url !== 'string') {
       throw new Error('Missing or invalid peer url');
     }
-    if (!config.authToken || typeof config.authToken !== 'string') {
-      throw new Error('Missing or invalid authToken');
+    if (
+      config.authToken === undefined ||
+      config.authToken === null ||
+      typeof config.authToken !== 'string'
+    ) {
+      throw new Error('authToken must be a string (can be empty for no auth)');
     }
 
     // Validate URL format

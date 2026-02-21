@@ -44,15 +44,15 @@ This section represents the single source of truth for all technology decisions.
 
 1. **External APIs Required:** XRP Ledger testnet/mainnet, EVM-compatible blockchains (Ethereum, Sepolia, etc.), Aptos testnet/mainnet
 2. **Monorepo Package Structure:**
-   - `packages/connector` - Production ILP connector (@agent-society/connector npm package)
+   - `packages/connector` - Production ILP connector (@crosstown/connector npm package)
    - `packages/connector/explorer-ui` - Built-in React visualization UI (embedded)
-   - `packages/shared` - Shared TypeScript types and utilities (@agent-society/shared npm package)
+   - `packages/shared` - Shared TypeScript types and utilities (@crosstown/shared npm package)
    - `packages/contracts` - Ethereum Solidity smart contracts (TokenNetwork, AGENT ERC20)
    - `packages/contracts-aptos` - Aptos Move smart contracts (payment channels)
    - `packages/dashboard` - Legacy dashboard (deferred, superseded by explorer-ui)
 3. **Published Packages:**
-   - `@agent-society/connector` - Main connector library and CLI
-   - `@agent-society/shared` - Shared types and utilities
+   - `@crosstown/connector` - Main connector library and CLI
+   - `@crosstown/shared` - Shared types and utilities
 4. **TypeScript Configuration:** Strict mode enabled across all packages, shared tsconfig.base.json in monorepo root
 5. **Version Pinning Strategy:** Patch versions flexible (^), minor versions locked for stability, LTS/stable releases preferred
 6. **Dependency Strategy:** Core dependencies required, peer dependencies optional (Express, TigerBeetle, better-sqlite3), AI features optional

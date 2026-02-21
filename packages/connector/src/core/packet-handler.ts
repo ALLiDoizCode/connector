@@ -11,7 +11,7 @@ import {
   ILPErrorCode,
   PacketType,
   isValidILPAddress,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import { RoutingTable } from '../routing/routing-table';
 import { Logger, generateCorrelationId } from '../utils/logger';
 import { BTPClientManager } from '../btp/btp-client-manager';
@@ -1050,7 +1050,10 @@ export class PacketHandler {
     // SETTLEMENT RECORDING (Story 6.4) - Calculate connector fee and record transfers
     let forwardingPacket: ILPPreparePacket;
 
-    if (this.isSettlementEnabled()) {
+    // Skip settlement and fees for local delivery
+    const isLocalDelivery = nextHop === 'local';
+
+    if (this.isSettlementEnabled() && !isLocalDelivery) {
       // Calculate connector fee
       const connectorFee = this.calculateConnectorFee(
         packet.amount,
@@ -1107,33 +1110,45 @@ export class PacketHandler {
       }
 
       // Record settlement transfers atomically BEFORE forwarding packet
-      try {
-        await this.recordPacketTransfers(
-          packet,
-          sourcePeerId,
-          nextHop,
-          forwardedAmount,
-          connectorFee,
-          correlationId
-        );
-      } catch (error) {
-        // Settlement recording failed - reject packet with T00_INTERNAL_ERROR
-        this.logger.error(
+      // Skip settlement for unknown/unregistered peers or zero-amount packets
+      if (sourcePeerId !== 'unknown' && packet.amount > 0n && forwardedAmount > 0n) {
+        try {
+          await this.recordPacketTransfers(
+            packet,
+            sourcePeerId,
+            nextHop,
+            forwardedAmount,
+            connectorFee,
+            correlationId
+          );
+        } catch (error) {
+          // Settlement recording failed - reject packet with T00_INTERNAL_ERROR
+          this.logger.error(
+            {
+              correlationId,
+              packetType: 'REJECT',
+              destination: packet.destination,
+              errorCode: ILPErrorCode.T00_INTERNAL_ERROR,
+              error: error instanceof Error ? error.message : String(error),
+              reason: 'Settlement recording failed',
+              timestamp: Date.now(),
+            },
+            'Packet rejected due to settlement failure'
+          );
+          return this.generateReject(
+            ILPErrorCode.T00_INTERNAL_ERROR,
+            'Settlement recording failed',
+            this.nodeId
+          );
+        }
+      } else {
+        this.logger.debug(
           {
             correlationId,
-            packetType: 'REJECT',
-            destination: packet.destination,
-            errorCode: ILPErrorCode.T00_INTERNAL_ERROR,
-            error: error instanceof Error ? error.message : String(error),
-            reason: 'Settlement recording failed',
-            timestamp: Date.now(),
+            sourcePeerId,
+            reason: 'Skipping settlement for unknown peer',
           },
-          'Packet rejected due to settlement failure'
-        );
-        return this.generateReject(
-          ILPErrorCode.T00_INTERNAL_ERROR,
-          'Settlement recording failed',
-          this.nodeId
+          'Settlement skipped for unregistered peer'
         );
       }
 

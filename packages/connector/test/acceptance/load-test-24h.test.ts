@@ -24,7 +24,7 @@ import { performance } from 'perf_hooks';
 import pino, { Logger } from 'pino';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PacketType, serializePrepare, ILPPreparePacket } from '@agent-society/shared';
+import { PacketType, serializePrepare, ILPPreparePacket } from '@crosstown/shared';
 
 // Configuration from environment
 const TARGET_TPS = parseInt(process.env.LOAD_TEST_TPS || '10000', 10);

@@ -15,13 +15,8 @@ import {
   isBTPErrorData,
 } from './btp-types';
 import { parseBTPMessage, serializeBTPMessage } from './btp-message-parser';
-import {
-  ILPPreparePacket,
-  ILPFulfillPacket,
-  ILPRejectPacket,
-  PacketType,
-} from '@agent-society/shared';
-import { serializePacket, deserializePacket } from '@agent-society/shared';
+import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket, PacketType } from '@crosstown/shared';
+import { serializePacket, deserializePacket } from '@crosstown/shared';
 import type { PacketHandler } from '../core/packet-handler';
 
 /**

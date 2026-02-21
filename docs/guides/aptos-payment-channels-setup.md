@@ -217,7 +217,7 @@ APTOS_SETTLEMENT_ENABLED=true                                   # Enable/disable
 ### Basic Operations
 
 ```typescript
-import { AptosClient, createAptosClientFromEnv } from '@agent-society/connector';
+import { AptosClient, createAptosClientFromEnv } from '@crosstown/connector';
 import pino from 'pino';
 
 const logger = pino();
@@ -253,7 +253,7 @@ client.disconnect();
 ### Error Handling
 
 ```typescript
-import { AptosClient, AptosErrorCode } from '@agent-society/connector';
+import { AptosClient, AptosErrorCode } from '@crosstown/connector';
 
 try {
   await client.connect();
@@ -284,7 +284,7 @@ try {
 ### Using AptosChannelSDK
 
 ```typescript
-import { AptosChannelSDK, createAptosChannelSDKFromEnv } from '@agent-society/connector';
+import { AptosChannelSDK, createAptosChannelSDKFromEnv } from '@crosstown/connector';
 import pino from 'pino';
 
 const logger = pino();
@@ -347,7 +347,7 @@ The `AptosClaimSigner` enables off-chain claim signing for payment channel settl
 ### Signing Claims
 
 ```typescript
-import { AptosClaimSigner, createAptosClaimSignerFromEnv } from '@agent-society/connector';
+import { AptosClaimSigner, createAptosClaimSignerFromEnv } from '@crosstown/connector';
 import pino from 'pino';
 
 const logger = pino();
@@ -405,7 +405,7 @@ console.log(claim1.nonce, claim2.nonce, claim3.nonce); // 1, 2, 3
 ### Full Lifecycle Example
 
 ```typescript
-import { AptosChannelSDK, createAptosChannelSDKFromEnv } from '@agent-society/connector';
+import { AptosChannelSDK, createAptosChannelSDKFromEnv } from '@crosstown/connector';
 import pino from 'pino';
 
 const logger = pino();

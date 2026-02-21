@@ -15,7 +15,7 @@ import {
   ILPFulfillPacket,
   ILPRejectPacket,
   PacketType,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 
 /**
  * BTP peer connection metadata
@@ -492,11 +492,71 @@ export class BTPServer {
       const authData = JSON.parse(authProtocolData.data.toString('utf8'));
       const { peerId, secret } = authData;
 
-      if (!peerId || !secret) {
-        throw new BTPError('F00', 'Invalid auth data: missing peerId or secret');
+      if (!peerId) {
+        throw new BTPError('F00', 'Invalid auth data: missing peerId');
       }
 
-      // Validate shared secret from environment variable
+      // RFC-0023: Allow empty string for secret when no authentication is needed
+      // Check if secret is undefined (field missing) vs empty string (no auth)
+      if (secret === undefined) {
+        throw new BTPError('F00', 'Invalid auth data: secret field missing');
+      }
+
+      // Handle no-auth case (empty secret string) per RFC-0023
+      // This is the default configuration for permissionless, ILP-gated networks
+      // where access control happens at the ILP layer (routing policies, credit limits,
+      // settlement requirements) rather than at the BTP transport layer.
+      if (secret === '') {
+        // Default to true (permissionless mode) unless explicitly disabled
+        const allowNoAuth = process.env['BTP_ALLOW_NOAUTH'] !== 'false';
+
+        if (!allowNoAuth) {
+          this.logger.warn(
+            {
+              event: 'btp_auth',
+              peerId,
+              success: false,
+              reason: 'no-auth disabled',
+            },
+            'BTP authentication failed: no-auth mode disabled (set BTP_ALLOW_NOAUTH=true to enable)'
+          );
+          throw new BTPError('F00', 'Authentication failed: no-auth mode disabled');
+        }
+
+        this.logger.info(
+          {
+            event: 'btp_auth',
+            peerId,
+            success: true,
+            mode: 'no-auth',
+          },
+          `BTP peer authenticated (no-auth mode): ${peerId}`
+        );
+
+        // Skip secret validation for no-auth connections
+        peerConn.peerId = peerId;
+        peerConn.authenticated = true;
+        this.peers.set(peerId, peerConn);
+
+        // Send RESPONSE acknowledging authentication
+        const responseMessage: BTPMessage = {
+          type: BTPMessageType.RESPONSE,
+          requestId: authMessage.requestId,
+          data: {
+            protocolData: [],
+          },
+        };
+
+        peerConn.ws.send(serializeBTPMessage(responseMessage));
+
+        // Notify connection callback
+        if (this.onConnectionCallback) {
+          this.onConnectionCallback(peerId, peerConn.ws);
+        }
+        return;
+      }
+
+      // Validate shared secret from environment variable (non-empty secret)
       const envVarKey = `BTP_PEER_${peerId.toUpperCase().replace(/-/g, '_')}_SECRET`;
       const expectedSecret = process.env[envVarKey];
 

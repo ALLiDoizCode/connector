@@ -1,12 +1,12 @@
 /**
  * Telemetry event types for Explorer UI
  *
- * Mirrors key types from @agent-society/shared for frontend use
+ * Mirrors key types from @crosstown/shared for frontend use
  */
 
 /**
  * Complete enumeration of all telemetry event types.
- * Mirrors TelemetryEventType enum from @agent-society/shared.
+ * Mirrors TelemetryEventType enum from @crosstown/shared.
  */
 export type TelemetryEventType =
   // Node lifecycle events
@@ -246,7 +246,7 @@ export function formatRelativeTime(timestamp: number): string {
 
 /**
  * Settlement state enumeration
- * Mirrors SettlementState from @agent-society/shared
+ * Mirrors SettlementState from @crosstown/shared
  */
 export type SettlementState = 'IDLE' | 'SETTLEMENT_PENDING' | 'SETTLEMENT_IN_PROGRESS';
 
@@ -279,7 +279,7 @@ export interface AccountState {
 
 /**
  * Channel state for frontend (Story 14.6)
- * Mirrors DashboardChannelState from @agent-society/shared
+ * Mirrors DashboardChannelState from @crosstown/shared
  */
 export interface ChannelState {
   channelId: string;

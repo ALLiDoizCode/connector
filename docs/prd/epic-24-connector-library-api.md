@@ -7,7 +7,7 @@
 
 ## Epic Goal
 
-Refactor `ConnectorNode` to accept a config object (not a file path), expose `sendPacket()` as a public method, add a `setLocalDeliveryHandler()` hook for direct in-process packet delivery, and surface admin operations as callable methods — enabling `@agent-society/connector` to run embedded inside an ElizaOS Service without HTTP between components.
+Refactor `ConnectorNode` to accept a config object (not a file path), expose `sendPacket()` as a public method, add a `setLocalDeliveryHandler()` hook for direct in-process packet delivery, and surface admin operations as callable methods — enabling `@crosstown/connector` to run embedded inside an ElizaOS Service without HTTP between components.
 
 ## Epic Description
 

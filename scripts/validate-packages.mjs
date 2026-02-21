@@ -2,7 +2,7 @@
 // Usage: node scripts/validate-packages.mjs [--keep-temp] [--skip-build]
 //   --keep-temp   Keep temp directory after run (for debugging)
 //   --skip-build  Skip build+pack steps, reuse existing tarballs
-// Validates that both @agent-society/shared and @agent-society/connector
+// Validates that both @crosstown/shared and @crosstown/connector
 // can be installed from tarballs, TypeScript types resolve, and runtime imports work.
 
 import { execSync } from 'child_process';
@@ -82,16 +82,16 @@ async function main() {
       log(1, 'Building both packages');
       try {
         run('npm run build --workspace=packages/shared', { cwd: ROOT });
-        pass(1, 'Built @agent-society/shared');
+        pass(1, 'Built @crosstown/shared');
       } catch (e) {
-        fail(1, `Failed to build @agent-society/shared: ${e.stdout || e.message}`);
+        fail(1, `Failed to build @crosstown/shared: ${e.stdout || e.message}`);
         throw e;
       }
       try {
         run('npm run build:publish --workspace=packages/connector', { cwd: ROOT });
-        pass(1, 'Built @agent-society/connector (build:publish)');
+        pass(1, 'Built @crosstown/connector (build:publish)');
       } catch (e) {
-        fail(1, `Failed to build @agent-society/connector: ${e.stdout || e.message}`);
+        fail(1, `Failed to build @crosstown/connector: ${e.stdout || e.message}`);
         throw e;
       }
     } else {
@@ -103,21 +103,21 @@ async function main() {
     if (!skipBuild) {
       log(2, 'Packing both packages');
       try {
-        const sharedOut = run('npm pack --workspace=@agent-society/shared', { cwd: ROOT });
+        const sharedOut = run('npm pack --workspace=@crosstown/shared', { cwd: ROOT });
         const sharedTarball = join(ROOT, sharedOut.split('\n').pop());
         tarballs.push(sharedTarball);
         pass(2, `Packed shared: ${sharedTarball}`);
       } catch (e) {
-        fail(2, `Failed to pack @agent-society/shared: ${e.message}`);
+        fail(2, `Failed to pack @crosstown/shared: ${e.message}`);
         throw e;
       }
       try {
-        const connOut = run('npm pack --workspace=@agent-society/connector', { cwd: ROOT });
+        const connOut = run('npm pack --workspace=@crosstown/connector', { cwd: ROOT });
         const connTarball = join(ROOT, connOut.split('\n').pop());
         tarballs.push(connTarball);
         pass(2, `Packed connector: ${connTarball}`);
       } catch (e) {
-        fail(2, `Failed to pack @agent-society/connector: ${e.message}`);
+        fail(2, `Failed to pack @crosstown/connector: ${e.message}`);
         throw e;
       }
     } else {
@@ -216,12 +216,12 @@ async function main() {
     // Step 8 — Create TypeScript validation file
     log(8, 'Creating TypeScript validation file');
     const validateTs = `// Type imports — verify TypeScript declarations resolve
-import type { ConnectorConfig, PeerConfig, SettlementConfig, SendPacketParams } from '@agent-society/connector';
-import type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-society/shared';
+import type { ConnectorConfig, PeerConfig, SettlementConfig, SendPacketParams } from '@crosstown/connector';
+import type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@crosstown/shared';
 
 // Value imports — verify runtime exports (representative subset of public API)
-import { ConnectorNode, ConfigLoader, createLogger, RoutingTable, BTPServer, AccountManager } from '@agent-society/connector';
-import { PacketType, isValidILPAddress, version } from '@agent-society/shared';
+import { ConnectorNode, ConfigLoader, createLogger, RoutingTable, BTPServer, AccountManager } from '@crosstown/connector';
+import { PacketType, isValidILPAddress, version } from '@crosstown/shared';
 
 // Runtime assertions
 console.log('shared version:', version);

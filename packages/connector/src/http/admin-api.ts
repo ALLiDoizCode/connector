@@ -31,7 +31,7 @@ import { requireOptional } from '../utils/optional-require';
 import { RoutingTable } from '../routing/routing-table';
 import { BTPClientManager } from '../btp/btp-client-manager';
 import { Peer } from '../btp/btp-client';
-import { ILPAddress, isValidILPAddress } from '@agent-society/shared';
+import { ILPAddress, isValidILPAddress } from '@crosstown/shared';
 import {
   AdminSettlementConfig,
   PeerConfig as SettlementPeerConfig,
@@ -483,8 +483,15 @@ export async function createAdminRouter(config: AdminAPIConfig): Promise<Router>
         res.status(400).json({ error: 'Bad request', message: 'Missing or invalid peer url' });
         return;
       }
-      if (!body.authToken || typeof body.authToken !== 'string') {
-        res.status(400).json({ error: 'Bad request', message: 'Missing or invalid authToken' });
+      if (
+        body.authToken === undefined ||
+        body.authToken === null ||
+        typeof body.authToken !== 'string'
+      ) {
+        res.status(400).json({
+          error: 'Bad request',
+          message: 'authToken must be a string (can be empty for no auth)',
+        });
         return;
       }
 

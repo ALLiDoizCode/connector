@@ -38,7 +38,7 @@ COPY packages/shared/src ./packages/shared/src
 # Build all packages (TypeScript compilation)
 # Build shared first, then connector (dependency order)
 # Use build:connector-only to skip UI build (UI is built in ui-builder stage)
-RUN npm run build --workspace=@agent-society/shared && npm run build:connector-only --workspace=@agent-society/connector
+RUN npm run build --workspace=@crosstown/shared && npm run build:connector-only --workspace=@crosstown/connector
 
 # ============================================
 # Stage 1.5: UI Builder (Explorer UI)

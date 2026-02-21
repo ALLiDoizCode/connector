@@ -26,7 +26,7 @@ import path from 'path';
 import WebSocket from 'ws';
 import { BTPClient, Peer } from '../../src/btp/btp-client';
 import { createLogger } from '../../src/utils/logger';
-import { ILPPreparePacket, PacketType } from '@agent-society/shared';
+import { ILPPreparePacket, PacketType } from '@crosstown/shared';
 import { TelemetryMessage } from '../../src/telemetry/types';
 
 const COMPOSE_FILE = 'docker-compose.yml';

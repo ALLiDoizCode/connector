@@ -34,7 +34,7 @@ import type { AccountManager } from './account-manager';
 import type { PeerConfig, SettlementRequiredEvent, UnifiedSettlementExecutorConfig } from './types';
 import type { IAptosChannelSDK } from './aptos-channel-sdk';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
-import type { AptosSettlementTelemetryEvent } from '@agent-society/shared';
+import type { AptosSettlementTelemetryEvent } from '@crosstown/shared';
 import type { ClaimSender } from './claim-sender';
 import type { BTPClientManager } from '../btp/btp-client-manager';
 import type { BTPClient } from '../btp/btp-client';

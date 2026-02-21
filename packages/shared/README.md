@@ -1,11 +1,11 @@
-# @agent-society/shared
+# @crosstown/shared
 
 Shared ILP types and OER codec for Connector.
 
 ## Install
 
 ```bash
-npm install @agent-society/shared
+npm install @crosstown/shared
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ import {
   PacketType,
   serializePacket,
   deserializePacket,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 
 // Create an ILP Prepare packet
 const prepare: ILPPreparePacket = {

@@ -15,7 +15,7 @@ import {
   PacketType,
   ILPErrorCode,
   serializePacket,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import WebSocket, { WebSocketServer } from 'ws';
 import { EventEmitter } from 'events';
 
@@ -336,6 +336,81 @@ describe('BTPServer', () => {
         }),
         expect.any(String)
       );
+    });
+
+    it('should accept no-auth connection by default (permissionless network)', async () => {
+      // Arrange
+      const peerId = 'connector-noauth';
+      // Do not set BTP_ALLOW_NOAUTH - defaults to true (permissionless)
+
+      await server.start(AUTO_PORT);
+
+      const mockWs = new MockWebSocket();
+      const authMessage = createAuthMessage(peerId, ''); // Empty secret per RFC-0023
+      const authBuffer = serializeBTPMessage(authMessage);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wss = (server as any).wss as WebSocketServer;
+
+      // Act
+      wss.emit('connection', mockWs, { socket: { remoteAddress: '127.0.0.1', remotePort: 12345 } });
+      mockWs.emit('message', authBuffer);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'btp_auth',
+          peerId,
+          success: true,
+          mode: 'no-auth',
+        }),
+        expect.stringContaining('no-auth mode')
+      );
+
+      // Verify RESPONSE sent
+      expect(mockWs.sentMessages.length).toBeGreaterThan(0);
+      const response = deserializeBTPMessage(mockWs.sentMessages[0]!);
+      expect(response.type).toBe(BTPMessageType.RESPONSE);
+
+      // Verify peer is authenticated
+      expect(server.hasPeer(peerId)).toBe(true);
+    });
+
+    it('should reject no-auth connection when BTP_ALLOW_NOAUTH=false (private network mode)', async () => {
+      // Arrange
+      const peerId = 'connector-noauth-rejected';
+      process.env['BTP_ALLOW_NOAUTH'] = 'false'; // Explicitly disable for private networks
+
+      await server.start(AUTO_PORT);
+
+      const mockWs = new MockWebSocket();
+      const authMessage = createAuthMessage(peerId, ''); // Empty secret
+      const authBuffer = serializeBTPMessage(authMessage);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wss = (server as any).wss as WebSocketServer;
+
+      // Act
+      wss.emit('connection', mockWs, { socket: { remoteAddress: '127.0.0.1', remotePort: 12345 } });
+      mockWs.emit('message', authBuffer);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Assert
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'btp_auth',
+          peerId,
+          success: false,
+          reason: 'no-auth disabled',
+        }),
+        expect.stringContaining('no-auth mode disabled')
+      );
+
+      // Verify peer is NOT authenticated
+      expect(server.hasPeer(peerId)).toBe(false);
     });
   });
 

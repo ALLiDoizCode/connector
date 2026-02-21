@@ -4,7 +4,7 @@ import { SettlementExecutor } from './settlement-executor';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { EventEmitter } from 'events';
 import pino from 'pino';
-import { ChannelState } from '@agent-society/shared';
+import { ChannelState } from '@crosstown/shared';
 
 describe('ChannelManager', () => {
   let channelManager: ChannelManager;

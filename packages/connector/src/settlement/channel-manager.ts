@@ -7,7 +7,7 @@ import type {
   PaymentChannelOpenedEvent,
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import type { AdminChannelStatus } from './types';
 
 /**

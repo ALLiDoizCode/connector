@@ -11,7 +11,7 @@ import {
   PacketType,
   ILPRejectPacket,
   ILPFulfillPacket,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import { Logger } from '../utils/logger';
 import { BTPClientManager } from '../btp/btp-client-manager';
 

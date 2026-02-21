@@ -47,7 +47,7 @@ import {
   SENT_CLAIMS_INDEXES,
 } from '../../src/settlement/claim-sender-db-schema';
 import Database from 'better-sqlite3';
-import { TelemetryEvent } from '@agent-society/shared';
+import { TelemetryEvent } from '@crosstown/shared';
 
 /**
  * Test timeout for integration tests with blockchain/network operations

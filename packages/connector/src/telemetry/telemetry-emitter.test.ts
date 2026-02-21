@@ -15,7 +15,7 @@ import {
   PacketType,
   XRPChannelOpenedEvent,
   XRPChannelClosedEvent,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import WebSocket, { WebSocketServer } from 'ws';
 
 /**

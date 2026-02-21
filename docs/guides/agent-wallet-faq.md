@@ -31,7 +31,7 @@ The master seed generates up to 2^31 (2.1 billion) unique agent wallets.
 **Example:**
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 
 const lifecycle = new AgentWalletLifecycle();
 const wallet = await lifecycle.createAgentWallet('agent-001');
@@ -163,7 +163,7 @@ logger.info('Wallet archived', {
 **Example:**
 
 ```typescript
-import { WalletBackupManager } from '@agent-society/connector/wallet/wallet-backup-manager';
+import { WalletBackupManager } from '@crosstown/connector/wallet/wallet-backup-manager';
 
 const backupManager = new WalletBackupManager();
 
@@ -341,7 +341,7 @@ logger.info('Multi-chain wallet created', {
 **Example:**
 
 ```typescript
-import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-manager';
 
 const channelManager = new AgentChannelManager();
 
@@ -419,7 +419,7 @@ balances.forEach((b) => {
 **Example:**
 
 ```typescript
-import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
+import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
 
 const balanceTracker = new AgentBalanceTracker({
   tokens: {
@@ -542,7 +542,7 @@ const balance2 = await balanceTracker.getBalance('agent-001', 'evm', 'ETH');
 **Efficient Batch Creation:**
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 
 async function batchCreateWallets(agentIds: string[]) {
   const lifecycle = new AgentWalletLifecycle();
@@ -579,7 +579,7 @@ await batchCreateWallets(agentIds);
 **Alternative: Use `batchDeriveWallets()` (Future)**
 
 ```typescript
-import { AgentWalletDerivation } from '@agent-society/connector/wallet/agent-wallet-derivation';
+import { AgentWalletDerivation } from '@crosstown/connector/wallet/agent-wallet-derivation';
 
 const derivation = new AgentWalletDerivation();
 
@@ -611,7 +611,7 @@ logger.info('Batch derivation complete', { count: wallets.length });
 2. **Telemetry Sanitization**
 
    ```typescript
-   import { sanitizeWalletForTelemetry } from '@agent-society/connector/wallet/wallet-security';
+   import { sanitizeWalletForTelemetry } from '@crosstown/connector/wallet/wallet-security';
 
    const sanitized = sanitizeWalletForTelemetry(wallet);
    // sanitized.privateKey = undefined
@@ -660,7 +660,7 @@ npm test -- --testPathPattern=wallet-security-penetration
 **Example:**
 
 ```typescript
-import { AgentWalletAuthentication } from '@agent-society/connector/wallet/wallet-authentication';
+import { AgentWalletAuthentication } from '@crosstown/connector/wallet/wallet-authentication';
 
 const auth = new AgentWalletAuthentication();
 
@@ -728,7 +728,7 @@ try {
 **Custom Limits:**
 
 ```typescript
-import { AgentWalletSecurity } from '@agent-society/connector/wallet/wallet-security';
+import { AgentWalletSecurity } from '@crosstown/connector/wallet/wallet-security';
 
 const security = new AgentWalletSecurity();
 
@@ -766,7 +766,7 @@ await security.setSpendingLimits('agent-vip-001', {
 **Example:**
 
 ```typescript
-import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-manager';
 
 const channelManager = new AgentChannelManager();
 
@@ -936,7 +936,7 @@ const rpcEndpoints = [
 
    ```typescript
    // Use mock wallet manager
-   import { MockWalletLifecycle } from '@agent-society/connector/test/mocks';
+   import { MockWalletLifecycle } from '@crosstown/connector/test/mocks';
 
    const mockLifecycle = new MockWalletLifecycle();
    const wallet = await mockLifecycle.createAgentWallet('test-agent');

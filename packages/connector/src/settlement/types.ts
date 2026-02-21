@@ -19,7 +19,7 @@ import type { Logger } from 'pino';
 /**
  * Canonical Admin API channel status values shared between connector and agent-society.
  * Named AdminChannelStatus to avoid collision with the on-chain ChannelStatus
- * ('opened' | 'closed' | 'settled') exported from @agent-society/shared.
+ * ('opened' | 'closed' | 'settled') exported from @crosstown/shared.
  */
 export type AdminChannelStatus = 'opening' | 'open' | 'closing' | 'closed' | 'settling' | 'settled';
 

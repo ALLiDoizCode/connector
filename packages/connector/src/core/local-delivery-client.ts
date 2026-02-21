@@ -14,7 +14,7 @@ import {
   ILPRejectPacket,
   PacketType,
   ILPErrorCode,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import { LocalDeliveryConfig } from '../config/types';
 import {
   PaymentRequest,
@@ -122,8 +122,22 @@ export class LocalDeliveryClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // Try to get error details from response body
+        let errorDetails = '';
+        try {
+          const errorBody = await response.json();
+          errorDetails = JSON.stringify(errorBody);
+        } catch {
+          errorDetails = await response.text().catch(() => '');
+        }
+
         this.logger.error(
-          { status: response.status, paymentId, destination: request.destination },
+          {
+            status: response.status,
+            paymentId,
+            destination: request.destination,
+            errorBody: errorDetails,
+          },
           'Business logic server returned error status'
         );
 
@@ -131,7 +145,7 @@ export class LocalDeliveryClient {
           type: PacketType.REJECT,
           code: ILPErrorCode.T00_INTERNAL_ERROR,
           triggeredBy: '',
-          message: `Business logic server returned status ${response.status}`,
+          message: `Business logic server returned status ${response.status}: ${errorDetails}`,
           data: Buffer.alloc(0),
         };
       }

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-society/connector",
+  "name": "@crosstown/connector",
   "version": "1.2.1",
   "description": "Connector with BTP support and tri-chain settlement",
   "main": "dist/lib.js",
@@ -80,9 +80,12 @@
     "prepublishOnly": "npm run build:publish && npm test"
   },
   "dependencies": {
-    "@agent-society/shared": "^1.0.0",
+    "@crosstown/shared": "^1.0.0",
     "@aptos-labs/ts-sdk": "^1.39.0",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.6",
     "ethers": "^6.16.0",
+    "express": "4.18.x",
     "js-yaml": "^4.1.0",
     "netmask": "^2.0.2",
     "pino": "^8.21.0",
@@ -92,22 +95,10 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "better-sqlite3": "^11.8.1",
-    "cors": "^2.8.6",
-    "express": "4.18.x",
     "tigerbeetle-node": "0.16.68"
   },
   "peerDependenciesMeta": {
     "tigerbeetle-node": {
-      "optional": true
-    },
-    "better-sqlite3": {
-      "optional": true
-    },
-    "express": {
-      "optional": true
-    },
-    "cors": {
       "optional": true
     }
   },
@@ -146,10 +137,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.1",
-    "better-sqlite3": "^11.8.1",
-    "cors": "^2.8.6",
     "ethereum-cryptography": "^3.2.0",
-    "express": "4.18.x",
     "got": "^11.8.6",
     "jest": "^29.7.0",
     "supertest": "^7.1.4",

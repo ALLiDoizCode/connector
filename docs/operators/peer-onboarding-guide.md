@@ -34,7 +34,7 @@ The onboarding wizard is the easiest way to configure your connector.
 
 ```bash
 # Using npx (recommended)
-npx @agent-society/connector setup
+npx @crosstown/connector setup
 
 # Or if installed locally
 npm run setup --workspace=packages/connector
@@ -269,6 +269,8 @@ For private networks, you can run your own discovery service. Contact the M2M te
 
 ### Authentication
 
+#### Authenticated Connections (Recommended)
+
 For authenticated peer connections, configure shared secrets:
 
 ```bash
@@ -281,6 +283,154 @@ Generate strong secrets:
 ```bash
 openssl rand -base64 32
 ```
+
+Each peer connection can have its own secret. The environment variable format is:
+
+```bash
+BTP_PEER_<PEER_ID>_SECRET=secret-value
+```
+
+Where `<PEER_ID>` is the peer's node ID in uppercase with hyphens replaced by underscores.
+
+Example:
+
+```bash
+# For peer with id "connector-upstream"
+BTP_PEER_CONNECTOR_UPSTREAM_SECRET=abc123xyz789
+```
+
+#### No-Auth Connections (Permissionless Networks) - DEFAULT
+
+Per RFC-0023, BTP supports unauthenticated connections using an empty auth token. This is the **default configuration** and is recommended for permissionless, ILP-gated networks.
+
+**Network Architecture:**
+
+In a permissionless network, access control happens at the **ILP layer** (via routing policies, rate limits, and settlement rules), not at the BTP transport layer. This separates concerns:
+
+- **BTP (Transport)**: Provides reliable packet delivery between peers
+- **ILP (Application)**: Enforces access control, routing policies, and economic incentives
+
+**No-auth mode is enabled by default.** To disable it (for private networks):
+
+```bash
+# In .env - only needed for private networks with authenticated BTP
+BTP_ALLOW_NOAUTH=false
+```
+
+By default, any peer can connect to your BTP server without authentication. The server still requires a peer ID for tracking and routing purposes.
+
+**When to use no-auth:**
+
+- ✅ **Permissionless public networks** (access control via ILP routing/settlement)
+- ✅ Local development and testing
+- ✅ Networks where economic incentives prevent abuse
+- ✅ ILP-gated networks with rate limiting and credit controls
+
+**When to use authenticated BTP:**
+
+- ✅ **Private networks** with known, trusted peers
+- ✅ Networks requiring transport-layer access control
+- ✅ Bilateral relationships with pre-arranged settlement terms
+
+**Client configuration for no-auth:**
+
+In your peer configuration YAML:
+
+```yaml
+peers:
+  - id: test-peer
+    relation: peer
+    btpUrl: ws://localhost:4000
+    authToken: '' # Empty string for no-auth (requires BTP_ALLOW_NOAUTH=true on server)
+```
+
+Or using the BTP client directly:
+
+```typescript
+const peer: Peer = {
+  id: 'test-peer',
+  url: 'ws://localhost:4000',
+  authToken: '', // Empty for no-auth
+  connected: false,
+  lastSeen: new Date(),
+};
+```
+
+### ILP-Layer Gating (Production Security)
+
+When running a permissionless network with no-auth BTP, security is enforced at the ILP layer through:
+
+#### 1. Routing Policies
+
+Control which ILP addresses can be reached through your connector:
+
+```yaml
+routes:
+  # Only route to known prefixes
+  - prefix: g.peer-a
+    nextHop: peer-a
+  - prefix: g.peer-b
+    nextHop: peer-b
+  # Block all other destinations (implicit deny)
+```
+
+#### 2. Credit Limits and Settlement
+
+Configure per-peer credit limits to prevent abuse:
+
+```bash
+# Environment variables
+DEFAULT_CREDIT_LIMIT=1000000  # 1M units default credit
+SETTLEMENT_THRESHOLD=500000    # Settle at 50% credit usage
+```
+
+Peers must settle on-chain before exceeding credit limits, providing economic security.
+
+#### 3. Rate Limiting
+
+Configure packet rate limits per peer (coming soon):
+
+```yaml
+peers:
+  - id: unknown-peer
+    maxPacketsPerSecond: 100 # Prevent DoS attacks
+    maxPacketAmount: 1000000 # Cap individual packet size
+```
+
+#### 4. Payment Channel Requirements
+
+Require peers to open payment channels before routing:
+
+```bash
+REQUIRE_PAYMENT_CHANNELS=true
+MIN_CHANNEL_CAPACITY=10000000  # Minimum 10M units per channel
+```
+
+Peers must lock capital in payment channels, providing economic security without BTP authentication.
+
+#### 5. Network-Level Protection
+
+Additional protections at the infrastructure level:
+
+```bash
+# Rate limiting at WebSocket server
+BTP_MAX_CONNECTIONS_PER_IP=10
+BTP_CONNECTION_RATE_LIMIT=5/minute
+
+# Connection limits
+BTP_MAX_TOTAL_CONNECTIONS=1000
+```
+
+**Production Checklist for Permissionless Networks:**
+
+- ✅ Enable `BTP_ALLOW_NOAUTH=true`
+- ✅ Configure credit limits per peer
+- ✅ Set settlement thresholds
+- ✅ Require payment channel deposits
+- ✅ Implement routing policies (allowlist or denylist)
+- ✅ Enable connection rate limiting
+- ✅ Monitor peer behavior and adjust limits
+- ✅ Set up alerts for suspicious activity
 
 ## Testing Your Connection
 
@@ -314,7 +464,7 @@ curl http://localhost:8080/health | jq .peers
 Send a test packet through the network using the CLI tools:
 
 ```bash
-npx @agent-society/connector health --url http://localhost:8080/health
+npx @crosstown/connector health --url http://localhost:8080/health
 ```
 
 ### 4. Monitor Metrics

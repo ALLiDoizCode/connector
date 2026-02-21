@@ -4,7 +4,7 @@
  */
 
 import { RoutingTable } from './routing-table';
-import { RoutingTableEntry } from '@agent-society/shared';
+import { RoutingTableEntry } from '@crosstown/shared';
 
 /**
  * Mock logger for testing log output without console noise

@@ -14,7 +14,7 @@ import {
   PacketType,
   ILPErrorCode,
   serializePacket,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 
@@ -314,6 +314,60 @@ describe('BTPClient', () => {
       );
 
       jest.useRealTimers();
+    });
+
+    it('should support no-auth connection with empty auth token (RFC-0023)', async () => {
+      // Arrange - Create peer with empty auth token
+      const noAuthPeer: Peer = {
+        id: 'connector-noauth',
+        url: 'ws://localhost:3000',
+        authToken: '', // Empty string per RFC-0023
+        connected: false,
+        lastSeen: new Date(),
+      };
+
+      const noAuthClient = new BTPClient(noAuthPeer, 'test-node', mockLogger);
+
+      // Replace WebSocket constructor to use our mock
+      (WebSocket as unknown as jest.Mock).mockImplementation((url: string) => {
+        mockWs = new MockWebSocket(url);
+        return mockWs;
+      });
+
+      const connectPromise = noAuthClient.connect();
+
+      // Wait for WebSocket to be created
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Simulate WebSocket opening
+      mockWs.simulateOpen();
+
+      // Wait for auth message to be sent
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify auth message contains empty secret
+      expect(mockWs.sentMessages.length).toBe(1);
+      const authMsg = parseBTPMessage(mockWs.sentMessages[0]!);
+      expect(authMsg.type).toBe(BTPMessageType.MESSAGE);
+
+      // Decode auth data to verify empty secret
+      const authData = JSON.parse((authMsg.data as BTPData).protocolData[0]!.data.toString('utf8'));
+      expect(authData.peerId).toBe('test-node');
+      expect(authData.secret).toBe(''); // Empty string
+
+      // Simulate server accepting no-auth connection
+      const authResponse = createAuthResponse(authMsg.requestId);
+      mockWs.simulateMessage(serializeBTPMessage(authResponse));
+
+      // Act
+      await connectPromise;
+
+      // Assert
+      expect(noAuthClient.isConnected).toBe(true);
+      expect(noAuthPeer.connected).toBe(true);
+
+      // Cleanup
+      await noAuthClient.disconnect();
     });
 
     it('should disconnect gracefully', async () => {

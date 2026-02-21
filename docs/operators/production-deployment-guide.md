@@ -69,7 +69,7 @@ For experienced operators, here's the fastest path to deployment:
 
 ```bash
 # 1. Run the onboarding wizard
-npx @agent-society/connector setup
+npx @crosstown/connector setup
 
 # 2. Initialize TigerBeetle (one-time)
 docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
@@ -94,7 +94,7 @@ curl http://localhost:8080/health
 Run the onboarding wizard to generate your configuration:
 
 ```bash
-npx @agent-society/connector setup
+npx @crosstown/connector setup
 ```
 
 The wizard will prompt you for:

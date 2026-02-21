@@ -1,6 +1,6 @@
-# @agent-society/connector
+# @crosstown/connector
 
-[![npm](https://img.shields.io/npm/v/@agent-society/connector)](https://www.npmjs.com/package/@agent-society/connector)
+[![npm](https://img.shields.io/npm/v/@crosstown/connector)](https://www.npmjs.com/package/@crosstown/connector)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
 > ILP connector node for AI agent payment networks. Routes messages, tracks balances, settles on-chain.
@@ -10,7 +10,7 @@ This is the core package of the [connector](https://github.com/ALLiDoizCode/conn
 ## Install
 
 ```bash
-npm install @agent-society/connector
+npm install @crosstown/connector
 ```
 
 ## What's Inside
@@ -26,7 +26,7 @@ npm install @agent-society/connector
 ## Quick Example
 
 ```typescript
-import { ConnectorNode, createLogger } from '@agent-society/connector';
+import { ConnectorNode, createLogger } from '@crosstown/connector';
 
 const node = new ConnectorNode('config.yaml', createLogger('my-agent', 'info'));
 
@@ -50,11 +50,52 @@ healthCheckPort: 8080
 peers:
   - id: peer-b
     url: ws://peer-b:3001
-    authToken: secret-token
+    authToken: secret-token # Or "" for no-auth (requires BTP_ALLOW_NOAUTH=true)
 
 routes:
   - prefix: g.peer-b
     nextHop: peer-b
+```
+
+### BTP Authentication
+
+**Two deployment models:**
+
+#### 1. Permissionless Networks (ILP-Gated) - DEFAULT
+
+**Default mode.** For permissionless networks where access control happens at the ILP layer (via routing policies, credit limits, and settlement):
+
+```yaml
+peers:
+  - id: peer-b
+    url: ws://peer-b:3001
+    authToken: '' # Empty = permissionless (default)
+```
+
+No environment configuration needed - permissionless mode is the default.
+
+**Security:** Protection comes from ILP-layer controls (credit limits, settlement requirements, routing policies, payment channels). See [peer-onboarding-guide.md](../../docs/operators/peer-onboarding-guide.md#ilp-layer-gating-production-security) for production security checklist.
+
+#### 2. Private Networks (Authenticated BTP)
+
+For private networks with known peers, disable permissionless mode and configure shared secrets:
+
+```bash
+# Switch to private network mode
+BTP_ALLOW_NOAUTH=false
+```
+
+```yaml
+peers:
+  - id: peer-b
+    url: ws://peer-b:3001
+    authToken: secret-token # Shared secret for bilateral trust
+```
+
+Configure peer secrets via environment variables:
+
+```bash
+BTP_PEER_PEER_B_SECRET=secret-token
 ```
 
 ## Accounting Backend

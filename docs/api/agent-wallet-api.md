@@ -21,7 +21,7 @@ Manages the complete lifecycle of agent wallets from creation to archival.
 **Import:**
 
 ```typescript
-import { AgentWalletLifecycle } from '@agent-society/connector/wallet/agent-wallet-lifecycle';
+import { AgentWalletLifecycle } from '@crosstown/connector/wallet/agent-wallet-lifecycle';
 ```
 
 ### Methods
@@ -205,7 +205,7 @@ Derives agent wallets from HD master seed using BIP-32/BIP-44 standards.
 **Import:**
 
 ```typescript
-import { AgentWalletDerivation } from '@agent-society/connector/wallet/agent-wallet-derivation';
+import { AgentWalletDerivation } from '@crosstown/connector/wallet/agent-wallet-derivation';
 ```
 
 ### Methods
@@ -362,7 +362,7 @@ Tracks agent wallet balances across multiple chains and tokens.
 **Import:**
 
 ```typescript
-import { AgentBalanceTracker } from '@agent-society/connector/wallet/agent-balance-tracker';
+import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
 ```
 
 ### Methods
@@ -487,7 +487,7 @@ Manages payment channels for instant micropayments between agents.
 **Import:**
 
 ```typescript
-import { AgentChannelManager } from '@agent-society/connector/wallet/agent-channel-manager';
+import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-manager';
 ```
 
 ### Methods
@@ -720,7 +720,7 @@ Creates and restores encrypted backups of agent wallets and master seed.
 **Import:**
 
 ```typescript
-import { WalletBackupManager } from '@agent-society/connector/wallet/wallet-backup-manager';
+import { WalletBackupManager } from '@crosstown/connector/wallet/wallet-backup-manager';
 ```
 
 ### Methods

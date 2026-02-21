@@ -6,7 +6,7 @@
 import { BTPClientManager } from './btp-client-manager';
 import { BTPClient, Peer, BTPConnectionError } from './btp-client';
 import { Logger } from '../utils/logger';
-import { ILPPreparePacket, ILPFulfillPacket, PacketType } from '@agent-society/shared';
+import { ILPPreparePacket, ILPFulfillPacket, PacketType } from '@crosstown/shared';
 
 // Mock BTPClient
 jest.mock('./btp-client');

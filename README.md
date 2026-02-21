@@ -84,7 +84,7 @@ The connector handles the hard parts (routing, accounting, settlement) so applic
 ## Install
 
 ```bash
-npm install @agent-society/connector
+npm install @crosstown/connector
 ```
 
 That's it. No external databases required—the connector ships with an in-memory ledger that persists to disk via JSON snapshots. For high-throughput production workloads, you can optionally plug in [TigerBeetle](https://tigerbeetle.com).
@@ -162,7 +162,7 @@ ILP uses a **two-phase commit** protocol with cryptographic escrow:
 - Easier debugging
 
 ```typescript
-import { ConnectorNode, createLogger } from '@agent-society/connector';
+import { ConnectorNode, createLogger } from '@crosstown/connector';
 
 const logger = createLogger('my-agent', 'info');
 const node = new ConnectorNode('config.yaml', logger);
@@ -401,13 +401,13 @@ The connector supports two deployment modes via the `deploymentMode` configurati
 
 This repo is a monorepo with multiple packages:
 
-| Package                                                      | Description                                           |
-| ------------------------------------------------------------ | ----------------------------------------------------- |
-| [`@agent-society/connector`](packages/connector)             | Connector node — routing, accounting, settlement, CLI |
-| [`@agent-society/shared`](packages/shared)                   | Shared types and OER codec utilities                  |
-| [`@agent-society/contracts`](packages/contracts)             | EVM payment channel smart contracts                   |
-| [`@agent-society/contracts-aptos`](packages/contracts-aptos) | Aptos payment channel smart contracts (Move)          |
-| [`@agent-society/dashboard`](packages/dashboard)             | Real-time network visualization UI                    |
+| Package                                                  | Description                                           |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| [`@crosstown/connector`](packages/connector)             | Connector node — routing, accounting, settlement, CLI |
+| [`@crosstown/shared`](packages/shared)                   | Shared types and OER codec utilities                  |
+| [`@crosstown/contracts`](packages/contracts)             | EVM payment channel smart contracts                   |
+| [`@crosstown/contracts-aptos`](packages/contracts-aptos) | Aptos payment channel smart contracts (Move)          |
+| [`@crosstown/dashboard`](packages/dashboard)             | Real-time network visualization UI                    |
 
 ## Explorer UI
 
@@ -436,7 +436,7 @@ Perfect for development and debugging. Disable in production.
 
 ```typescript
 import { createCrosstownNode } from '@crosstown/core';
-import { ConnectorNode } from '@agent-society/connector';
+import { ConnectorNode } from '@crosstown/connector';
 
 // 1. Create connector (payment infrastructure)
 const connector = new ConnectorNode('config.yaml', logger);
@@ -466,12 +466,12 @@ await node.start();
 ```
 ┌─────────────────────────────────────────────┐
 │  Your Agent                                  │
-│  import @agent-society/connector             │
+│  import @crosstown/connector             │
 │  setPacketHandler() + sendPacket()           │
 └──────────────────┬──────────────────────────┘
                    │ (same process)
 ┌──────────────────▼──────────────────────────┐
-│  @agent-society/connector                   │
+│  @crosstown/connector                   │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐    │
 │  │ Routing  │ │ BTP/WS   │ │ Ledger   │    │
 │  │ Table    │ │ Peers    │ │ Accounts │    │

@@ -31,7 +31,7 @@ import {
   isValidILPAddress,
   ILPPreparePacket,
   ILPRejectPacket,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 
 // Acceptance tests have 5 minute timeout per test
 jest.setTimeout(300000);

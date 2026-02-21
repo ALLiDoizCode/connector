@@ -221,7 +221,7 @@ ls -lh /secure/backups/ | tail -20
 
 ```typescript
 // Test authentication
-import { AgentWalletAuthentication } from '@agent-society/connector/wallet/wallet-authentication';
+import { AgentWalletAuthentication } from '@crosstown/connector/wallet/wallet-authentication';
 
 const auth = new AgentWalletAuthentication();
 

@@ -11,7 +11,7 @@
  */
 
 import type { Client } from '@libsql/client';
-import { TelemetryEvent } from '@agent-society/shared';
+import { TelemetryEvent } from '@crosstown/shared';
 import { Logger } from '../utils/logger';
 import { requireOptional } from '../utils/optional-require';
 
