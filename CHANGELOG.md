@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0](https://github.com/ALLiDoizCode/connector/compare/v1.19.0...v1.20.0) (2026-02-21)
+
+### Features
+
+- add nonce retry logic to PaymentChannelSDK and deploy TokenNetworkRegistry ([85c6fda](https://github.com/ALLiDoizCode/connector/commit/85c6fda97b5fe045fba6001cda163fe09cced5a4))
+- **connector:** add deployment mode config and IP allowlist security ([77b0cd9](https://github.com/ALLiDoizCode/connector/commit/77b0cd9ed3f0d94e1048bd75c74fc943509bf0f9))
+
 ## [Unreleased]
 
 ### Added
