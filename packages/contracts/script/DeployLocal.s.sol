@@ -4,10 +4,11 @@ pragma solidity ^0.8.20;
 import "forge-std/Script.sol";
 import "../test/mocks/MockERC20.sol";
 import "../src/TokenNetwork.sol";
+import "../src/TokenNetworkRegistry.sol";
 
 /**
  * @title DeployLocalScript
- * @notice Deploys MockERC20 token and TokenNetwork for local testing with Anvil
+ * @notice Deploys MockERC20 token, TokenNetworkRegistry, and TokenNetwork for local testing with Anvil
  * @dev Run with: forge script script/DeployLocal.s.sol --rpc-url http://localhost:8545 --broadcast
  */
 contract DeployLocalScript is Script {
@@ -28,29 +29,25 @@ contract DeployLocalScript is Script {
         MockERC20 agentToken = new MockERC20("Agent Token", "AGENT", 18);
         console.log("AgentToken deployed to:", address(agentToken));
 
-        // Deploy TokenNetwork for AGENT token
-        // Max deposit: 1 million tokens, Max lifetime: 365 days
-        TokenNetwork tokenNetwork = new TokenNetwork(
-            address(agentToken),
-            1000000 * 10**18,  // maxChannelDeposit
-            365 days          // maxChannelLifetime
-        );
-        console.log("TokenNetwork deployed to:", address(tokenNetwork));
+        // Deploy TokenNetworkRegistry
+        TokenNetworkRegistry registry = new TokenNetworkRegistry();
+        console.log("TokenNetworkRegistry deployed to:", address(registry));
 
-        // Transfer tokens to agent wallets (peer-0 through peer-4)
-        // These are the EVM addresses from docker-compose-agent-test.yml
-        address[] memory agentAddresses = new address[](5);
-        agentAddresses[0] = 0x148CC6F983d310cA7DF667601DcC4fCe632c34D6; // peer-0
-        agentAddresses[1] = 0x2b26320C35e11397b55d24db47af9504D4F9E16E; // peer-1
-        agentAddresses[2] = 0xc1B870D4da06AbB82230017d86E56ba36eAeC834; // peer-2
-        agentAddresses[3] = 0xEDDEa9dA10E96b5E5CC79945A6569981C46Ba9BE; // peer-3
-        agentAddresses[4] = 0xA3E8776eE8730E4822d89514226bdaD70839aF12; // peer-4
+        // Create TokenNetwork for AGENT token through the registry
+        address tokenNetworkAddress = registry.createTokenNetwork(address(agentToken));
+        console.log("TokenNetwork created at:", tokenNetworkAddress);
 
-        uint256 tokensPerAgent = 100000 * 10**18; // 100k tokens each
+        // Transfer tokens to test peer wallets
+        // Anvil test accounts: Account 2 (peer1), Account 3 (peer2)
+        address[] memory peerAddresses = new address[](2);
+        peerAddresses[0] = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC; // peer1 (Anvil account 2)
+        peerAddresses[1] = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // peer2 (Anvil account 3)
 
-        for (uint i = 0; i < agentAddresses.length; i++) {
-            agentToken.transfer(agentAddresses[i], tokensPerAgent);
-            console.log("Transferred 100k AGENT to:", agentAddresses[i]);
+        uint256 tokensPerPeer = 10000 * 10**18; // 10k tokens each
+
+        for (uint i = 0; i < peerAddresses.length; i++) {
+            agentToken.transfer(peerAddresses[i], tokensPerPeer);
+            console.log("Transferred 10k AGENT to:", peerAddresses[i]);
         }
 
         vm.stopBroadcast();
@@ -59,6 +56,7 @@ contract DeployLocalScript is Script {
         console.log("");
         console.log("=== DEPLOYMENT COMPLETE ===");
         console.log("AGENT_TOKEN_ADDRESS=%s", address(agentToken));
-        console.log("TOKEN_NETWORK_ADDRESS=%s", address(tokenNetwork));
+        console.log("TOKEN_NETWORK_REGISTRY_ADDRESS=%s", address(registry));
+        console.log("TOKEN_NETWORK_ADDRESS=%s", tokenNetworkAddress);
     }
 }

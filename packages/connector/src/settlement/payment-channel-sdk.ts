@@ -15,7 +15,7 @@ import type {
   ChannelClosedEvent,
   ChannelSettledEvent,
   ChannelCooperativeSettledEvent,
-} from '@agent-society/shared';
+} from '@crosstown/shared';
 import { getDomainSeparator, getBalanceProofTypes } from './eip712-helper';
 import type { Logger } from '../utils/logger';
 import type { KeyManager } from '../security/key-manager';
@@ -368,7 +368,47 @@ export class PaymentChannelSDK {
         tokenNetworkAddress,
       });
 
-      const approveTx = await token.approve!(tokenNetworkAddress, maxApproval);
+      // Retry approve transaction with fresh nonce if nonce error occurs
+      let approveTx;
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (retries < maxRetries) {
+        try {
+          // Explicitly fetch fresh nonce for each attempt
+          const currentNonce = await this.provider.getTransactionCount(myAddress, 'pending');
+          this.logger.debug('Sending approve transaction', {
+            channelId,
+            nonce: currentNonce,
+            attempt: retries + 1,
+          });
+
+          approveTx = await token.approve!(tokenNetworkAddress, maxApproval, {
+            nonce: currentNonce,
+          });
+          break; // Success, exit retry loop
+        } catch (error: unknown) {
+          const err = error as { code?: string; message?: string };
+          if (err.code === 'NONCE_EXPIRED' && retries < maxRetries - 1) {
+            this.logger.warn('Nonce error on approve, retrying with fresh nonce', {
+              channelId,
+              attempt: retries + 1,
+              error: err.message,
+            });
+            retries++;
+            // Wait briefly before retry to allow pending transactions to settle
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else {
+            // Not a nonce error or max retries reached, rethrow
+            throw error;
+          }
+        }
+      }
+
+      if (!approveTx) {
+        throw new Error('Failed to send approve transaction after retries');
+      }
+
       await approveTx.wait();
 
       this.logger.debug('Token approval confirmed', {
@@ -384,9 +424,45 @@ export class PaymentChannelSDK {
       });
     }
 
-    // Call setTotalDeposit
-    const tx = await tokenNetwork.setTotalDeposit!(channelId, myAddress, newTotalDeposit);
-    await tx.wait();
+    // Call setTotalDeposit with retry logic for nonce errors
+    let depositTx;
+    let depositRetries = 0;
+    const maxDepositRetries = 3;
+
+    while (depositRetries < maxDepositRetries) {
+      try {
+        const currentNonce = await this.provider.getTransactionCount(myAddress, 'pending');
+        this.logger.debug('Sending setTotalDeposit transaction', {
+          channelId,
+          nonce: currentNonce,
+          attempt: depositRetries + 1,
+        });
+
+        depositTx = await tokenNetwork.setTotalDeposit!(channelId, myAddress, newTotalDeposit, {
+          nonce: currentNonce,
+        });
+        break;
+      } catch (error: unknown) {
+        const err = error as { code?: string; message?: string };
+        if (err.code === 'NONCE_EXPIRED' && depositRetries < maxDepositRetries - 1) {
+          this.logger.warn('Nonce error on setTotalDeposit, retrying', {
+            channelId,
+            attempt: depositRetries + 1,
+            error: err.message,
+          });
+          depositRetries++;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!depositTx) {
+      throw new Error('Failed to send setTotalDeposit transaction after retries');
+    }
+
+    await depositTx.wait();
 
     // Update cached state
     if (this.channelStateCache.has(channelId)) {
