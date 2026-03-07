@@ -36,6 +36,10 @@ describe('UnifiedSettlementExecutor', () => {
       openChannel: jest.fn().mockResolvedValue({ channelId: '0xabc123', txHash: '0xMockTxHash' }),
       signBalanceProof: jest.fn().mockResolvedValue('0xsignature'),
       getSignerAddress: jest.fn().mockResolvedValue('0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'),
+      getChainId: jest.fn().mockResolvedValue(8453), // Epic 31
+      getTokenNetworkAddress: jest
+        .fn()
+        .mockResolvedValue('0x1234567890123456789012345678901234567890'), // Epic 31
       getChannelState: jest.fn(),
       closeChannel: jest.fn(),
       cooperativeSettle: jest.fn(),
@@ -457,7 +461,7 @@ describe('UnifiedSettlementExecutor', () => {
         expect(mockBTPClientManager.getClientForPeer).toHaveBeenCalledWith('peer-alice');
         expect(mockBTPClientManager.isConnected).toHaveBeenCalledWith('peer-alice');
 
-        // Verify ClaimSender.sendEVMClaim called with correct parameters
+        // Verify ClaimSender.sendEVMClaim called with correct parameters (Epic 31: includes self-describing fields)
         expect(mockClaimSender.sendEVMClaim).toHaveBeenCalledWith(
           'peer-alice',
           mockBTPClient,
@@ -467,7 +471,10 @@ describe('UnifiedSettlementExecutor', () => {
           '0', // lockedAmount
           '0x0000000000000000000000000000000000000000000000000000000000000000', // locksRoot
           '0xsignature', // signature from mockEVMChannelSDK
-          '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb' // signerAddress
+          '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb', // signerAddress
+          8453, // chainId (Epic 31)
+          '0x1234567890123456789012345678901234567890', // tokenNetworkAddress (Epic 31)
+          '0xUSDCAddress' // tokenAddress (Epic 31)
         );
 
         // Verify success logged

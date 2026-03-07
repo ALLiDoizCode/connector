@@ -46,6 +46,13 @@ export interface BaseClaimMessage {
  * - `locksRoot`: Merkle root of locked transfers (32-byte hex, zeros if no locks)
  * - `signature`: EIP-712 typed signature (hex string)
  * - `signerAddress`: Ethereum address of the signer (0x-prefixed, 40 hex chars)
+ * - `chainId`: (Optional) EVM chain ID (e.g., 8453 for Base, 84532 for Base Sepolia)
+ * - `tokenNetworkAddress`: (Optional) TokenNetwork contract address (0x-prefixed, 40 hex chars)
+ * - `tokenAddress`: (Optional) ERC20 token contract address (0x-prefixed, 40 hex chars)
+ *
+ * The optional self-describing fields enable dynamic on-chain verification of unknown channels
+ * without pre-registration. These fields are cryptographically bound to the EIP-712 signature
+ * via the domain separator (chainId and tokenNetworkAddress are part of the signing domain).
  *
  * Example:
  * ```typescript
@@ -62,6 +69,9 @@ export interface BaseClaimMessage {
  *   locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
  *   signature: '0xabcdef...', // EIP-712 signature
  *   signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+ *   chainId: 8453, // Base mainnet
+ *   tokenNetworkAddress: '0x1234567890123456789012345678901234567890',
+ *   tokenAddress: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
  * };
  * ```
  */
@@ -74,6 +84,9 @@ export interface EVMClaimMessage extends BaseClaimMessage {
   locksRoot: string;
   signature: string;
   signerAddress: string;
+  chainId?: number;
+  tokenNetworkAddress?: string;
+  tokenAddress?: string;
 }
 
 /**
@@ -160,6 +173,35 @@ function validateEVMClaim(claim: Partial<EVMClaimMessage>): void {
   }
   if (!/^\d+$/.test(claim.lockedAmount)) {
     throw new Error('Invalid lockedAmount (expected non-negative integer string)');
+  }
+
+  // Optional self-describing fields validation (Epic 31)
+  if (claim.chainId !== undefined) {
+    if (
+      typeof claim.chainId !== 'number' ||
+      !Number.isInteger(claim.chainId) ||
+      claim.chainId <= 0
+    ) {
+      throw new Error('Invalid chainId (expected positive integer)');
+    }
+  }
+
+  if (claim.tokenNetworkAddress !== undefined) {
+    if (typeof claim.tokenNetworkAddress !== 'string') {
+      throw new Error('Invalid tokenNetworkAddress (expected string)');
+    }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(claim.tokenNetworkAddress)) {
+      throw new Error('Invalid tokenNetworkAddress format (expected 0x-prefixed 40-char hex)');
+    }
+  }
+
+  if (claim.tokenAddress !== undefined) {
+    if (typeof claim.tokenAddress !== 'string') {
+      throw new Error('Invalid tokenAddress (expected string)');
+    }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(claim.tokenAddress)) {
+      throw new Error('Invalid tokenAddress format (expected 0x-prefixed 40-char hex)');
+    }
   }
 }
 
